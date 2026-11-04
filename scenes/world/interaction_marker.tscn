@@ -1,0 +1,21 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/interaction_target.gd" id="1_target"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_marker"]
+size = Vector3(1.2, 1.8, 0.6)
+
+[sub_resource type="BoxMesh" id="BoxMesh_marker"]
+size = Vector3(1.2, 1.8, 0.6)
+
+[node name="CivicInfoPoint" type="StaticBody3D"]
+script = ExtResource("1_target")
+prompt_text = "Civic tip: follow the correct side of the road!"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("BoxShape3D_marker")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.9, 0)
+mesh = SubResource("BoxMesh_marker")

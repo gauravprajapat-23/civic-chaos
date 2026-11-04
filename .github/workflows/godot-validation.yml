@@ -1,0 +1,65 @@
+name: Godot validation
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: godot-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Import, smoke and negative-path validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.4.1
+          use-dotnet: false
+          include-templates: false
+
+      - name: Print engine version
+        run: godot --version
+
+      - name: Import project and parse scripts
+        run: godot --headless --path . --editor --import --quit
+
+      - name: Run scene and resource smoke tests
+        run: godot --headless --path . --script res://tests/smoke_test.gd
+
+      - name: Verify deterministic clock and RNG replay
+        run: godot --headless --path . --script res://tests/determinism_test.gd
+
+      - name: Validate player controller and camera scene
+        run: godot --headless --path . --script res://tests/player_controller_test.gd
+
+      - name: Confirm failing tests return nonzero
+        shell: bash
+        run: |
+          set +e
+          godot --headless --path . --script res://tests/smoke_test.gd -- --force-fail
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "::error::Intentional failure unexpectedly succeeded"
+            exit 1
+          fi
+          echo "Negative-path exit code: $code (expected nonzero)"
+
+      - name: Startup runtime smoke
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 3 2>&1 | tee /tmp/civic-chaos-startup.log
+          grep -q "CIVIC_CHAOS_MAIN_READY" /tmp/civic-chaos-startup.log
