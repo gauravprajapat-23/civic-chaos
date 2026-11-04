@@ -108,6 +108,9 @@ jobs:
       - name: Validate city reputation scoring
         run: godot --headless --path . --script res://tests/city_metrics_test.gd
 
+      - name: Validate player civic interactions
+        run: godot --headless --path . --script res://tests/player_civic_interactions_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
