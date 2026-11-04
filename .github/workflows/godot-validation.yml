@@ -39,6 +39,9 @@ jobs:
       - name: Run scene and resource smoke tests
         run: godot --headless --path . --script res://tests/smoke_test.gd
 
+      - name: Verify deterministic clock and RNG replay
+        run: godot --headless --path . --script res://tests/determinism_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
