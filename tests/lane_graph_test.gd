@@ -19,31 +19,40 @@ func _run() -> void:
     first.next_lane_ids = PackedInt32Array([2])
     var second := _lane(2, PackedVector3Array([Vector3(10, 0, 0), Vector3(20, 0, 0)]))
     if not graph.add_lane(first) or not graph.add_lane(second):
-        return _fail("valid lanes rejected")
+        _fail("valid lanes rejected")
+        return
     if graph.add_lane(first) or graph.add_lane(_lane(-1, PackedVector3Array())):
-        return _fail("duplicate or invalid ID accepted")
+        _fail("duplicate or invalid ID accepted")
+        return
     if not graph.validate().is_empty() or graph.lane_count() != 2:
-        return _fail("valid graph failed validation")
+        _fail("valid graph failed validation")
+        return
     if graph.outgoing_legal_lanes(1, 1) != [2]:
-        return _fail("legal outgoing lane missing")
+        _fail("legal outgoing lane missing")
+        return
     second.allowed_vehicle_mask = 2
     if not graph.outgoing_legal_lanes(1, 1).is_empty():
-        return _fail("vehicle restrictions ignored")
+        _fail("vehicle restrictions ignored")
+        return
     second.allowed_vehicle_mask = 15
     first.next_lane_ids = PackedInt32Array([99])
     if graph.validate().is_empty():
-        return _fail("broken connection accepted")
+        _fail("broken connection accepted")
+        return
     first.next_lane_ids = PackedInt32Array([2])
     second.centerline = PackedVector3Array([Vector3(10, 0, 0), Vector3(10, 0, 0)])
     if second.geometry_errors().is_empty():
-        return _fail("zero-length lane accepted")
+        _fail("zero-length lane accepted")
+        return
     second.centerline = PackedVector3Array([Vector3(100, 0, 0), Vector3(110, 0, 0)])
     if graph.validate().is_empty():
-        return _fail("disconnected geometry accepted")
+        _fail("disconnected geometry accepted")
+        return
     second.centerline = PackedVector3Array([Vector3(10, 0, 0), Vector3(20, 0, 0)])
     second.is_wrong_way_connector = true
     if graph.validate().is_empty() or not graph.outgoing_legal_lanes(1, 1).is_empty():
-        return _fail("wrong-way connector exposed to legal routing")
+        _fail("wrong-way connector exposed to legal routing")
+        return
     print("CIVIC_CHAOS_LANE_GRAPH_PASS")
     quit(0)
 
