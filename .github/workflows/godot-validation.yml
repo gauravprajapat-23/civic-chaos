@@ -57,6 +57,9 @@ jobs:
       - name: Validate four-way road junction
         run: godot --headless --path . --script res://tests/junction_test.gd
 
+      - name: Validate lane-following vehicle movement
+        run: godot --headless --path . --script res://tests/vehicle_agent_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
