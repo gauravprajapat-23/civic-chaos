@@ -48,6 +48,9 @@ jobs:
       - name: Validate lifecycle and save schema
         run: godot --headless --path . --script res://tests/lifecycle_test.gd
 
+      - name: Validate lane graph invariants
+        run: godot --headless --path . --script res://tests/lane_graph_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
