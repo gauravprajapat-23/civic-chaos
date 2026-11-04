@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/road_segment.gd" id="1_road"]
+
+[node name="RoadSegment" type="Node3D"]
+script = ExtResource("1_road")
+
+[node name="RoadMesh" type="MeshInstance3D" parent="."]
