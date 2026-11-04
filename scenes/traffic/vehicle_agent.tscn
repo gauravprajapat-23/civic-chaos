@@ -1,0 +1,24 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/traffic/vehicle_agent.gd" id="1_agent"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_vehicle"]
+size = Vector3(1.6, 1.2, 3.0)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vehicle"]
+size = Vector3(1.6, 1.2, 3.0)
+
+[node name="VehicleAgent" type="Node3D"]
+script = ExtResource("1_agent")
+
+[node name="Visual" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.7, 0)
+mesh = SubResource("BoxMesh_vehicle")
+
+[node name="CollisionBody" type="StaticBody3D" parent="."]
+collision_layer = 4
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CollisionBody"]
+position = Vector3(0, 0.7, 0)
+shape = SubResource("BoxShape3D_vehicle")
