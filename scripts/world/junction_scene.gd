@@ -5,10 +5,12 @@ const Builder = preload("res://scripts/world/junction_builder.gd")
 const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Director = preload("res://scripts/core/simulation_director.gd")
+const SignalController = preload("res://scripts/traffic/traffic_signal_controller.gd")
 
 var road_graph: CivicRoadGraph
 var demo_vehicle: CivicVehicleAgent
 var simulation: SimulationDirector
+var traffic_signals: CivicTrafficSignalController
 
 func _ready() -> void:
     road_graph = Builder.make_test_graph()
@@ -22,10 +24,12 @@ func _ready() -> void:
     if not demo_vehicle.configure(road_graph, PackedInt32Array([1, 4]), Profile.new()):
         push_error("Could not configure demo vehicle")
         return
+    traffic_signals = SignalController.new()
     simulation = Director.new()
     add_child(simulation)
     simulation.register_system(_on_simulation_tick)
 
 func _on_simulation_tick(_tick_index: int, fixed_delta: float) -> void:
+    traffic_signals.advance_fixed(fixed_delta)
     if is_instance_valid(demo_vehicle):
         demo_vehicle.advance_fixed(fixed_delta)
