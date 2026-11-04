@@ -54,6 +54,9 @@ jobs:
       - name: Validate weighted legal lane routing
         run: godot --headless --path . --script res://tests/lane_routing_test.gd
 
+      - name: Validate four-way road junction
+        run: godot --headless --path . --script res://tests/junction_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
