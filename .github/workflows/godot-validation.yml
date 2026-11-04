@@ -60,6 +60,9 @@ jobs:
       - name: Validate lane-following vehicle movement
         run: godot --headless --path . --script res://tests/vehicle_agent_test.gd
 
+      - name: Validate car following and obstacle gaps
+        run: godot --headless --path . --script res://tests/car_following_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
