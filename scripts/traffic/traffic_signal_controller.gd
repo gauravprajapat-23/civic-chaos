@@ -36,12 +36,12 @@ func advance_fixed(delta: float) -> void:
         phase_elapsed += step
         remaining -= step
         if phase_elapsed >= duration - 0.000001:
-            phase = ((int(phase) + 1) % 6) as Phase
+            phase = (int(phase) + 1) % 6
             phase_elapsed = 0.0
             phase_changed.emit(phase_name())
 
 func phase_name() -> String:
-    return Phase.keys()[int(phase)]
+    return ["NS_GREEN", "NS_AMBER", "ALL_RED_NS", "EW_GREEN", "EW_AMBER", "ALL_RED_EW"][int(phase)]
 
 func aspect_for_approach(approach: String) -> String:
     var north_south := approach == "N" or approach == "S"
