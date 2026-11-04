@@ -83,8 +83,8 @@ func try_interact() -> void:
         interaction_message.emit("Nothing to interact with")
         return
     var target: Object = hit["collider"]
-    if target is Node:
-        var node := target as Node
+    if target is Node3D:
+        var node := target as Node3D
         if global_position.distance_to(node.global_position) > interaction_distance:
             interaction_message.emit("Move closer to interact")
             return
