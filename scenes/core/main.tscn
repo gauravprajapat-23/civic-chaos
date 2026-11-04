@@ -1,6 +1,8 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/player/player_root.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/world/interaction_marker.tscn" id="3_marker"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
 size = Vector3(40, 1, 40)
@@ -11,12 +13,11 @@ size = Vector3(40, 1, 40)
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-45, 30, 0)
 
 [node name="Ground" type="StaticBody3D" parent="."]
+position = Vector3(0, -0.5, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
 shape = SubResource("BoxShape3D_ground")
@@ -24,29 +25,29 @@ shape = SubResource("BoxShape3D_ground")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
 mesh = SubResource("BoxMesh_ground")
 
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 9, 16)
-current = true
+[node name="PlayerRoot" parent="." instance=ExtResource("2_player")]
+position = Vector3(0, 0.1, 0)
+
+[node name="CivicInfoPoint" parent="." instance=ExtResource("3_marker")]
+position = Vector3(0, 0, -3)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
-anchors_preset = 15
+[node name="HUD" type="MarginContainer" parent="CanvasLayer"]
+anchors_preset = 1
+anchor_left = 1.0
 anchor_right = 1.0
-anchor_bottom = 1.0
+offset_left = -540.0
+offset_bottom = 110.0
+grow_horizontal = 0
 
-[node name="PanelContainer" type="PanelContainer" parent="CanvasLayer/CenterContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/HUD"]
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/CenterContainer/PanelContainer"]
+[node name="Title" type="Label" parent="CanvasLayer/HUD/VBoxContainer"]
+text = "CIVIC CHAOS | WALKING PROTOTYPE"
 
-[node name="Title" type="Label" parent="CanvasLayer/CenterContainer/PanelContainer/VBoxContainer"]
-text = "CIVIC CHAOS"
-horizontal_alignment = 1
+[node name="Subtitle" type="Label" parent="CanvasLayer/HUD/VBoxContainer"]
+text = "WASD move | Mouse look | Shift sprint | Space jump | E interact | Esc cursor"
 
-[node name="Subtitle" type="Label" parent="CanvasLayer/CenterContainer/PanelContainer/VBoxContainer"]
-text = "Foundation prototype — city systems coming soon"
-horizontal_alignment = 1
-
-[node name="Status" type="Label" parent="CanvasLayer/CenterContainer/PanelContainer/VBoxContainer"]
-text = "Scene ready"
-horizontal_alignment = 1
+[node name="Status" type="Label" parent="CanvasLayer/HUD/VBoxContainer"]
+text = "Explore and approach the civic information point"
