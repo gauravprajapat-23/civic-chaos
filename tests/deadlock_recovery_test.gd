@@ -1,0 +1,37 @@
+extends SceneTree
+
+const Builder = preload("res://scripts/world/junction_builder.gd")
+const Detector = preload("res://scripts/traffic/deadlock_detector.gd")
+const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
+const Router = preload("res://scripts/traffic/lane_router.gd")
+const Recovery = preload("res://scripts/traffic/deadlock_recovery.gd")
+
+func _initialize() -> void:
+    call_deferred("_run")
+
+func _run() -> void:
+    var graph := Builder.make_test_graph()
+    var detector := Detector.new()
+    var slots := Reservations.new()
+    var recovery := Recovery.new()
+    assert(recovery.configure(detector, slots, Router.new(graph)))
+    assert(detector.observe(1, 2, 0))
+    assert(detector.observe(2, 1, 0))
+    assert(detector.advance_to(20))
+    var cycles := detector.detect_cycles()
+    assert(cycles.size() == 1)
+    var result := recovery.plan_recovery(cycles[0], {1: 1, 2: 3}, {1: 4, 2: 6}, 1)
+    assert(result["ok"])
+    assert(result["action"] == "replan")
+    assert(detector.detect_cycles().size() == 1)
+    assert(slots.request(99, PackedStringArray(["center"]), 20, 40)["granted"])
+    assert(slots.advance_to(20))
+    assert(slots.occupy(99, "center"))
+    assert(not recovery.repair_stale_reservation(99, "center"))
+    assert(slots.occupant("center") == 99)
+    assert(not slots.request(1, PackedStringArray(["center"]), 20, 30)["granted"])
+    assert(recovery.plan_recovery(cycles[0], {1: 1, 2: 3}, {1: 4, 2: 6}, 1, PackedInt32Array([4, 6]))["ok"] == false)
+    recovery.acknowledge_recovery(1)
+    assert(detector.detect_cycles().is_empty())
+    print("CIVIC_CHAOS_DEADLOCK_RECOVERY_PASS")
+    quit(0)
