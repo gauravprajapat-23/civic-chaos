@@ -1,10 +1,10 @@
 ; Engine configuration file.
-; Civic Chaos — foundation scaffold (Godot 4.x)
+; Civic Chaos — Godot 4.x foundation
 config_version=5
 
 [application]
 config/name="Civic Chaos"
-run/main_scene="res://scenes/core/main.tscn"
+run/main_scene="res://scenes/core/menu.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
 [rendering]
