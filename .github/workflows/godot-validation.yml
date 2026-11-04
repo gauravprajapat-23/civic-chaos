@@ -72,6 +72,9 @@ jobs:
       - name: Validate seeded traffic spawning and metrics
         run: godot --headless --path . --script res://tests/traffic_spawner_test.gd
 
+      - name: Validate NPC personality and observation snapshots
+        run: godot --headless --path . --script res://tests/npc_personality_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
