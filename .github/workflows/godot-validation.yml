@@ -81,6 +81,9 @@ jobs:
       - name: Validate pedestrian navigation and protected crossings
         run: godot --headless --path . --script res://tests/pedestrian_navigation_test.gd
 
+      - name: Validate NPC social influence
+        run: godot --headless --path . --script res://tests/social_influence_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
