@@ -99,6 +99,9 @@ jobs:
       - name: Validate wait-for deadlock detector
         run: godot --headless --path . --script res://tests/deadlock_detector_test.gd
 
+      - name: Validate safe deadlock recovery
+        run: godot --headless --path . --script res://tests/deadlock_recovery_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
