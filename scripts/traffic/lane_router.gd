@@ -56,7 +56,7 @@ func find_route(start_id: int, goal_id: int, vehicle_mask: int, blocked_lanes: P
 func _permitted(lane: CivicLaneData, vehicle_mask: int, blocked_lanes: PackedInt32Array) -> bool:
     return lane != null and not lane.is_wrong_way_connector and lane.is_vehicle_allowed(vehicle_mask) and not blocked_lanes.has(lane.lane_id)
 
-func _heuristic(lane: CivicLaneData, goal: CivicLaneData) -> float:
+func _heuristic(_lane: CivicLaneData, _goal: CivicLaneData) -> float:
     # Admissible lower bound: straight-line distance divided by fastest lane speed.
     # Lane-to-lane transitions are only allowed when endpoints meet within tolerance,
     # so using zero avoids overestimating when small connector gaps exist.
@@ -72,15 +72,15 @@ func _best_open_id(open_set: Array[int], f_score: Dictionary) -> int:
     return best
 
 func _reconstruct(start_id: int, goal_id: int, previous: Dictionary, cost: float) -> Dictionary:
-    var reversed: Array[int] = [goal_id]
+    var reversed_path: Array[int] = [goal_id]
     var current: int = goal_id
     while current != start_id:
         if not previous.has(current):
             return _failure("broken_predecessor")
         current = int(previous[current])
-        reversed.append(current)
-    reversed.reverse()
-    return {"ok": true, "path": PackedInt32Array(reversed), "cost_seconds": cost, "reason": ""}
+        reversed_path.append(current)
+    reversed_path.reverse()
+    return {"ok": true, "path": PackedInt32Array(reversed_path), "cost_seconds": cost, "reason": ""}
 
 func _failure(reason: String) -> Dictionary:
     return {"ok": false, "path": PackedInt32Array(), "cost_seconds": INF, "reason": reason}
