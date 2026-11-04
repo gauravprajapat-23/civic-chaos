@@ -12,6 +12,7 @@ size = Vector3(40, 1, 40)
 size = Vector3(40, 1, 40)
 
 [node name="Main" type="Node3D"]
+process_mode = 3
 script = ExtResource("1_main")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
@@ -27,6 +28,7 @@ shape = SubResource("BoxShape3D_ground")
 mesh = SubResource("BoxMesh_ground")
 
 [node name="PlayerRoot" parent="." instance=ExtResource("2_player")]
+process_mode = 1
 position = Vector3(0, 0.1, 0)
 
 [node name="CivicInfoPoint" parent="." instance=ExtResource("3_marker")]
