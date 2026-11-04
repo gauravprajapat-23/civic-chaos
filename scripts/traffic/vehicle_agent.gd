@@ -15,6 +15,19 @@ var speed_mps: float = 0.0
 var target_speed_mps: float = 0.0
 var stop_requested: bool = false
 var active: bool = false
+@export_range(0.5, 10.0, 0.1) var minimum_gap_m: float = 2.0
+@export_range(0.1, 3.0, 0.1) var reaction_seconds: float = 0.8
+var lead_gap_m: float = INF
+var lead_speed_mps: float = 0.0
+
+func set_lead_observation(gap_m: float, speed: float) -> void:
+    lead_gap_m = maxf(0.0, gap_m)
+    lead_speed_mps = maxf(0.0, speed)
+
+func clear_lead_observation() -> void:
+    lead_gap_m = INF
+    lead_speed_mps = 0.0
+
 
 func configure(graph: CivicRoadGraph, lane_ids: PackedInt32Array, vehicle_profile: CivicVehicleProfile) -> bool:
     active = false
@@ -41,6 +54,7 @@ func configure(graph: CivicRoadGraph, lane_ids: PackedInt32Array, vehicle_profil
     lane_distance_m = 0.0
     target_speed_mps = profile.maximum_speed_mps
     stop_requested = false
+    clear_lead_observation()
     active = true
     _place_on_lane()
     return true
@@ -60,9 +74,14 @@ func advance_fixed(delta: float) -> void:
     if current_route_index == route.size() - 1:
         var remaining: float = maxf(0.0, lane.length_m() - lane_distance_m)
         desired_speed = minf(desired_speed, sqrt(2.0 * profile.braking_mps2 * remaining))
+    if is_finite(lead_gap_m):
+        desired_speed = minf(desired_speed, CivicFollowingController.safe_speed(lead_gap_m, lead_speed_mps, profile.braking_mps2, minimum_gap_m, reaction_seconds))
     var rate: float = profile.acceleration_mps2 if desired_speed > speed_mps else profile.braking_mps2
     var next_speed: float = move_toward(speed_mps, desired_speed, rate * delta)
     var travel: float = 0.5 * (speed_mps + next_speed) * delta
+    if is_finite(lead_gap_m):
+        travel = CivicFollowingController.permitted_travel(travel, lead_gap_m, minimum_gap_m)
+        next_speed = minf(next_speed, travel / delta)
     speed_mps = next_speed
     _travel(travel)
     if active:
