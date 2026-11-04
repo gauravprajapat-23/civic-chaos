@@ -6,11 +6,13 @@ const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Director = preload("res://scripts/core/simulation_director.gd")
 const SignalController = preload("res://scripts/traffic/traffic_signal_controller.gd")
+const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 
 var road_graph: CivicRoadGraph
 var demo_vehicle: CivicVehicleAgent
 var simulation: SimulationDirector
 var traffic_signals: CivicTrafficSignalController
+var intersection_reservations: CivicIntersectionReservations
 
 func _ready() -> void:
     road_graph = Builder.make_test_graph()
@@ -25,11 +27,13 @@ func _ready() -> void:
         push_error("Could not configure demo vehicle")
         return
     traffic_signals = SignalController.new()
+    intersection_reservations = Reservations.new()
     simulation = Director.new()
     add_child(simulation)
     simulation.register_system(_on_simulation_tick)
 
 func _on_simulation_tick(_tick_index: int, fixed_delta: float) -> void:
     traffic_signals.advance_fixed(fixed_delta)
+    intersection_reservations.advance_to(_tick_index)
     if is_instance_valid(demo_vehicle):
         demo_vehicle.advance_fixed(fixed_delta)
