@@ -105,6 +105,9 @@ jobs:
       - name: Validate mission framework
         run: godot --headless --path . --script res://tests/mission_framework_test.gd
 
+      - name: Validate city reputation scoring
+        run: godot --headless --path . --script res://tests/city_metrics_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
