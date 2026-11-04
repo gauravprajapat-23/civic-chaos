@@ -40,6 +40,16 @@ func _run() -> void:
     if not manager.has_method("set_paused") or not manager.has_method("restart_game"):
         _fail("lifecycle API missing")
         return
+    root.add_child(manager)
+    manager.set_paused(true)
+    if not paused:
+        _fail("pause did not affect SceneTree")
+        return
+    manager.set_paused(false)
+    if paused:
+        _fail("resume did not clear SceneTree pause")
+        return
+    root.remove_child(manager)
     manager.free()
     player.free()
     DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
