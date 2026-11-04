@@ -42,6 +42,9 @@ jobs:
       - name: Verify deterministic clock and RNG replay
         run: godot --headless --path . --script res://tests/determinism_test.gd
 
+      - name: Validate player controller and camera scene
+        run: godot --headless --path . --script res://tests/player_controller_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
