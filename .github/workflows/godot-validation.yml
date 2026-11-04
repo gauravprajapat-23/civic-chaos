@@ -45,6 +45,9 @@ jobs:
       - name: Validate player controller and camera scene
         run: godot --headless --path . --script res://tests/player_controller_test.gd
 
+      - name: Validate lifecycle and save schema
+        run: godot --headless --path . --script res://tests/lifecycle_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
@@ -62,4 +65,4 @@ jobs:
         run: |
           set -o pipefail
           godot --headless --path . --quit-after 3 2>&1 | tee /tmp/civic-chaos-startup.log
-          grep -q "CIVIC_CHAOS_MAIN_READY" /tmp/civic-chaos-startup.log
+          grep -q "CIVIC_CHAOS_MENU_READY" /tmp/civic-chaos-startup.log
