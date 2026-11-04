@@ -84,6 +84,9 @@ jobs:
       - name: Validate NPC social influence
         run: godot --headless --path . --script res://tests/social_influence_test.gd
 
+      - name: Validate AI LOD scheduler
+        run: godot --headless --path . --script res://tests/ai_lod_scheduler_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
