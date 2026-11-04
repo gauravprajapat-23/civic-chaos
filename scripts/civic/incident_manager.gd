@@ -67,7 +67,7 @@ static func from_json(data: String) -> CivicIncidentManager:
     if not parsed is Dictionary:
         return null
     var value: Dictionary = parsed
-    if not value.has("incidents") or not value["incidents"] is Array or not value.has("events") or not value["events"] is Array:
+    if not value.has("incidents") or not (value["incidents"] is Array) or not value.has("events") or not (value["events"] is Array):
         return null
     var manager := CivicIncidentManager.new()
     manager.next_id = int(value.get("next_id", 0))
@@ -75,14 +75,14 @@ static func from_json(data: String) -> CivicIncidentManager:
     if manager.next_id < 1 or manager.current_tick < 0:
         return null
     for entry in value["incidents"]:
-        if not entry is Dictionary or not entry.has("id") or not entry.has("state"):
+        if not (entry is Dictionary) or not entry.has("id") or not entry.has("state"):
             return null
         var id := int(entry["id"])
         if id < 1 or manager.incidents.has(id) or not [ACTIVE, ESCALATED, INTERVENTION, RESOLVED].has(entry["state"]):
             return null
         manager.incidents[id] = (entry as Dictionary).duplicate(true)
     for event in value["events"]:
-        if not event is Dictionary:
+        if not (event is Dictionary):
             return null
         manager.event_log.append((event as Dictionary).duplicate(true))
     return manager
