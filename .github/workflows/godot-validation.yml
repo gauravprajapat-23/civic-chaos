@@ -90,6 +90,9 @@ jobs:
       - name: Validate civic incident lifecycle
         run: godot --headless --path . --script res://tests/incident_lifecycle_test.gd
 
+      - name: Validate wrong-way scenario
+        run: godot --headless --path . --script res://tests/wrong_way_scenario_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
