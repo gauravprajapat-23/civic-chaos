@@ -75,7 +75,7 @@ func _apply_camera_pitch() -> void:
 func try_interact() -> void:
     var center := camera.get_viewport().get_visible_rect().size * 0.5
     var origin := camera.project_ray_origin(center)
-    var destination := origin + camera.project_ray_normal(center) * interaction_distance
+    var destination := origin + camera.project_ray_normal(center) * (spring_arm.spring_length + interaction_distance + 1.0)
     var query := PhysicsRayQueryParameters3D.create(origin, destination)
     query.exclude = [get_rid()]
     var hit := get_world_3d().direct_space_state.intersect_ray(query)
@@ -85,6 +85,9 @@ func try_interact() -> void:
     var target: Object = hit["collider"]
     if target is Node:
         var node := target as Node
+        if global_position.distance_to(node.global_position) > interaction_distance:
+            interaction_message.emit("Move closer to interact")
+            return
         if node.has_method("interact"):
             node.call("interact", self)
             interaction_attempted.emit(node)
