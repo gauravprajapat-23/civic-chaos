@@ -13,10 +13,11 @@ static func choose(personality: CivicNpcPersonality, blackboard: CivicNpcBlackbo
     var crossing_clear: bool = obs.get("crossing_clear", false) == true
     var person_needs_help: bool = obs.get("person_needs_help", false) == true
     var safe_to_help: bool = obs.get("safe_to_help", false) == true
+    var influence: float = clampf(float(obs.get("social_influence", 0.0)), -1.0, 1.0)
     var scores: Dictionary = {}
-    scores["wait"] = 0.3 + personality.patience * 0.6 - urgency * 0.2
+    scores["wait"] = 0.3 + personality.patience * 0.6 - urgency * 0.2 + influence * 0.15
     if pedestrian_green and crossing_clear:
-        scores["cross_legally"] = 0.4 + urgency * 0.7 + personality.rule_compliance * 0.4
+        scores["cross_legally"] = 0.4 + urgency * 0.7 + personality.rule_compliance * 0.4 + influence * 0.1
     if person_needs_help and safe_to_help:
         scores["help_person"] = 0.3 + personality.empathy * 0.9 - urgency * 0.15
     # Rush crossing is never permitted when the crossing is unsafe or red.
