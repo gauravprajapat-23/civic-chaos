@@ -7,12 +7,14 @@ const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Director = preload("res://scripts/core/simulation_director.gd")
 const SignalController = preload("res://scripts/traffic/traffic_signal_controller.gd")
 const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
+const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
 
 var road_graph: CivicRoadGraph
 var demo_vehicle: CivicVehicleAgent
 var simulation: SimulationDirector
 var traffic_signals: CivicTrafficSignalController
 var intersection_reservations: CivicIntersectionReservations
+var traffic_spawner: CivicTrafficSpawner
 
 func _ready() -> void:
     road_graph = Builder.make_test_graph()
@@ -21,10 +23,10 @@ func _ready() -> void:
     if not errors.is_empty():
         push_error("Junction graph invalid: %s" % str(errors))
         return
-    demo_vehicle = VehicleScene.instantiate() as CivicVehicleAgent
-    add_child(demo_vehicle)
-    if not demo_vehicle.configure(road_graph, PackedInt32Array([1, 4]), Profile.new()):
-        push_error("Could not configure demo vehicle")
+    traffic_spawner = Spawner.new()
+    add_child(traffic_spawner)
+    if not traffic_spawner.configure(road_graph, 12345):
+        push_error("Could not initialize traffic spawner")
         return
     traffic_signals = SignalController.new()
     intersection_reservations = Reservations.new()
@@ -35,5 +37,5 @@ func _ready() -> void:
 func _on_simulation_tick(_tick_index: int, fixed_delta: float) -> void:
     traffic_signals.advance_fixed(fixed_delta)
     intersection_reservations.advance_to(_tick_index)
-    if is_instance_valid(demo_vehicle):
-        demo_vehicle.advance_fixed(fixed_delta)
+    if is_instance_valid(traffic_spawner):
+        traffic_spawner.advance_fixed(_tick_index, fixed_delta)
