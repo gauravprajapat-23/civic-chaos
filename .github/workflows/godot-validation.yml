@@ -96,6 +96,9 @@ jobs:
       - name: Validate illegal parking capacity
         run: godot --headless --path . --script res://tests/parking_capacity_test.gd
 
+      - name: Validate wait-for deadlock detector
+        run: godot --headless --path . --script res://tests/deadlock_detector_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
