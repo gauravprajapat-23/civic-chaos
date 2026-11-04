@@ -111,6 +111,9 @@ jobs:
       - name: Validate player civic interactions
         run: godot --headless --path . --script res://tests/player_civic_interactions_test.gd
 
+      - name: Validate wrong-way disaster mission
+        run: godot --headless --path . --script res://tests/wrong_way_mission_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
