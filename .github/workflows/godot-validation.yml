@@ -69,6 +69,9 @@ jobs:
       - name: Validate intersection conflict-zone reservations
         run: godot --headless --path . --script res://tests/intersection_reservations_test.gd
 
+      - name: Validate seeded traffic spawning and metrics
+        run: godot --headless --path . --script res://tests/traffic_spawner_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
