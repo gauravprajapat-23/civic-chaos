@@ -74,6 +74,7 @@ func advance_fixed(tick: int, _delta: float, signal_green: bool) -> void:
             if _owns_zone:
                 reservations.release(vehicle_id, junction_zone)
                 _owns_zone = false
+                reservations.cancel(vehicle_id)
             state = State.APPROACH
             # Already past the intersection; continue toward route completion.
         if not vehicle.active:
