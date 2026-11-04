@@ -93,6 +93,9 @@ jobs:
       - name: Validate wrong-way scenario
         run: godot --headless --path . --script res://tests/wrong_way_scenario_test.gd
 
+      - name: Validate illegal parking capacity
+        run: godot --headless --path . --script res://tests/parking_capacity_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
