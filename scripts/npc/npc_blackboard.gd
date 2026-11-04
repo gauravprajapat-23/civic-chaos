@@ -27,7 +27,7 @@ static func from_json(json_text: String) -> CivicNpcBlackboard:
     if not parsed is Dictionary:
         return null
     var data: Dictionary = parsed
-    if not data.has("npc_id") or not data.has("tick_index") or not data.get("observations") is Dictionary:
+    if not data.has("npc_id") or not data.has("tick_index") or not (data.get("observations") is Dictionary):
         return null
     var board := CivicNpcBlackboard.new()
     if not board.update_snapshot(int(data["npc_id"]), int(data["tick_index"]), data["observations"]):
@@ -37,7 +37,7 @@ static func from_json(json_text: String) -> CivicNpcBlackboard:
 static func _is_json_safe(value: Variant) -> bool:
     if value is Dictionary:
         for key in value.keys():
-            if not key is String or not _is_json_safe(value[key]):
+            if not (key is String) or not _is_json_safe(value[key]):
                 return false
         return true
     if value is Array:
