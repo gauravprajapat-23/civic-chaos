@@ -1,0 +1,52 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/main.gd" id="1_main"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-45, 30, 0)
+
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("BoxShape3D_ground")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(40, 1, 40)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("BoxMesh_ground")
+
+[sub_resource type="BoxMesh" id="BoxMesh_ground"]
+size = Vector3(40, 1, 40)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 9, 16)
+current = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="CenterContainer" type="CenterContainer" parent="CanvasLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="PanelContainer" type="PanelContainer" parent="CanvasLayer/CenterContainer"]
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/CenterContainer/PanelContainer"]
+
+[node name="Title" type="Label" parent="CanvasLayer/CenterContainer/PanelContainer/VBoxContainer"]
+text = "CIVIC CHAOS"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CanvasLayer/CenterContainer/PanelContainer/VBoxContainer"]
+text = "Foundation prototype — city systems coming soon"
+horizontal_alignment = 1
+
+[node name="Status" type="Label" parent="CanvasLayer/CenterContainer/PanelContainer/VBoxContainer"]
+text = "Scene ready"
+horizontal_alignment = 1
