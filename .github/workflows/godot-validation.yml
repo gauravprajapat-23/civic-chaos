@@ -66,6 +66,9 @@ jobs:
       - name: Validate traffic signal phase timing
         run: godot --headless --path . --script res://tests/signal_phases_test.gd
 
+      - name: Validate intersection conflict-zone reservations
+        run: godot --headless --path . --script res://tests/intersection_reservations_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
