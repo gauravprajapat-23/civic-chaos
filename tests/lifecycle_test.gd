@@ -14,25 +14,32 @@ func _run() -> void:
     player.rotation.y = 0.75
     var sample := {"player": {"x": 3.25, "y": 1.0, "z": -7.5, "yaw": 0.75}}
     if not Repo.write_save(sample, path):
-        return _fail("save write failed")
+        _fail("save write failed")
+        return
     var loaded: Dictionary = Repo.read_save(path)
     if loaded.get("version") != 1 or loaded.get("player", {}).get("x") != 3.25:
-        return _fail("round-trip mismatch")
+        _fail("round-trip mismatch")
+        return
     var broken := FileAccess.open(path, FileAccess.WRITE)
     broken.store_string("{not valid json")
     broken.close()
     if not Repo.read_save(path).is_empty():
-        return _fail("corrupt save accepted")
+        _fail("corrupt save accepted")
+        return
     if Repo.write_save({"player": {"x": 0.0}}, path):
-        return _fail("incomplete save accepted")
+        _fail("incomplete save accepted")
+        return
     if not ResourceLoader.exists("res://scenes/core/menu.tscn"):
-        return _fail("menu scene missing")
+        _fail("menu scene missing")
+        return
     var menu := load("res://scenes/core/menu.tscn") as PackedScene
     if menu == null or menu.instantiate() == null:
-        return _fail("menu scene invalid")
+        _fail("menu scene invalid")
+        return
     var manager := Lifecycle.new()
     if not manager.has_method("set_paused") or not manager.has_method("restart_game"):
-        return _fail("lifecycle API missing")
+        _fail("lifecycle API missing")
+        return
     manager.free()
     player.free()
     DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
