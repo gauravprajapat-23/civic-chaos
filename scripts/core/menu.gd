@@ -3,6 +3,7 @@ extends Control
 
 func _ready() -> void:
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    print("CIVIC_CHAOS_MENU_READY")
 
 func _on_start_pressed() -> void:
     get_tree().change_scene_to_file("res://scenes/core/main.tscn")
