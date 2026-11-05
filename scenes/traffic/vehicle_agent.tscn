@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/traffic/vehicle_agent.gd" id="1_agent"]
 
@@ -19,6 +19,16 @@ roughness = 0.2
 [sub_resource type="BoxMesh" id="CabinMesh"]
 size = Vector3(1.35, 0.55, 1.5)
 
+[sub_resource type="CylinderMesh" id="WheelMesh"]
+top_radius = 0.34
+bottom_radius = 0.34
+height = 0.18
+radial_segments = 12
+
+[sub_resource type="StandardMaterial3D" id="Rubber"]
+albedo_color = Color(0.07, 0.08, 0.09, 1)
+roughness = 1.0
+
 [node name="VehicleAgent" type="Node3D"]
 script = ExtResource("1_agent")
 
@@ -31,6 +41,31 @@ material_override = SubResource("CarPaint")
 position = Vector3(0, 1.46, -0.15)
 mesh = SubResource("CabinMesh")
 material_override = SubResource("WindowGlass")
+
+
+[node name="Wheel_L_Front" type="MeshInstance3D" parent="."]
+position = Vector3(-0.83, 0.36, -0.95)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("WheelMesh")
+material_override = SubResource("Rubber")
+
+[node name="Wheel_L_Rear" type="MeshInstance3D" parent="."]
+position = Vector3(-0.83, 0.36, 0.95)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("WheelMesh")
+material_override = SubResource("Rubber")
+
+[node name="Wheel_R_Front" type="MeshInstance3D" parent="."]
+position = Vector3(0.83, 0.36, -0.95)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("WheelMesh")
+material_override = SubResource("Rubber")
+
+[node name="Wheel_R_Rear" type="MeshInstance3D" parent="."]
+position = Vector3(0.83, 0.36, 0.95)
+rotation_degrees = Vector3(0, 0, 90)
+mesh = SubResource("WheelMesh")
+material_override = SubResource("Rubber")
 
 [node name="CollisionBody" type="StaticBody3D" parent="."]
 collision_layer = 4

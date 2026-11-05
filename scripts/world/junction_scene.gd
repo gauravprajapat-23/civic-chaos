@@ -18,7 +18,9 @@ var traffic_spawner: CivicTrafficSpawner
 
 func _ready() -> void:
     road_graph = Builder.make_test_graph()
-    Builder.make_road_visuals(self)
+    # The playable district already owns the road surface. Avoid overlapping meshes.
+    if get_parent() == null or get_parent().get_node_or_null("Neighborhood") == null:
+        Builder.make_road_visuals(self)
     var errors := road_graph.validate()
     if not errors.is_empty():
         push_error("Junction graph invalid: %s" % str(errors))
@@ -30,6 +32,7 @@ func _ready() -> void:
         return
     traffic_signals = SignalController.new()
     intersection_reservations = Reservations.new()
+    traffic_spawner.configure_intersection(traffic_signals, intersection_reservations)
     simulation = Director.new()
     add_child(simulation)
     simulation.register_system(_on_simulation_tick)

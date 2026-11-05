@@ -9,6 +9,7 @@ const StatusHUD = preload("res://scripts/ui/civic_status_hud.gd")
 const DebugOverlay = preload("res://scripts/debug/debug_overlay.gd")
 const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
 const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
+const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
@@ -77,6 +78,13 @@ func _ready() -> void:
         var reservations: CivicIntersectionReservations = junction.get("intersection_reservations") as CivicIntersectionReservations
         if signals != null:
             pedestrians.configure_traffic(signals, spawner, reservations)
+    var furniture := StreetFurniture.new()
+    furniture.name = "StreetFurniture"
+    add_child(furniture)
+    if junction != null:
+        var live_signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
+        if live_signals != null:
+            furniture.configure_signals(live_signals)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
