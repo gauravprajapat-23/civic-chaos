@@ -58,22 +58,7 @@ func advance_fixed(tick: int, delta: float) -> void:
         observations[vehicle.get_instance_id()] = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
     for vehicle in active_vehicles:
         var observation: Dictionary = observations[vehicle.get_instance_id()]
-        # Treat a red/amber stop line as a stationary virtual lead vehicle.
-        var entry_lane: int = vehicle.route[0] if not vehicle.route.is_empty() else -1
-        if traffic_signals != null and vehicle.current_route_index == 0 and entry_lane >= 0:
-            var approach: String = {1: "N", 3: "E", 5: "S", 7: "W"}.get(entry_lane, "")
-            var signal: String = traffic_signals.aspect_for_approach(approach)
-            var lane: CivicLaneData = road_graph.get_lane(entry_lane)
-            if lane != null:
-                var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
-                var gap: float = stop_distance - vehicle.lane_distance_m
-                var pedestrian_occupied: bool = false
-                if crossing_reservations != null:
-                    pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
-                if gap >= 0.0 and (signal != "green" or pedestrian_occupied):
-                    var safe_gap: float = maxf(0.0, gap + vehicle.minimum_gap_m)
-                    if not observation.get("detected", false) or safe_gap < float(observation["gap_m"]):
-                        observation = {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
+        observation = apply_stop_line_observation(vehicle, observation)
         if observation.get("detected", false):
             vehicle.set_lead_observation(float(observation["gap_m"]), float(observation["lead_speed_mps"]))
         else:
@@ -92,6 +77,26 @@ func advance_fixed(tick: int, delta: float) -> void:
     if tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
         try_spawn()
     work_budget.record_duration_us(Time.get_ticks_usec() - started_us)
+
+func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation: Dictionary) -> Dictionary:
+    var observation: Dictionary = initial_observation.duplicate()
+    # Treat a red/amber stop line as a stationary virtual lead vehicle.
+    var entry_lane: int = vehicle.route[0] if not vehicle.route.is_empty() else -1
+    if traffic_signals != null and vehicle.current_route_index == 0 and entry_lane >= 0:
+        var approach: String = {1: "N", 3: "E", 5: "S", 7: "W"}.get(entry_lane, "")
+        var signal: String = traffic_signals.aspect_for_approach(approach)
+        var lane: CivicLaneData = road_graph.get_lane(entry_lane)
+        if lane != null:
+            var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
+            var gap: float = stop_distance - vehicle.lane_distance_m
+            var pedestrian_occupied: bool = false
+            if crossing_reservations != null:
+                pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
+            if gap >= 0.0 and (signal != "green" or pedestrian_occupied):
+                var safe_gap: float = maxf(0.0, gap + vehicle.minimum_gap_m)
+                if not observation.get("detected", false) or safe_gap < float(observation["gap_m"]):
+                    observation = {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
+    return observation
 
 func try_spawn() -> bool:
     if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
