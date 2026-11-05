@@ -22,7 +22,7 @@ func _run() -> void:
     assert(next["id"] != first["id"])
     var restored := Manager.from_json(m.to_json())
     assert(restored != null)
-    assert(restored.snapshot() == m.snapshot())
+    assert(JSON.stringify(restored.snapshot()) == JSON.stringify(m.snapshot()))
     assert(restored.event_log.size() == 5)
     assert(Manager.from_json("broken") == null)
     print("CIVIC_CHAOS_INCIDENT_PASS")
