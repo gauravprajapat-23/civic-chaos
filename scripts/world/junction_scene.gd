@@ -32,6 +32,7 @@ func _ready() -> void:
         return
     traffic_signals = SignalController.new()
     intersection_reservations = Reservations.new()
+    traffic_spawner.configure_intersection(traffic_signals, intersection_reservations)
     simulation = Director.new()
     add_child(simulation)
     simulation.register_system(_on_simulation_tick)
