@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/traffic/vehicle_agent.gd" id="1_agent"]
 
@@ -8,12 +8,29 @@ size = Vector3(1.6, 1.2, 3.0)
 [sub_resource type="BoxShape3D" id="BoxShape3D_vehicle"]
 size = Vector3(1.6, 1.2, 3.0)
 
+[sub_resource type="StandardMaterial3D" id="CarPaint"]
+albedo_color = Color(0.12, 0.49, 0.78, 1)
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="WindowGlass"]
+albedo_color = Color(0.10, 0.16, 0.20, 1)
+roughness = 0.2
+
+[sub_resource type="BoxMesh" id="CabinMesh"]
+size = Vector3(1.35, 0.55, 1.5)
+
 [node name="VehicleAgent" type="Node3D"]
 script = ExtResource("1_agent")
 
 [node name="Visual" type="MeshInstance3D" parent="."]
 position = Vector3(0, 0.7, 0)
 mesh = SubResource("BoxMesh_vehicle")
+material_override = SubResource("CarPaint")
+
+[node name="Cabin" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.46, -0.15)
+mesh = SubResource("CabinMesh")
+material_override = SubResource("WindowGlass")
 
 [node name="CollisionBody" type="StaticBody3D" parent="."]
 collision_layer = 4
