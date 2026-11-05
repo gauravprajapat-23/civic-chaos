@@ -6,6 +6,8 @@ extends Node3D
 @onready var lifecycle: CivicGameLifecycle = $GameLifecycle
 @onready var pause_panel: Control = $CanvasLayer/PausePanel
 const StatusHUD = preload("res://scripts/ui/civic_status_hud.gd")
+const DebugOverlay = preload("res://scripts/debug/debug_overlay.gd")
+var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
 
 func _enter_tree() -> void:
@@ -21,6 +23,8 @@ func _enter_tree() -> void:
     _bind_key("load_game", KEY_F9)
     _bind_key("restart_game", KEY_F10)
     _bind_key("return_to_menu", KEY_F12)
+    _bind_key("toggle_ai_debug", KEY_F3)
+    _bind_key("export_ai_debug", KEY_F4)
     for action in ["look_left", "look_right", "look_up", "look_down"]:
         if not InputMap.has_action(action):
             InputMap.add_action(action)
@@ -41,12 +45,19 @@ func _ready() -> void:
     civic_hud.name = "CivicStatusHUD"
     $CanvasLayer.add_child(civic_hud)
     civic_hud.render_state({"feedback": "Explore district | E interact"})
+    debug_overlay = DebugOverlay.new()
+    debug_overlay.name = "AIDebugOverlay"
+    add_child(debug_overlay)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event.pressed or event.echo:
         return
-    if event.is_action_pressed("pause_game"):
+    if event.is_action_pressed("toggle_ai_debug"):
+        debug_overlay.set_enabled(not debug_overlay.enabled)
+    elif event.is_action_pressed("export_ai_debug"):
+        _on_interaction_message("AI telemetry exported" if debug_overlay.export_snapshot() else "AI telemetry export failed")
+    elif event.is_action_pressed("pause_game"):
         _toggle_pause()
     elif event.is_action_pressed("save_game"):
         lifecycle.save_player(player)
