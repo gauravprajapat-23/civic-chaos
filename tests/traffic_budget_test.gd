@@ -1,0 +1,26 @@
+extends SceneTree
+const Budget = preload("res://scripts/traffic/traffic_budget.gd")
+
+func _initialize() -> void:
+    var budget := Budget.new()
+    assert(not budget.configure(0, 4))
+    assert(budget.configure(12, 2, 4))
+    var ids := PackedInt32Array([10, 20, 30, 40, 50])
+    assert(budget.select_decisions(1, ids) == PackedInt32Array([10, 20]))
+    assert(budget.select_decisions(2, ids) == PackedInt32Array([30, 40]))
+    assert(budget.select_decisions(3, ids) == PackedInt32Array([50, 10]))
+    assert(budget.select_decisions(3, ids).is_empty())
+    assert(budget.sensor_due(4, 0))
+    assert(not budget.sensor_due(5, 0))
+    budget.update_sensor(10, {"gap": 3.0})
+    assert(budget.cached_sensor(10)["gap"] == 3.0)
+    budget.prune(PackedInt32Array([20]))
+    assert(budget.cached_sensor(10).is_empty())
+    for i in range(130):
+        budget.record_duration_us(i)
+    var metrics := budget.metrics()
+    assert(metrics["sample_count"] == 120)
+    assert(metrics["peak_us"] == 129)
+    assert(metrics["average_us"] > 60.0)
+    print("CIVIC_CHAOS_TRAFFIC_BUDGET_PASS")
+    quit(0)
