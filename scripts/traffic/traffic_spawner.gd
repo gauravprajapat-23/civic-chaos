@@ -86,6 +86,10 @@ func try_spawn() -> bool:
             return false
     var destination: int = exits[rng.randi_range(0, exits.size() - 1)]
     var vehicle := VehicleScene.instantiate() as CivicVehicleAgent
+    if vehicle == null:
+        push_error("Vehicle scene did not instantiate as CivicVehicleAgent")
+        rejected_total += 1
+        return false
     add_child(vehicle)
     if not vehicle.configure(road_graph, PackedInt32Array([entry, destination]), Profile.new()):
         vehicle.queue_free()
