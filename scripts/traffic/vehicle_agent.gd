@@ -7,6 +7,13 @@ signal route_rejected(reason: String)
 
 @export var profile: CivicVehicleProfile
 
+var feedback: CivicAgentFeedback
+
+func _ready() -> void:
+    feedback = CivicAgentFeedback.new()
+    feedback.name = "AgentFeedback"
+    add_child(feedback)
+
 var road_graph: CivicRoadGraph
 var route: PackedInt32Array = PackedInt32Array()
 var current_route_index: int = 0
@@ -86,6 +93,8 @@ func advance_fixed(delta: float) -> void:
     _travel(travel)
     if active:
         _place_on_lane()
+    if feedback != null:
+        feedback.observe_vehicle(speed_mps, active, stop_requested)
 
 func _travel(distance: float) -> void:
     var remaining := distance
