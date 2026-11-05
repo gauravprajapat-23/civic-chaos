@@ -129,6 +129,9 @@ jobs:
       - name: Validate AI debug telemetry
         run: godot --headless --path . --script res://tests/debug_telemetry_test.gd
 
+      - name: Validate touch controls
+        run: godot --headless --path . --script res://tests/touch_controls_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
