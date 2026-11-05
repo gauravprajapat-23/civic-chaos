@@ -132,6 +132,9 @@ jobs:
       - name: Validate touch controls
         run: godot --headless --path . --script res://tests/touch_controls_test.gd
 
+      - name: Validate mobile graphics LOD
+        run: godot --headless --path . --script res://tests/graphics_lod_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
