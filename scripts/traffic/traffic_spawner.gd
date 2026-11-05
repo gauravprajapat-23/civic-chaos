@@ -70,7 +70,7 @@ func advance_fixed(tick: int, delta: float) -> void:
                 var pedestrian_occupied: bool = false
                 if crossing_reservations != null:
                     pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
-                if gap > 0.0 and (signal != "green" or pedestrian_occupied):
+                if gap >= 0.0 and (signal != "green" or pedestrian_occupied):
                     var safe_gap: float = maxf(0.0, gap + vehicle.minimum_gap_m)
                     if not observation.get("detected", false) or safe_gap < float(observation["gap_m"]):
                         observation = {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
