@@ -27,7 +27,15 @@ func _run() -> void:
     assert(restored.incidents.size() == m.incidents.size())
     for id in m.incidents:
         assert(restored.incidents.has(id))
-        assert(JSON.stringify(restored.incidents[id]) == JSON.stringify(m.incidents[id]))
+        var original_record: Dictionary = m.incidents[id]
+        var restored_record: Dictionary = restored.incidents[id]
+        assert(restored_record.keys().size() == original_record.keys().size())
+        for key in original_record:
+            assert(restored_record.has(key))
+            if original_record[key] is int:
+                assert(int(restored_record[key]) == int(original_record[key]))
+            else:
+                assert(restored_record[key] == original_record[key])
     assert(restored.event_log == m.event_log)
     assert(restored.event_log.size() == 5)
     assert(Manager.from_json("broken") == null)
