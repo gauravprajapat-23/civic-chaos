@@ -45,6 +45,9 @@ func _ready() -> void:
     civic_hud.name = "CivicStatusHUD"
     $CanvasLayer.add_child(civic_hud)
     civic_hud.render_state({"feedback": "Explore district | E interact"})
+    var touch_layer := load("res://scripts/ui/touch_controls.gd").new()
+    touch_layer.name = "TouchControls"
+    add_child(touch_layer)
     debug_overlay = DebugOverlay.new()
     debug_overlay.name = "AIDebugOverlay"
     add_child(debug_overlay)
