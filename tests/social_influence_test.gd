@@ -2,7 +2,7 @@ extends SceneTree
 
 const Personality = preload("res://scripts/npc/npc_personality.gd")
 const Blackboard = preload("res://scripts/npc/npc_blackboard.gd")
-const Engine = preload("res://scripts/npc/npc_utility_engine.gd")
+const UtilityEngine = preload("res://scripts/npc/npc_utility_engine.gd")
 const Influence = preload("res://scripts/npc/social_influence.gd")
 
 func _initialize() -> void:
