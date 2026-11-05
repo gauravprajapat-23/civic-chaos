@@ -70,6 +70,12 @@ func _ready() -> void:
     var pedestrians := DistrictPedestrians.new()
     pedestrians.name = "DistrictPedestrians"
     add_child(pedestrians)
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction != null:
+        var signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
+        var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+        if signals != null:
+            pedestrians.configure_traffic(signals, spawner)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
