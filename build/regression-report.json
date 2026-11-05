@@ -9,7 +9,7 @@
       "markers": [
         "CIVIC_CHAOS_SMOKE_PASS"
       ],
-      "duration_seconds": 0.814
+      "duration_seconds": 0.874
     },
     {
       "test": "determinism_test.gd",
@@ -18,7 +18,7 @@
       "markers": [
         "CIVIC_CHAOS_DETERMINISM_PASS"
       ],
-      "duration_seconds": 0.334,
+      "duration_seconds": 0.635,
       "replay_passed": true
     },
     {
@@ -28,7 +28,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_PASS"
       ],
-      "duration_seconds": 0.318
+      "duration_seconds": 0.633
     },
     {
       "test": "lifecycle_test.gd",
@@ -37,7 +37,7 @@
       "markers": [
         "CIVIC_CHAOS_LIFECYCLE_PASS"
       ],
-      "duration_seconds": 0.324
+      "duration_seconds": 0.741
     },
     {
       "test": "lane_graph_test.gd",
@@ -46,7 +46,7 @@
       "markers": [
         "CIVIC_CHAOS_LANE_GRAPH_PASS"
       ],
-      "duration_seconds": 0.32
+      "duration_seconds": 0.418
     },
     {
       "test": "lane_routing_test.gd",
@@ -55,7 +55,7 @@
       "markers": [
         "CIVIC_CHAOS_ROUTING_PASS"
       ],
-      "duration_seconds": 0.322
+      "duration_seconds": 0.412
     },
     {
       "test": "junction_test.gd",
@@ -64,7 +64,7 @@
       "markers": [
         "CIVIC_CHAOS_JUNCTION_PASS"
       ],
-      "duration_seconds": 0.413
+      "duration_seconds": 0.633
     },
     {
       "test": "vehicle_agent_test.gd",
@@ -73,7 +73,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_PASS"
       ],
-      "duration_seconds": 0.32
+      "duration_seconds": 0.567
     },
     {
       "test": "car_following_test.gd",
@@ -82,7 +82,7 @@
       "markers": [
         "CIVIC_CHAOS_FOLLOWING_PASS"
       ],
-      "duration_seconds": 1.885
+      "duration_seconds": 0.664
     },
     {
       "test": "signal_phases_test.gd",
@@ -91,7 +91,7 @@
       "markers": [
         "CIVIC_CHAOS_SIGNAL_PASS"
       ],
-      "duration_seconds": 0.338
+      "duration_seconds": 0.385
     },
     {
       "test": "intersection_reservations_test.gd",
@@ -100,7 +100,7 @@
       "markers": [
         "CIVIC_CHAOS_RESERVATIONS_PASS"
       ],
-      "duration_seconds": 0.35
+      "duration_seconds": 0.38
     },
     {
       "test": "traffic_spawner_test.gd",
@@ -109,7 +109,7 @@
       "markers": [
         "CIVIC_CHAOS_SPAWNER_PASS"
       ],
-      "duration_seconds": 0.819
+      "duration_seconds": 1.37
     },
     {
       "test": "npc_personality_test.gd",
@@ -118,7 +118,7 @@
       "markers": [
         "CIVIC_CHAOS_NPC_PERSONALITY_PASS"
       ],
-      "duration_seconds": 0.344
+      "duration_seconds": 0.399
     },
     {
       "test": "vehicle_behavior_test.gd",
@@ -127,7 +127,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_BEHAVIOR_PASS"
       ],
-      "duration_seconds": 0.336
+      "duration_seconds": 0.542
     },
     {
       "test": "pedestrian_navigation_test.gd",
@@ -136,7 +136,7 @@
       "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_PASS"
       ],
-      "duration_seconds": 0.332
+      "duration_seconds": 0.601
     },
     {
       "test": "social_influence_test.gd",
@@ -145,7 +145,7 @@
       "markers": [
         "CIVIC_CHAOS_SOCIAL_INFLUENCE_PASS"
       ],
-      "duration_seconds": 0.349
+      "duration_seconds": 0.617
     },
     {
       "test": "ai_lod_scheduler_test.gd",
@@ -154,7 +154,7 @@
       "markers": [
         "CIVIC_CHAOS_AI_LOD_PASS"
       ],
-      "duration_seconds": 0.424
+      "duration_seconds": 0.572
     },
     {
       "test": "incident_lifecycle_test.gd",
@@ -163,7 +163,7 @@
       "markers": [
         "CIVIC_CHAOS_INCIDENT_PASS"
       ],
-      "duration_seconds": 0.342
+      "duration_seconds": 0.61
     },
     {
       "test": "wrong_way_scenario_test.gd",
@@ -172,7 +172,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_PASS"
       ],
-      "duration_seconds": 0.347
+      "duration_seconds": 0.36
     },
     {
       "test": "parking_capacity_test.gd",
@@ -181,7 +181,7 @@
       "markers": [
         "CIVIC_CHAOS_PARKING_PASS"
       ],
-      "duration_seconds": 0.342
+      "duration_seconds": 0.415
     },
     {
       "test": "deadlock_detector_test.gd",
@@ -190,7 +190,7 @@
       "markers": [
         "CIVIC_CHAOS_DEADLOCK_PASS"
       ],
-      "duration_seconds": 0.337
+      "duration_seconds": 0.554
     },
     {
       "test": "deadlock_recovery_test.gd",
@@ -199,7 +199,7 @@
       "markers": [
         "CIVIC_CHAOS_DEADLOCK_RECOVERY_PASS"
       ],
-      "duration_seconds": 0.336
+      "duration_seconds": 0.746
     },
     {
       "test": "mission_framework_test.gd",
@@ -208,7 +208,7 @@
       "markers": [
         "CIVIC_CHAOS_MISSIONS_PASS"
       ],
-      "duration_seconds": 0.325
+      "duration_seconds": 0.494
     },
     {
       "test": "city_metrics_test.gd",
@@ -217,7 +217,7 @@
       "markers": [
         "CIVIC_CHAOS_CITY_METRICS_PASS"
       ],
-      "duration_seconds": 0.33
+      "duration_seconds": 0.552
     },
     {
       "test": "player_civic_interactions_test.gd",
@@ -226,7 +226,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_INTERACTIONS_PASS"
       ],
-      "duration_seconds": 0.332
+      "duration_seconds": 0.828
     },
     {
       "test": "wrong_way_mission_test.gd",
@@ -235,7 +235,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_MISSION_PASS"
       ],
-      "duration_seconds": 0.335,
+      "duration_seconds": 0.713,
       "replay_passed": true
     },
     {
@@ -245,7 +245,7 @@
       "markers": [
         "CIVIC_CHAOS_EVENT_DIRECTOR_PASS"
       ],
-      "duration_seconds": 0.35
+      "duration_seconds": 0.565
     },
     {
       "test": "neighborhood_test.gd",
@@ -254,7 +254,7 @@
       "markers": [
         "CIVIC_CHAOS_NEIGHBORHOOD_PASS"
       ],
-      "duration_seconds": 0.365
+      "duration_seconds": 0.396
     },
     {
       "test": "civic_hud_test.gd",
@@ -263,7 +263,7 @@
       "markers": [
         "CIVIC_CHAOS_HUD_PASS"
       ],
-      "duration_seconds": 0.332
+      "duration_seconds": 0.396
     },
     {
       "test": "agent_feedback_test.gd",
@@ -272,7 +272,7 @@
       "markers": [
         "CIVIC_CHAOS_AGENT_FEEDBACK_PASS"
       ],
-      "duration_seconds": 0.327
+      "duration_seconds": 0.376
     },
     {
       "test": "debug_telemetry_test.gd",
@@ -281,7 +281,7 @@
       "markers": [
         "CIVIC_CHAOS_DEBUG_TELEMETRY_PASS"
       ],
-      "duration_seconds": 0.328
+      "duration_seconds": 0.705
     },
     {
       "test": "touch_controls_test.gd",
@@ -290,7 +290,7 @@
       "markers": [
         "CIVIC_CHAOS_TOUCH_CONTROLS_PASS"
       ],
-      "duration_seconds": 0.329
+      "duration_seconds": 0.44
     },
     {
       "test": "graphics_lod_test.gd",
@@ -299,7 +299,7 @@
       "markers": [
         "CIVIC_CHAOS_GRAPHICS_LOD_PASS"
       ],
-      "duration_seconds": 0.32
+      "duration_seconds": 0.348
     },
     {
       "test": "traffic_budget_test.gd",
@@ -308,14 +308,32 @@
       "markers": [
         "CIVIC_CHAOS_TRAFFIC_BUDGET_PASS"
       ],
-      "duration_seconds": 0.317,
+      "duration_seconds": 0.378,
       "replay_passed": true
+    },
+    {
+      "test": "traffic_stop_line_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "markers": [
+        "CIVIC_CHAOS_TRAFFIC_STOP_LINE_PASS"
+      ],
+      "duration_seconds": 0.538
+    },
+    {
+      "test": "traffic_braking_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "markers": [
+        "CIVIC_CHAOS_TRAFFIC_BRAKING_PASS"
+      ],
+      "duration_seconds": 0.639
     }
   ],
   "passed": true,
   "import": {
     "returncode": 0,
-    "elapsed_seconds": 27.183,
+    "elapsed_seconds": 16.373,
     "output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Started Project initialization (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Scanning file structure...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Loading global class names...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Verifying GDExtensions...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Creating autoload scripts...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Initializing plugins...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Starting file scan...\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mfirst_scan_filesystem\u001b[22m\n\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Started Loading editor (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading editor layout...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading docks...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Reopening scenes...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading central editor layout...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading plugin window layout...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Editor layout ready.\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mloading_editor_layout\u001b[22m\n\u001b[0m\n"
   },
   "negative_path_passed": true
