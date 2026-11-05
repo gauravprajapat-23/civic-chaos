@@ -138,6 +138,20 @@ jobs:
       - name: Validate traffic AI budgets
         run: godot --headless --path . --script res://tests/traffic_budget_test.gd
 
+      - name: Validate regression runner
+        run: python -m unittest discover -s tests -p 'test_regression_runner.py'
+
+      - name: Full regression and seeded replay with evidence
+        run: python tools/run_regression.py --godot godot --report build/regression-report.json
+
+      - name: Upload regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civic-chaos-regression-report
+          path: build/regression-report.json
+          if-no-files-found: warn
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
