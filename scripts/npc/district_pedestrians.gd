@@ -6,6 +6,13 @@ extends Node3D
 @export var district_extent: float = 38.0
 var _walkers: Array[Dictionary] = []
 var _elapsed: float = 0.0
+var _signal_controller: CivicTrafficSignalController
+var _traffic_spawner: CivicTrafficSpawner
+var _walker_progress: Array[float] = []
+
+func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner) -> void:
+    _signal_controller = signals
+    _traffic_spawner = spawner
 
 func _ready() -> void:
     var shirt_colors := [
@@ -25,6 +32,7 @@ func _ready() -> void:
         var right_arm := _part(walker, "RightArm", Vector3(0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
         var left_leg := _part(walker, "LeftLeg", Vector3(-0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
         var right_leg := _part(walker, "RightLeg", Vector3(0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
+        _walker_progress.append(float(index) * 5.0)
         _walkers.append({
             "root": walker, "arms": [left_arm, right_arm], "legs": [left_leg, right_leg],
             "phase": float(index) * 1.7, "speed": 1.0 + float(index % 3) * 0.22,
@@ -47,11 +55,19 @@ func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vec
 func _process(delta: float) -> void:
     _elapsed += delta
     var length: float = district_extent * 1.65
-    for data in _walkers:
+    for index in range(_walkers.size()):
+        var data: Dictionary = _walkers[index]
         var root: Node3D = data["root"]
         var side: int = data["side"]
         var speed: float = data["speed"]
-        var progress: float = fposmod(_elapsed * speed + data["offset"], length) - length * 0.5
+        var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
+        var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
+        var can_walk: bool = true
+        if _signal_controller != null and old_progress < -6.0 and proposed >= -6.0:
+            can_walk = _can_cross(side)
+        if can_walk:
+            _walker_progress[index] += delta * speed
+        var progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         var sidewalk_center: float = 5.0
         match side:
             0:
@@ -66,10 +82,26 @@ func _process(delta: float) -> void:
             3:
                 root.position = Vector3(-progress, 0.2, -sidewalk_center)
                 root.rotation.y = PI * 0.5
-        var swing: float = sin(_elapsed * speed * 7.0 + data["phase"]) * 0.35
+        var swing: float = sin(_elapsed * speed * 7.0 + data["phase"]) * 0.35 if can_walk else 0.0
         var arms: Array = data["arms"]
         var legs: Array = data["legs"]
         arms[0].rotation.x = swing
         arms[1].rotation.x = -swing
         legs[0].rotation.x = -swing
         legs[1].rotation.x = swing
+
+func _can_cross(side: int) -> bool:
+    if _signal_controller == null:
+        return true
+    # Pedestrians cross only while the parallel vehicle axis is stopped.
+    var approach: String = "E" if side < 2 else "N"
+    if _signal_controller.aspect_for_approach(approach) != "red":
+        return false
+    if _traffic_spawner == null:
+        return true
+    for vehicle in _traffic_spawner.active_vehicles:
+        if not is_instance_valid(vehicle) or not vehicle.active:
+            continue
+        if vehicle.global_position.distance_to(Vector3.ZERO) < 7.0:
+            return false
+    return true
