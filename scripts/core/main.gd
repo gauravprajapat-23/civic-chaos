@@ -5,6 +5,8 @@ extends Node3D
 @onready var player: CivicPlayerController = $PlayerRoot
 @onready var lifecycle: CivicGameLifecycle = $GameLifecycle
 @onready var pause_panel: Control = $CanvasLayer/PausePanel
+const StatusHUD = preload("res://scripts/ui/civic_status_hud.gd")
+var civic_hud: CivicStatusHUD
 
 func _enter_tree() -> void:
     _bind_key("move_forward", KEY_W)
@@ -35,6 +37,10 @@ func _ready() -> void:
     player.interaction_message.connect(_on_interaction_message)
     lifecycle.lifecycle_message.connect(_on_interaction_message)
     status_label.text = "F1 pause | F5 save | F9 load | F10 restart | F12 menu"
+    civic_hud = StatusHUD.new()
+    civic_hud.name = "CivicStatusHUD"
+    $CanvasLayer.add_child(civic_hud)
+    civic_hud.render_state({"feedback": "Explore district | E interact"})
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -54,6 +60,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _toggle_pause() -> void:
     lifecycle.set_paused(not get_tree().paused)
     pause_panel.visible = get_tree().paused
+    if civic_hud != null:
+        civic_hud.visible = not get_tree().paused
 
 func _on_resume_pressed() -> void:
     lifecycle.set_paused(false)
@@ -64,3 +72,7 @@ func _on_menu_pressed() -> void:
 
 func _on_interaction_message(message: String) -> void:
     status_label.text = message
+    if civic_hud != null:
+        var state := civic_hud.current_state()
+        state["feedback"] = message
+        civic_hud.render_state(state)
