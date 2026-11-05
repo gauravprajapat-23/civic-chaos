@@ -3,6 +3,8 @@ extends Node3D
 
 var _signal_controller: CivicTrafficSignalController
 var _signal_lamps: Array[Dictionary] = []
+var _lamp_materials: Array[Array] = []
+var _last_aspects: Array[String] = []
 
 func configure_signals(controller: CivicTrafficSignalController) -> void:
     _signal_controller = controller
@@ -62,7 +64,19 @@ func _traffic_light(index: int, location: Vector3) -> void:
     for lamp_index in range(3):
         var color: Color = [Color.RED, Color.YELLOW, Color.GREEN][lamp_index]
         lights.append(_sphere(root, "Lamp_%d" % lamp_index, Vector3(0, 4.5 - float(lamp_index) * 0.48, -0.26), 0.16, color.darkened(0.8)))
-    _signal_lamps.append({"approach": "N" if index % 2 == 0 else "E", "lamps": lights})
+    var materials: Array = []
+    for lamp_index in range(3):
+        var color: Color = [Color.RED, Color.YELLOW, Color.GREEN][lamp_index]
+        var unlit := _material(color.darkened(0.83))
+        var lit := _material(color)
+        lit.emission_enabled = true
+        lit.emission = color
+        lit.emission_energy_multiplier = 1.3
+        materials.append([unlit, lit])
+        lights[lamp_index].material_override = unlit
+    _lamp_materials.append(materials)
+    _last_aspects.append("")
+    _signal_lamps.append({"approach": ["N", "E", "S", "W"][index], "lamps": lights})
 
 func _streetlight(location: Vector3) -> void:
     var root := Node3D.new()
@@ -96,11 +110,13 @@ func _bench(location: Vector3) -> void:
 func _process(_delta: float) -> void:
     if _signal_controller == null:
         return
-    for data in _signal_lamps:
+    for signal_index in range(_signal_lamps.size()):
+        var data: Dictionary = _signal_lamps[signal_index]
         var aspect: String = _signal_controller.aspect_for_approach(data["approach"])
+        if aspect == _last_aspects[signal_index]:
+            continue
+        _last_aspects[signal_index] = aspect
         var lamps: Array = data["lamps"]
         for index in range(lamps.size()):
-            var lamp: MeshInstance3D = lamps[index]
-            var color: Color = [Color.RED, Color.YELLOW, Color.GREEN][index]
             var lit: bool = aspect == ["red", "amber", "green"][index]
-            lamp.material_override = _material(color if lit else color.darkened(0.83))
+            lamps[index].material_override = _lamp_materials[signal_index][index][1 if lit else 0]
