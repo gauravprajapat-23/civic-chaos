@@ -18,7 +18,7 @@ func _run() -> void:
     assert(not mission.report(1, 2.0))
     assert(mission.intervene())
     assert(not mission.intervene())
-    for step in range(5):
+    for step in range(8):
         assert(mission.advance(0))
     assert(mission.status()["queue"] == 0)
     assert(mission.status()["mission"]["state"] == "active")
