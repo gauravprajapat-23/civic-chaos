@@ -10,10 +10,10 @@ extends Resource
 
 func validate() -> PackedStringArray:
     var errors := PackedStringArray()
-    for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
-        var value: float = get(trait)
+    for trait_name in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
+        var value: float = get(trait_name)
         if not is_finite(value) or value < 0.0 or value > 1.0:
-            errors.append("%s_out_of_bounds" % trait)
+            errors.append("%s_out_of_bounds" % trait_name)
     return errors
 
 func to_data() -> Dictionary:
@@ -24,9 +24,9 @@ static func from_data(data: Dictionary) -> Resource:
     if personality_script == null:
         return null
     var personality: Resource = personality_script.new() as Resource
-    for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
-        if data.has(trait):
-            personality.set(trait, float(data[trait]))
+    for trait_name in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
+        if data.has(trait_name):
+            personality.set(trait_name, float(data[trait]))
     return personality
 
 static func seeded(seed: int) -> Resource:
