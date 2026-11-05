@@ -53,6 +53,7 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     body.position = center
     add_child(body)
     var shape := CollisionShape3D.new()
+    shape.name = "CollisionShape3D"
     var box := BoxShape3D.new()
     box.size = size
     shape.shape = box
