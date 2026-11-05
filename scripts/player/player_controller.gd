@@ -25,6 +25,7 @@ var _pitch: float = -0.2
 var _gravity: float = 9.8
 var _look_touch_index: int = -1
 var _last_touch_position := Vector2.ZERO
+var _walk_animation_time: float = 0.0
 
 func _ready() -> void:
     _safe_spawn = global_position
@@ -87,6 +88,7 @@ func _physics_process(delta: float) -> void:
     else:
         velocity.y -= _gravity * delta
     move_and_slide()
+    _animate_walk(delta)
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
 
@@ -119,3 +121,18 @@ func try_interact() -> void:
             interaction_attempted.emit(node)
             return
     interaction_message.emit("No interaction available")
+
+func _animate_walk(delta: float) -> void:
+    var movement: float = Vector2(velocity.x, velocity.z).length()
+    _walk_animation_time += delta * movement * 2.0
+    var swing: float = sin(_walk_animation_time) * minf(movement / maxf(walk_speed, 0.1), 1.5) * 0.55
+    var left_arm := visual.get_node_or_null("LeftArm") as Node3D
+    var right_arm := visual.get_node_or_null("RightArm") as Node3D
+    var left_leg := visual.get_node_or_null("LeftLeg") as Node3D
+    var right_leg := visual.get_node_or_null("RightLeg") as Node3D
+    if left_arm == null or right_arm == null or left_leg == null or right_leg == null:
+        return
+    left_arm.rotation.x = lerpf(left_arm.rotation.x, swing, minf(1.0, delta * 12.0))
+    right_arm.rotation.x = lerpf(right_arm.rotation.x, -swing, minf(1.0, delta * 12.0))
+    left_leg.rotation.x = lerpf(left_leg.rotation.x, -swing, minf(1.0, delta * 12.0))
+    right_leg.rotation.x = lerpf(right_leg.rotation.x, swing, minf(1.0, delta * 12.0))
