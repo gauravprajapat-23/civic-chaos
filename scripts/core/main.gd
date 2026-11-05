@@ -11,6 +11,7 @@ const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
+var _traffic_display_elapsed: float = 0.0
 
 func _enter_tree() -> void:
     _bind_key("move_forward", KEY_W)
@@ -104,3 +105,16 @@ func _on_interaction_message(message: String) -> void:
         var state := civic_hud.current_state()
         state["feedback"] = message
         civic_hud.render_state(state)
+
+func _process(delta: float) -> void:
+    _traffic_display_elapsed += delta
+    if _traffic_display_elapsed < 0.5 or civic_hud == null:
+        return
+    _traffic_display_elapsed = 0.0
+    var junction := get_node_or_null("FourWayJunction")
+    if junction == null or junction.traffic_spawner == null:
+        return
+    var metrics: Dictionary = junction.traffic_spawner.metrics()
+    var state: Dictionary = civic_hud.current_state()
+    state["traffic"] = metrics
+    civic_hud.render_state(state)
