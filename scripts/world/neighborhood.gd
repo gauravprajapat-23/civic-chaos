@@ -35,6 +35,7 @@ func rebuild() -> void:
             _block("Building_%d_%d" % [x, z], center, Vector3(width, height, width))
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
+    _stop_bars(road_half)
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
@@ -117,6 +118,18 @@ func _lane_markings(half: float, road_half: float) -> void:
                 marking.material_override = marking_material
                 marking.position = Vector3(0, 0.025, float(side) * distance) if axis == 0 else Vector3(float(side) * distance, 0.025, 0)
                 add_child(marking)
+
+func _stop_bars(road_half: float) -> void:
+    var paint := _material(Color(0.93, 0.91, 0.82))
+    var offset: float = road_half + sidewalk_width + 4.5
+    for side in [-1, 1]:
+        var sign_value: float = float(side)
+        _facade_panel(self, "StopBar_NS_%d" % side,
+            Vector3(0, 0.052, sign_value * offset),
+            Vector3(road_width - 0.7, 0.012, 0.24), paint)
+        _facade_panel(self, "StopBar_EW_%d" % side,
+            Vector3(sign_value * offset, 0.052, 0),
+            Vector3(0.24, 0.012, road_width - 0.7), paint)
 
 func _curb_accents(half: float, road_half: float) -> void:
     # Thin raised edges add street depth without extra physics or textures.
