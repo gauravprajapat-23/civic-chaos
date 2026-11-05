@@ -74,8 +74,9 @@ func _ready() -> void:
     if junction != null:
         var signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
         var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+        var reservations: CivicIntersectionReservations = junction.get("intersection_reservations") as CivicIntersectionReservations
         if signals != null:
-            pedestrians.configure_traffic(signals, spawner)
+            pedestrians.configure_traffic(signals, spawner, reservations)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
