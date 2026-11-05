@@ -30,9 +30,9 @@ static func seeded(seed: int) -> Resource:
     var rng := RandomNumberGenerator.new()
     rng.seed = seed
     var personality: Resource = load("res://scripts/npc/npc_personality.gd").new()
-    personality.patience = rng.randf()
-    personality.rule_compliance = rng.randf()
-    personality.aggression = rng.randf()
-    personality.empathy = rng.randf()
-    personality.attentiveness = rng.randf()
+    personality.set("patience", rng.randf())
+    personality.set("rule_compliance", rng.randf())
+    personality.set("aggression", rng.randf())
+    personality.set("empathy", rng.randf())
+    personality.set("attentiveness", rng.randf())
     return personality
