@@ -75,6 +75,7 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
         mesh.material_override = _material(building_colors[color_index])
     if block_name.begins_with("Building_"):
         mesh.add_to_group("lod_meshes")
+        _decorate_building(body, size)
 
 func _material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
@@ -98,3 +99,36 @@ func _lane_markings(half: float, road_half: float) -> void:
                 marking.material_override = marking_material
                 marking.position = Vector3(0, 0.025, float(side) * distance) if axis == 0 else Vector3(float(side) * distance, 0.025, 0)
                 add_child(marking)
+
+func _decorate_building(building: Node3D, size: Vector3) -> void:
+    var glass := _material(Color(0.17, 0.31, 0.40))
+    var frame := _material(Color(0.91, 0.88, 0.78))
+    var roof := _material(Color(0.30, 0.32, 0.35))
+    var trim := MeshInstance3D.new()
+    trim.name = "RoofTrim"
+    var trim_mesh := BoxMesh.new()
+    trim_mesh.size = Vector3(size.x + 0.5, 0.3, size.z + 0.5)
+    trim.mesh = trim_mesh
+    trim.position.y = size.y * 0.5 + 0.15
+    trim.material_override = roof
+    building.add_child(trim)
+    var floor_count: int = maxi(1, int(size.y / 2.5))
+    for floor_index in range(floor_count):
+        var y: float = -size.y * 0.5 + 1.7 + float(floor_index) * 2.5
+        for column in range(3):
+            var x: float = -3.0 + float(column) * 3.0
+            _facade_panel(building, "WindowFront_%d_%d" % [floor_index, column], Vector3(x, y, -size.z * 0.5 - 0.025), Vector3(1.25, 1.35, 0.07), glass)
+            _facade_panel(building, "WindowBack_%d_%d" % [floor_index, column], Vector3(x, y, size.z * 0.5 + 0.025), Vector3(1.25, 1.35, 0.07), glass)
+            _facade_panel(building, "WindowSide_%d_%d" % [floor_index, column], Vector3(-size.x * 0.5 - 0.025, y, x), Vector3(0.07, 1.35, 1.25), glass)
+    _facade_panel(building, "Entrance", Vector3(0, -size.y * 0.5 + 1.1, -size.z * 0.5 - 0.05), Vector3(1.7, 2.2, 0.10), roof)
+    _facade_panel(building, "DoorHandle", Vector3(0.6, -size.y * 0.5 + 1.1, -size.z * 0.5 - 0.12), Vector3(0.08, 0.15, 0.05), frame)
+
+func _facade_panel(parent: Node3D, panel_name: String, location: Vector3, dimensions: Vector3, material: StandardMaterial3D) -> void:
+    var panel := MeshInstance3D.new()
+    panel.name = panel_name
+    panel.position = location
+    var panel_mesh := BoxMesh.new()
+    panel_mesh.size = dimensions
+    panel.mesh = panel_mesh
+    panel.material_override = material
+    parent.add_child(panel)
