@@ -26,7 +26,7 @@ static func from_data(data: Dictionary) -> Resource:
     var personality: Resource = personality_script.new() as Resource
     for trait_name in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
         if data.has(trait_name):
-            personality.set(trait_name, float(data[trait]))
+            personality.set(trait_name, float(data[trait_name]))
     return personality
 
 static func seeded(seed: int) -> Resource:
