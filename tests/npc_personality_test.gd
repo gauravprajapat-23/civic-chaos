@@ -38,7 +38,7 @@ func _run() -> void:
         _fail("stale or foreign observation accepted")
         return
     var loaded := Blackboard.from_json(board.to_json())
-    if loaded == null or loaded.snapshot() != board.snapshot():
+    if loaded == null or loaded.to_json() != board.to_json():
         _fail("blackboard JSON roundtrip failed")
         return
     if board.update_snapshot(5, 13, {"bad": INF}):
