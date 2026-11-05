@@ -20,7 +20,7 @@ func to_data() -> Dictionary:
     return {"patience": patience, "rule_compliance": rule_compliance, "aggression": aggression, "empathy": empathy, "attentiveness": attentiveness}
 
 static func from_data(data: Dictionary) -> Resource:
-    var personality := CivicNpcPersonality.new()
+    var personality: Resource = load("res://scripts/npc/npc_personality.gd").new()
     for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
         if data.has(trait):
             personality.set(trait, float(data[trait]))
@@ -29,7 +29,7 @@ static func from_data(data: Dictionary) -> Resource:
 static func seeded(seed: int) -> Resource:
     var rng := RandomNumberGenerator.new()
     rng.seed = seed
-    var personality := CivicNpcPersonality.new()
+    var personality: Resource = load("res://scripts/npc/npc_personality.gd").new()
     personality.patience = rng.randf()
     personality.rule_compliance = rng.randf()
     personality.aggression = rng.randf()
