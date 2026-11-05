@@ -79,7 +79,7 @@ func advance_fixed(delta: float) -> void:
         active = false
         route_rejected.emit("lane_removed")
         return
-    var desired_speed: float = minf(target_speed_mps, profile.maximum_speed_mps, lane.speed_limit_mps)
+    var desired_speed: float = minf(minf(target_speed_mps, profile.maximum_speed_mps), lane.speed_limit_mps)
     if stop_requested:
         desired_speed = 0.0
     # Brake before the final endpoint, without overshooting.
