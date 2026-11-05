@@ -36,7 +36,17 @@ func _run() -> void:
                 assert(int(restored_record[key]) == int(original_record[key]))
             else:
                 assert(restored_record[key] == original_record[key])
-    assert(restored.event_log == m.event_log)
+    assert(restored.event_log.size() == m.event_log.size())
+    for index in range(m.event_log.size()):
+        var expected_event: Dictionary = m.event_log[index]
+        var actual_event: Dictionary = restored.event_log[index]
+        assert(actual_event.keys().size() == expected_event.keys().size())
+        for key in expected_event:
+            assert(actual_event.has(key))
+            if expected_event[key] is int:
+                assert(int(actual_event[key]) == int(expected_event[key]))
+            else:
+                assert(actual_event[key] == expected_event[key])
     assert(restored.event_log.size() == 5)
     assert(Manager.from_json("broken") == null)
     print("CIVIC_CHAOS_INCIDENT_PASS")
