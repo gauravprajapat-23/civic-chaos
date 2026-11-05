@@ -43,7 +43,8 @@ def main():
     args = parser.parse_args()
     workflow = WORKFLOW.read_text(encoding="utf-8")
     tests = list(dict.fromkeys(re.findall(r"res://tests/([\w-]+_test\.gd)", workflow)))
-    tests = [name for name in tests if (ROOT / "tests" / name).is_file()]
+    tests.append("traffic_stop_line_test.gd")
+    tests = list(dict.fromkeys(name for name in tests if (ROOT / "tests" / name).is_file()))
     if not tests:
         print("No regression tests discovered", file=sys.stderr)
         return 1
