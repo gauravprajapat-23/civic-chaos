@@ -49,7 +49,8 @@ def main():
             marker = "CIVIC_CHAOS_" + name.removesuffix("_test.gd").upper() + "_PASS"
             # Existing tests sometimes use different marker names; require a PASS line.
             markers = re.findall(r"CIVIC_CHAOS_[A-Z0-9_]+_PASS", first["output"])
-            ok = first["returncode"] == 0 and bool(markers)
+            engine_error = bool(re.search(r"(?m)^(?:SCRIPT ERROR:|ERROR: Failed to load script|ERROR: Parse Error:)", first["output"]))
+            ok = first["returncode"] == 0 and bool(markers) and not engine_error
             entry = {"test": name, "passed": ok, "exit_code": first["returncode"],
                      "markers": markers, "duration_seconds": first["elapsed_seconds"]}
             if name in REPLAY and ok:
