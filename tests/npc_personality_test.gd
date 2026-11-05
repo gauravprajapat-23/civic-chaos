@@ -7,12 +7,12 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    var first := Personality.seeded(12345)
-    var second := Personality.seeded(12345)
+    var first: CivicNpcPersonality = Personality.seeded(12345) as CivicNpcPersonality
+    var second: CivicNpcPersonality = Personality.seeded(12345) as CivicNpcPersonality
     if not first.validate().is_empty() or first.to_data() != second.to_data():
         _fail("seeded personality invalid or nondeterministic")
         return
-    var restored := Personality.from_data(first.to_data())
+    var restored: CivicNpcPersonality = Personality.from_data(first.to_data()) as CivicNpcPersonality
     if restored.to_data() != first.to_data():
         _fail("personality serialization mismatch")
         return
