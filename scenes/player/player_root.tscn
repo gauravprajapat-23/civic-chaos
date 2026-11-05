@@ -6,15 +6,17 @@
 radius = 0.35
 height = 1.8
 
-[sub_resource type="BoxMesh" id="BodyMesh"]
-size = Vector3(0.6, 0.8, 0.3)
+[sub_resource type="CapsuleMesh" id="BodyMesh"]
+radius = 0.29
+height = 0.84
 
 [sub_resource type="SphereMesh" id="HeadMesh"]
 radius = 0.24
 height = 0.48
 
-[sub_resource type="BoxMesh" id="LimbMesh"]
-size = Vector3(0.19, 0.72, 0.22)
+[sub_resource type="CapsuleMesh" id="LimbMesh"]
+radius = 0.10
+height = 0.72
 
 [sub_resource type="StandardMaterial3D" id="ClothingMaterial"]
 albedo_color = Color(0.12, 0.35, 0.72, 1)
