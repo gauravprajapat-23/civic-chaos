@@ -30,6 +30,7 @@ func rebuild() -> void:
         for z in [-1, 1]:
             var center := Vector3(float(x) * (road_half + 9.0), building_height * 0.5, float(z) * (road_half + 9.0))
             _block("Building_%d_%d" % [x, z], center, Vector3(10, building_height, 10))
+    _lane_markings(half, road_half)
     for arm in range(4):
         var marker := Node3D.new()
         marker.name = "Crossing_%d" % arm
@@ -39,6 +40,7 @@ func rebuild() -> void:
         var stripe := MeshInstance3D.new()
         stripe.mesh = BoxMesh.new()
         stripe.mesh.size = Vector3(road_width, 0.04, 1.2) if arm % 2 == 0 else Vector3(1.2, 0.04, road_width)
+        stripe.material_override = _material(Color(0.96, 0.95, 0.86))
         marker.add_child(stripe)
     var info_scene := load("res://scenes/world/interaction_marker.tscn") as PackedScene
     if info_scene != null:
@@ -63,5 +65,36 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     cube.size = size
     mesh.mesh = cube
     body.add_child(mesh)
+    if block_name.ends_with("Road"):
+        mesh.material_override = _material(Color(0.15, 0.18, 0.21))
+    elif block_name.begins_with("Sidewalk"):
+        mesh.material_override = _material(Color(0.64, 0.65, 0.61))
+    elif block_name.begins_with("Building_"):
+        var building_colors := [Color(0.83, 0.59, 0.42), Color(0.58, 0.69, 0.72), Color(0.78, 0.74, 0.61), Color(0.71, 0.64, 0.76)]
+        var color_index: int = abs(int(center.x + center.z)) % building_colors.size()
+        mesh.material_override = _material(building_colors[color_index])
     if block_name.begins_with("Building_"):
         mesh.add_to_group("lod_meshes")
+
+func _material(color: Color) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.roughness = 0.92
+    return material
+
+func _lane_markings(half: float, road_half: float) -> void:
+    var marking_material := _material(Color(0.97, 0.83, 0.28))
+    for axis in range(2):
+        for side in [-1, 1]:
+            for step in range(1, int(half / 4.0)):
+                var distance: float = float(step) * 4.0 + 2.0
+                if distance > half - 2.0:
+                    continue
+                var marking := MeshInstance3D.new()
+                marking.name = "LaneDash_%d_%d_%d" % [axis, side, step]
+                var mesh := BoxMesh.new()
+                mesh.size = Vector3(0.12, 0.025, 1.7) if axis == 0 else Vector3(1.7, 0.025, 0.12)
+                marking.mesh = mesh
+                marking.material_override = marking_material
+                marking.position = Vector3(0, 0.025, float(side) * distance) if axis == 0 else Vector3(float(side) * distance, 0.025, 0)
+                add_child(marking)
