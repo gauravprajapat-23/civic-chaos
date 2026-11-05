@@ -62,3 +62,5 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     cube.size = size
     mesh.mesh = cube
     body.add_child(mesh)
+    if block_name.begins_with("Building_"):
+        mesh.add_to_group("lod_meshes")
