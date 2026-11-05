@@ -28,7 +28,7 @@ func rebuild() -> void:
         _block("SidewalkZ%d" % side, Vector3(0, 0.1, sign_value * (road_half + sidewalk_width * 0.5)), Vector3(half * 2.0, 0.2, sidewalk_width))
     for x in [-1, 1]:
         for z in [-1, 1]:
-            var variation: int = (x + 1) + (z + 1) * 2
+            var variation: int = (int(x) + 1) / 2 + (int(z) + 1)
             var height: float = building_height * [1.0, 1.25, 0.85, 1.5][variation]
             var width: float = [10.0, 9.0, 11.0, 9.5][variation]
             var center := Vector3(float(x) * (road_half + 9.0), height * 0.5, float(z) * (road_half + 9.0))
