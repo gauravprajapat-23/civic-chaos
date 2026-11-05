@@ -20,7 +20,10 @@ func to_data() -> Dictionary:
     return {"patience": patience, "rule_compliance": rule_compliance, "aggression": aggression, "empathy": empathy, "attentiveness": attentiveness}
 
 static func from_data(data: Dictionary) -> Resource:
-    var personality: Resource = load("res://scripts/npc/npc_personality.gd").new()
+    var personality_script: GDScript = load("res://scripts/npc/npc_personality.gd") as GDScript
+    if personality_script == null:
+        return null
+    var personality: Resource = personality_script.new() as Resource
     for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
         if data.has(trait):
             personality.set(trait, float(data[trait]))
@@ -29,7 +32,10 @@ static func from_data(data: Dictionary) -> Resource:
 static func seeded(seed: int) -> Resource:
     var rng := RandomNumberGenerator.new()
     rng.seed = seed
-    var personality: Resource = load("res://scripts/npc/npc_personality.gd").new()
+    var personality_script: GDScript = load("res://scripts/npc/npc_personality.gd") as GDScript
+    if personality_script == null:
+        return null
+    var personality: Resource = personality_script.new() as Resource
     personality.set("patience", rng.randf())
     personality.set("rule_compliance", rng.randf())
     personality.set("aggression", rng.randf())
