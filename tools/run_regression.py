@@ -50,7 +50,11 @@ def main():
     report = {"schema_version": 1, "godot": args.godot, "tests": [], "passed": False}
     import_result = run(args.godot, ["--editor", "--import", "--quit"], args.timeout)
     report["import"] = {k: v for k, v in import_result.items() if k != "output"}
+    report["import"]["output_tail"] = import_result["output"][-4000:]
     failed = import_result["returncode"] != 0
+    if failed:
+        print("FAIL Godot import (exit code %s)" % import_result["returncode"], file=sys.stderr)
+        print(import_result["output"][-4000:], file=sys.stderr)
     if not failed:
         for name in tests:
             command = ["--script", "res://tests/" + name]
