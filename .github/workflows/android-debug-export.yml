@@ -1,0 +1,53 @@
+name: Android debug export
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "export_presets.cfg"
+      - "project.godot"
+      - "scenes/**"
+      - "scripts/**"
+      - ".github/workflows/android-debug-export.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Godot and export templates
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.4.1
+          use-dotnet: false
+          include-templates: true
+      - name: Configure Android tooling
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          test -d "$ANDROID_HOME"
+          java -version
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+      - name: Import project
+        run: godot --headless --path . --editor --import --quit
+      - name: Set Godot Android SDK path
+        run: godot --headless --path . --editor --script res://tools/configure_android_export.gd
+      - name: Export Android debug APK
+        shell: bash
+        run: |
+          mkdir -p build/android
+          godot --headless --path . --export-debug "Android Debug" build/android/civic-chaos-debug.apk
+          test -s build/android/civic-chaos-debug.apk
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: civic-chaos-android-debug
+          path: build/android/civic-chaos-debug.apk
+          if-no-files-found: error

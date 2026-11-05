@@ -20,14 +20,31 @@ signal interaction_message(message: String)
 
 var _pitch: float = -0.2
 var _gravity: float = 9.8
+var _look_touch_index: int = -1
+var _last_touch_position := Vector2.ZERO
 
 func _ready() -> void:
     _gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
     _apply_camera_pitch()
     camera.current = true
-    Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
 
 func _unhandled_input(event: InputEvent) -> void:
+    if event is InputEventScreenTouch:
+        var touch := event as InputEventScreenTouch
+        if touch.pressed and _look_touch_index == -1 and touch.position.x > get_viewport().get_visible_rect().size.x * 0.45:
+            _look_touch_index = touch.index
+            _last_touch_position = touch.position
+        elif not touch.pressed and touch.index == _look_touch_index:
+            _look_touch_index = -1
+        return
+    if event is InputEventScreenDrag:
+        var drag := event as InputEventScreenDrag
+        if drag.index == _look_touch_index:
+            var motion := drag.position - _last_touch_position
+            _last_touch_position = drag.position
+            rotate_camera(-motion.x * mouse_sensitivity, -motion.y * mouse_sensitivity)
+        return
     if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
         rotate_camera(-event.relative.x * mouse_sensitivity, -event.relative.y * mouse_sensitivity)
     elif event.is_action_pressed("ui_cancel"):

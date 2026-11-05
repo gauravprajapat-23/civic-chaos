@@ -54,6 +54,104 @@ jobs:
       - name: Validate weighted legal lane routing
         run: godot --headless --path . --script res://tests/lane_routing_test.gd
 
+      - name: Validate four-way road junction
+        run: godot --headless --path . --script res://tests/junction_test.gd
+
+      - name: Validate lane-following vehicle movement
+        run: godot --headless --path . --script res://tests/vehicle_agent_test.gd
+
+      - name: Validate car following and obstacle gaps
+        run: godot --headless --path . --script res://tests/car_following_test.gd
+
+      - name: Validate traffic signal phase timing
+        run: godot --headless --path . --script res://tests/signal_phases_test.gd
+
+      - name: Validate intersection conflict-zone reservations
+        run: godot --headless --path . --script res://tests/intersection_reservations_test.gd
+
+      - name: Validate seeded traffic spawning and metrics
+        run: godot --headless --path . --script res://tests/traffic_spawner_test.gd
+
+      - name: Validate NPC personality and observation snapshots
+        run: godot --headless --path . --script res://tests/npc_personality_test.gd
+
+      - name: Validate vehicle behavior state transitions
+        run: godot --headless --path . --script res://tests/vehicle_behavior_test.gd
+
+      - name: Validate pedestrian navigation and protected crossings
+        run: godot --headless --path . --script res://tests/pedestrian_navigation_test.gd
+
+      - name: Validate NPC social influence
+        run: godot --headless --path . --script res://tests/social_influence_test.gd
+
+      - name: Validate AI LOD scheduler
+        run: godot --headless --path . --script res://tests/ai_lod_scheduler_test.gd
+
+      - name: Validate civic incident lifecycle
+        run: godot --headless --path . --script res://tests/incident_lifecycle_test.gd
+
+      - name: Validate wrong-way scenario
+        run: godot --headless --path . --script res://tests/wrong_way_scenario_test.gd
+
+      - name: Validate illegal parking capacity
+        run: godot --headless --path . --script res://tests/parking_capacity_test.gd
+
+      - name: Validate wait-for deadlock detector
+        run: godot --headless --path . --script res://tests/deadlock_detector_test.gd
+
+      - name: Validate safe deadlock recovery
+        run: godot --headless --path . --script res://tests/deadlock_recovery_test.gd
+
+      - name: Validate mission framework
+        run: godot --headless --path . --script res://tests/mission_framework_test.gd
+
+      - name: Validate city reputation scoring
+        run: godot --headless --path . --script res://tests/city_metrics_test.gd
+
+      - name: Validate player civic interactions
+        run: godot --headless --path . --script res://tests/player_civic_interactions_test.gd
+
+      - name: Validate wrong-way disaster mission
+        run: godot --headless --path . --script res://tests/wrong_way_mission_test.gd
+
+      - name: Validate dynamic event director
+        run: godot --headless --path . --script res://tests/event_director_test.gd
+
+      - name: Validate neighborhood scene
+        run: godot --headless --path . --script res://tests/neighborhood_test.gd
+
+      - name: Validate civic HUD
+        run: godot --headless --path . --script res://tests/civic_hud_test.gd
+
+      - name: Test agent feedback
+        run: godot --headless --path . --script res://tests/agent_feedback_test.gd
+
+      - name: Validate AI debug telemetry
+        run: godot --headless --path . --script res://tests/debug_telemetry_test.gd
+
+      - name: Validate touch controls
+        run: godot --headless --path . --script res://tests/touch_controls_test.gd
+
+      - name: Validate mobile graphics LOD
+        run: godot --headless --path . --script res://tests/graphics_lod_test.gd
+
+      - name: Validate traffic AI budgets
+        run: godot --headless --path . --script res://tests/traffic_budget_test.gd
+
+      - name: Validate regression runner
+        run: python -m unittest discover -s tests -p 'test_regression_runner.py'
+
+      - name: Full regression and seeded replay with evidence
+        run: python tools/run_regression.py --godot godot --report build/regression-report.json
+
+      - name: Upload regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: civic-chaos-regression-report
+          path: build/regression-report.json
+          if-no-files-found: warn
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |

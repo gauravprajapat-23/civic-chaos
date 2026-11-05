@@ -1,0 +1,144 @@
+class_name CivicVehicleAgent
+extends Node3D
+## Fixed-step lane follower with continuous centerline sampling.
+
+signal route_completed
+signal route_rejected(reason: String)
+
+@export var profile: CivicVehicleProfile
+
+var feedback: CivicAgentFeedback
+
+func _ready() -> void:
+    feedback = CivicAgentFeedback.new()
+    feedback.name = "AgentFeedback"
+    add_child(feedback)
+
+var road_graph: CivicRoadGraph
+var route: PackedInt32Array = PackedInt32Array()
+var current_route_index: int = 0
+var lane_distance_m: float = 0.0
+var speed_mps: float = 0.0
+var target_speed_mps: float = 0.0
+var stop_requested: bool = false
+var active: bool = false
+@export_range(0.5, 10.0, 0.1) var minimum_gap_m: float = 2.0
+@export_range(0.1, 3.0, 0.1) var reaction_seconds: float = 0.8
+var lead_gap_m: float = INF
+var lead_speed_mps: float = 0.0
+
+func set_lead_observation(gap_m: float, speed: float) -> void:
+    lead_gap_m = maxf(0.0, gap_m)
+    lead_speed_mps = maxf(0.0, speed)
+
+func clear_lead_observation() -> void:
+    lead_gap_m = INF
+    lead_speed_mps = 0.0
+
+
+func configure(graph: CivicRoadGraph, lane_ids: PackedInt32Array, vehicle_profile: CivicVehicleProfile) -> bool:
+    active = false
+    speed_mps = 0.0
+    route = PackedInt32Array()
+    if graph == null or vehicle_profile == null or not vehicle_profile.is_valid() or lane_ids.is_empty():
+        route_rejected.emit("invalid_configuration")
+        return false
+    if not graph.validate().is_empty():
+        route_rejected.emit("invalid_graph")
+        return false
+    for index in range(lane_ids.size()):
+        var lane := graph.get_lane(lane_ids[index])
+        if lane == null or lane.is_wrong_way_connector or not lane.is_vehicle_allowed(vehicle_profile.vehicle_mask):
+            route_rejected.emit("restricted_lane")
+            return false
+        if index > 0 and not graph.outgoing_legal_lanes(lane_ids[index - 1], vehicle_profile.vehicle_mask).has(lane_ids[index]):
+            route_rejected.emit("disconnected_route")
+            return false
+    road_graph = graph
+    profile = vehicle_profile
+    route = lane_ids.duplicate()
+    current_route_index = 0
+    lane_distance_m = 0.0
+    target_speed_mps = profile.maximum_speed_mps
+    stop_requested = false
+    clear_lead_observation()
+    active = true
+    _place_on_lane()
+    return true
+
+func advance_fixed(delta: float) -> void:
+    if not active or delta <= 0.0 or not is_finite(delta):
+        return
+    var lane := road_graph.get_lane(route[current_route_index])
+    if lane == null:
+        active = false
+        route_rejected.emit("lane_removed")
+        return
+    var desired_speed: float = minf(target_speed_mps, profile.maximum_speed_mps, lane.speed_limit_mps)
+    if stop_requested:
+        desired_speed = 0.0
+    # Brake before the final endpoint, without overshooting.
+    if current_route_index == route.size() - 1:
+        var remaining: float = maxf(0.0, lane.length_m() - lane_distance_m)
+        desired_speed = minf(desired_speed, sqrt(2.0 * profile.braking_mps2 * remaining))
+    if is_finite(lead_gap_m):
+        desired_speed = minf(desired_speed, CivicFollowingController.safe_speed(lead_gap_m, lead_speed_mps, profile.braking_mps2, minimum_gap_m, reaction_seconds))
+    var rate: float = profile.acceleration_mps2 if desired_speed > speed_mps else profile.braking_mps2
+    var next_speed: float = move_toward(speed_mps, desired_speed, rate * delta)
+    var travel: float = 0.5 * (speed_mps + next_speed) * delta
+    if is_finite(lead_gap_m):
+        travel = CivicFollowingController.permitted_travel(travel, lead_gap_m, minimum_gap_m)
+        next_speed = minf(next_speed, travel / delta)
+    speed_mps = next_speed
+    _travel(travel)
+    if active:
+        _place_on_lane()
+    if feedback != null:
+        feedback.observe_vehicle(speed_mps, active, stop_requested)
+
+func _travel(distance: float) -> void:
+    var remaining := distance
+    while active and remaining > 0.000001:
+        var lane := road_graph.get_lane(route[current_route_index])
+        var available: float = maxf(0.0, lane.length_m() - lane_distance_m)
+        var step: float = minf(remaining, available)
+        lane_distance_m += step
+        remaining -= step
+        if lane_distance_m >= lane.length_m() - 0.000001:
+            if current_route_index == route.size() - 1:
+                lane_distance_m = lane.length_m()
+                speed_mps = 0.0
+                active = false
+                _place_on_lane()
+                route_completed.emit()
+                return
+            current_route_index += 1
+            lane_distance_m = 0.0
+        elif step <= 0.0:
+            return
+
+func _place_on_lane() -> void:
+    if road_graph == null or route.is_empty():
+        return
+    var lane := road_graph.get_lane(route[current_route_index])
+    if lane == null:
+        return
+    var sampled := sample_centerline(lane.centerline, lane_distance_m)
+    global_position = sampled["position"]
+    var tangent: Vector3 = sampled["tangent"]
+    if tangent.length_squared() > 0.001:
+        rotation.y = atan2(-tangent.x, -tangent.z)
+
+static func sample_centerline(points: PackedVector3Array, distance: float) -> Dictionary:
+    if points.size() < 2:
+        return {"position": Vector3.ZERO, "tangent": Vector3.FORWARD}
+    var remaining := maxf(distance, 0.0)
+    for index in range(1, points.size()):
+        var segment: Vector3 = points[index] - points[index - 1]
+        var length: float = segment.length()
+        if length <= 0.000001:
+            continue
+        if remaining <= length or index == points.size() - 1:
+            return {"position": points[index - 1] + segment * (clampf(remaining / length, 0.0, 1.0)), "tangent": segment / length}
+        remaining -= length
+    return {"position": points[points.size() - 1], "tangent": Vector3.FORWARD}
