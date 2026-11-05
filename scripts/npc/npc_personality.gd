@@ -19,7 +19,7 @@ func validate() -> PackedStringArray:
 func to_data() -> Dictionary:
     return {"patience": patience, "rule_compliance": rule_compliance, "aggression": aggression, "empathy": empathy, "attentiveness": attentiveness}
 
-static func from_data(data: Dictionary) -> CivicNpcPersonality:
+static func from_data(data: Dictionary) -> Resource:
     var personality := CivicNpcPersonality.new()
     for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
         if data.has(trait):
