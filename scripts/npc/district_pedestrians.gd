@@ -43,9 +43,16 @@ func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vec
     var part := MeshInstance3D.new()
     part.name = part_name
     part.position = position_value
-    var mesh := BoxMesh.new()
-    mesh.size = size
-    part.mesh = mesh
+    if part_name == "Head":
+        var head_mesh := SphereMesh.new()
+        head_mesh.radius = size.x * 0.5
+        head_mesh.height = size.y
+        part.mesh = head_mesh
+    else:
+        var limb_mesh := CapsuleMesh.new()
+        limb_mesh.radius = minf(size.x, size.z) * 0.5
+        limb_mesh.height = maxf(size.y, limb_mesh.radius * 2.0)
+        part.mesh = limb_mesh
     var material := StandardMaterial3D.new()
     material.albedo_color = color
     part.material_override = material
@@ -53,6 +60,8 @@ func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vec
     return part
 
 func _process(delta: float) -> void:
+    if delta <= 0.0:
+        return
     _elapsed += delta
     var length: float = district_extent * 1.65
     for index in range(_walkers.size()):
