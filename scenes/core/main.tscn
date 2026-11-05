@@ -10,10 +10,10 @@
 [ext_resource type="PackedScene" path="res://scenes/world/neighborhood.tscn" id="6_district"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(40, 1, 40)
+size = Vector3(100, 1, 100)
 
 [sub_resource type="BoxMesh" id="BoxMesh_ground"]
-size = Vector3(40, 1, 40)
+size = Vector3(100, 1, 100)
 
 [node name="Main" type="Node3D"]
 process_mode = 3
