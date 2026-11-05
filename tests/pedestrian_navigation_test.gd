@@ -20,6 +20,7 @@ func _run() -> void:
     assert(pedestrian.state_name() == "waiting")
     var vehicle_slot := manager.request(2, PackedStringArray(["crosswalk"]), 50, 100)
     assert(vehicle_slot["granted"])
+    manager.advance_to(50)
     assert(manager.occupy(2, "crosswalk"))
     pedestrian.advance_fixed(50, 0.05, true, true)
     assert(pedestrian.state_name() == "waiting")
