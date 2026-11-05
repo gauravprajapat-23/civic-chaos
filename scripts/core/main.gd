@@ -8,6 +8,7 @@ extends Node3D
 const StatusHUD = preload("res://scripts/ui/civic_status_hud.gd")
 const DebugOverlay = preload("res://scripts/debug/debug_overlay.gd")
 const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
+const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
@@ -66,6 +67,9 @@ func _ready() -> void:
         if mesh is MeshInstance3D:
             graphics_lod.register_mesh(mesh)
     graphics_lod.apply_light_budget(self)
+    var pedestrians := DistrictPedestrians.new()
+    pedestrians.name = "DistrictPedestrians"
+    add_child(pedestrians)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
