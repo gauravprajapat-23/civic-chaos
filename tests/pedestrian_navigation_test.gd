@@ -26,6 +26,7 @@ func _run() -> void:
     assert(pedestrian.state_name() == "waiting")
     assert(manager.release(2, "crosswalk"))
     manager.cancel(2)
+    manager.advance_to(51)
     pedestrian.advance_fixed(51, 0.05, true, true)
     assert(pedestrian.state_name() == "crossing")
     assert(manager.occupant("crosswalk") == 1)
