@@ -19,6 +19,8 @@ func _ready() -> void:
         for distance in [-28.0, -16.0, 16.0, 28.0]:
             _streetlight(Vector3(float(side) * 7.2, 0, distance))
             _tree(Vector3(distance, 0, float(side) * 11.0))
+    _bench(Vector3(9.0, 0, -19.0))
+    _bench(Vector3(-9.0, 0, 19.0))
 
 func _material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
@@ -78,6 +80,18 @@ func _tree(location: Vector3) -> void:
     add_child(root)
     _box(root, "Trunk", Vector3(0, 1.15, 0), Vector3(0.4, 2.3, 0.4), Color(0.40, 0.25, 0.14))
     _sphere(root, "Canopy", Vector3(0, 3.25, 0), 1.35, Color(0.20, 0.47, 0.25))
+
+func _bench(location: Vector3) -> void:
+    var root := Node3D.new()
+    root.name = "SidewalkBench"
+    root.position = location
+    add_child(root)
+    var wood := Color(0.48, 0.28, 0.14)
+    var metal := Color(0.20, 0.23, 0.26)
+    _box(root, "Seat", Vector3(0, 0.55, 0), Vector3(1.7, 0.13, 0.55), wood)
+    _box(root, "Backrest", Vector3(0, 1.0, 0.25), Vector3(1.7, 0.7, 0.12), wood)
+    _box(root, "LeftLeg", Vector3(-0.65, 0.26, 0), Vector3(0.12, 0.52, 0.12), metal)
+    _box(root, "RightLeg", Vector3(0.65, 0.26, 0), Vector3(0.12, 0.52, 0.12), metal)
 
 func _process(_delta: float) -> void:
     if _signal_controller == null:
