@@ -28,8 +28,11 @@ func rebuild() -> void:
         _block("SidewalkZ%d" % side, Vector3(0, 0.1, sign_value * (road_half + sidewalk_width * 0.5)), Vector3(half * 2.0, 0.2, sidewalk_width))
     for x in [-1, 1]:
         for z in [-1, 1]:
-            var center := Vector3(float(x) * (road_half + 9.0), building_height * 0.5, float(z) * (road_half + 9.0))
-            _block("Building_%d_%d" % [x, z], center, Vector3(10, building_height, 10))
+            var variation: int = (x + 1) + (z + 1) * 2
+            var height: float = building_height * [1.0, 1.25, 0.85, 1.5][variation]
+            var width: float = [10.0, 9.0, 11.0, 9.5][variation]
+            var center := Vector3(float(x) * (road_half + 9.0), height * 0.5, float(z) * (road_half + 9.0))
+            _block("Building_%d_%d" % [x, z], center, Vector3(width, height, width))
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     # Paint individual zebra stripes instead of a single white slab.
@@ -86,7 +89,7 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
         mesh.material_override = _material(Color(0.64, 0.65, 0.61))
     elif block_name.begins_with("Building_"):
         var building_colors := [Color(0.83, 0.59, 0.42), Color(0.58, 0.69, 0.72), Color(0.78, 0.74, 0.61), Color(0.71, 0.64, 0.76)]
-        var color_index: int = abs(int(center.x + center.z)) % building_colors.size()
+        var color_index: int = (int(center.x > 0.0) + 2 * int(center.z > 0.0)) % building_colors.size()
         mesh.material_override = _material(building_colors[color_index])
     if block_name.begins_with("Building_"):
         mesh.add_to_group("lod_meshes")
@@ -148,6 +151,14 @@ func _decorate_building(building: Node3D, size: Vector3) -> void:
             _facade_panel(building, "WindowBack_%d_%d" % [floor_index, column], Vector3(x, y, size.z * 0.5 + 0.025), Vector3(1.25, 1.35, 0.07), glass)
             _facade_panel(building, "WindowSide_%d_%d" % [floor_index, column], Vector3(-size.x * 0.5 - 0.025, y, x), Vector3(0.07, 1.35, 1.25), glass)
     var awning := _material(Color(0.29, 0.43, 0.48))
+    var sill := _material(Color(0.84, 0.81, 0.73))
+    for floor_index in range(floor_count):
+        var y: float = -size.y * 0.5 + 0.94 + float(floor_index) * 2.5
+        if y + 0.2 < size.y * 0.5:
+            for column in range(3):
+                var x: float = -3.0 + float(column) * 3.0
+                _facade_panel(building, "WindowSill_%d_%d" % [floor_index, column],
+                    Vector3(x, y, -size.z * 0.5 - 0.11), Vector3(1.55, 0.12, 0.28), sill)
     _facade_panel(building, "EntranceAwning",
         Vector3(0, -size.y * 0.5 + 2.45, -size.z * 0.5 - 0.55),
         Vector3(2.6, 0.16, 1.2), awning)
