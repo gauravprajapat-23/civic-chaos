@@ -10,9 +10,14 @@ signal route_rejected(reason: String)
 var feedback: CivicAgentFeedback
 
 func _ready() -> void:
-    feedback = CivicAgentFeedback.new()
-    feedback.name = "AgentFeedback"
-    add_child(feedback)
+    var feedback_script := load("res://scripts/npc/agent_feedback.gd")
+    if feedback_script == null:
+        push_warning("Agent feedback unavailable; vehicle simulation continues")
+        return
+    feedback = feedback_script.new() as CivicAgentFeedback
+    if feedback != null:
+        feedback.name = "AgentFeedback"
+        add_child(feedback)
 
 var road_graph: CivicRoadGraph
 var route: PackedInt32Array = PackedInt32Array()
