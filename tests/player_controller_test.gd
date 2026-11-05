@@ -13,6 +13,11 @@ func _run() -> void:
         push_error("Player root must be CharacterBody3D")
         quit(1)
         return
+    if (player.collision_mask & 13) != 13:
+        push_error("Player must collide with environment, cars and pedestrians")
+        player.free()
+        quit(1)
+        return
     var arm := player.get_node_or_null("CameraPivot/SpringArm3D")
     var camera := player.get_node_or_null("CameraPivot/SpringArm3D/Camera3D")
     if not arm is SpringArm3D or not camera is Camera3D:
