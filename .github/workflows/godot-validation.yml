@@ -123,6 +123,9 @@ jobs:
       - name: Validate civic HUD
         run: godot --headless --path . --script res://tests/civic_hud_test.gd
 
+      - name: Test agent feedback
+        run: godot --headless --path . --script res://tests/agent_feedback_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
