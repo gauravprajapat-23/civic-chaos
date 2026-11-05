@@ -117,6 +117,9 @@ jobs:
       - name: Validate dynamic event director
         run: godot --headless --path . --script res://tests/event_director_test.gd
 
+      - name: Validate neighborhood scene
+        run: godot --headless --path . --script res://tests/neighborhood_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
