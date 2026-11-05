@@ -114,6 +114,9 @@ jobs:
       - name: Validate wrong-way disaster mission
         run: godot --headless --path . --script res://tests/wrong_way_mission_test.gd
 
+      - name: Validate dynamic event director
+        run: godot --headless --path . --script res://tests/event_director_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
