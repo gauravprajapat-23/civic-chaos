@@ -120,6 +120,9 @@ jobs:
       - name: Validate neighborhood scene
         run: godot --headless --path . --script res://tests/neighborhood_test.gd
 
+      - name: Validate civic HUD
+        run: godot --headless --path . --script res://tests/civic_hud_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
