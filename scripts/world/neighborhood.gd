@@ -31,17 +31,31 @@ func rebuild() -> void:
             var center := Vector3(float(x) * (road_half + 9.0), building_height * 0.5, float(z) * (road_half + 9.0))
             _block("Building_%d_%d" % [x, z], center, Vector3(10, building_height, 10))
     _lane_markings(half, road_half)
+    # Paint individual zebra stripes instead of a single white slab.
+    var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
-        var marker := Node3D.new()
-        marker.name = "Crossing_%d" % arm
-        var offset := road_half + sidewalk_width + 2.0
-        marker.position = [Vector3(0, 0.03, -offset), Vector3(offset, 0.03, 0), Vector3(0, 0.03, offset), Vector3(-offset, 0.03, 0)][arm]
-        add_child(marker)
-        var stripe := MeshInstance3D.new()
-        stripe.mesh = BoxMesh.new()
-        stripe.mesh.size = Vector3(road_width, 0.04, 1.2) if arm % 2 == 0 else Vector3(1.2, 0.04, road_width)
-        stripe.material_override = _material(Color(0.96, 0.95, 0.86))
-        marker.add_child(stripe)
+        var crossing := Node3D.new()
+        crossing.name = "Crossing_%d" % arm
+        var offset: float = road_half + sidewalk_width + 2.0
+        crossing.position = [
+            Vector3(0, 0.055, -offset), Vector3(offset, 0.055, 0),
+            Vector3(0, 0.055, offset), Vector3(-offset, 0.055, 0)
+        ][arm]
+        add_child(crossing)
+        for stripe_index in range(7):
+            var stripe := MeshInstance3D.new()
+            stripe.name = "ZebraStripe_%d" % stripe_index
+            var stripe_mesh := BoxMesh.new()
+            var across: float = -3.2 + float(stripe_index) * 1.05
+            if arm % 2 == 0:
+                stripe_mesh.size = Vector3(0.62, 0.012, 1.8)
+                stripe.position.x = across
+            else:
+                stripe_mesh.size = Vector3(1.8, 0.012, 0.62)
+                stripe.position.z = across
+            stripe.mesh = stripe_mesh
+            stripe.material_override = crossing_material
+            crossing.add_child(stripe)
     var info_scene := load("res://scenes/world/interaction_marker.tscn") as PackedScene
     if info_scene != null:
         var info := info_scene.instantiate() as Node3D
