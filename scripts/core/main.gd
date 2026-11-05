@@ -112,9 +112,12 @@ func _process(delta: float) -> void:
         return
     _traffic_display_elapsed = 0.0
     var junction := get_node_or_null("FourWayJunction")
-    if junction == null or junction.traffic_spawner == null:
+    if junction == null:
         return
-    var metrics: Dictionary = junction.traffic_spawner.metrics()
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    if spawner == null:
+        return
+    var metrics: Dictionary = spawner.metrics()
     var state: Dictionary = civic_hud.current_state()
     state["traffic"] = metrics
     civic_hud.render_state(state)
