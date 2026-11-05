@@ -58,6 +58,7 @@ func advance_fixed(tick: int, delta: float) -> void:
 		observations[vehicle.get_instance_id()] = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
 	for vehicle in active_vehicles:
 		var observation: Dictionary = observations[vehicle.get_instance_id()]
+		observation = apply_stop_line_observation(vehicle, observation)
 		if observation.get("detected", false):
 			vehicle.set_lead_observation(float(observation["gap_m"]), float(observation["lead_speed_mps"]))
 		else:
@@ -82,7 +83,7 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
     # Treat a red/amber stop line as a stationary virtual lead vehicle.
     var entry_lane: int = vehicle.route[0] if not vehicle.route.is_empty() else -1
     if traffic_signals != null and vehicle.current_route_index == 0 and entry_lane >= 0:
-        var approach: String = {1: "N", 3: "E", 5: "S", 7: "W"}.get(entry_lane, "")
+        var approach: String = str(({1: "N", 3: "E", 5: "S", 7: "W"}).get(entry_lane, ""))
         var signal: String = traffic_signals.aspect_for_approach(approach)
         var lane: CivicLaneData = road_graph.get_lane(entry_lane)
         if lane != null:
