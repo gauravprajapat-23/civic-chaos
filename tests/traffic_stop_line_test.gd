@@ -6,12 +6,17 @@ const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
 const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 const Vehicle = preload("res://scripts/traffic/vehicle_agent.gd")
 
+var _spawner: CivicTrafficSpawner
+var _north: CivicVehicleAgent
+var _east: CivicVehicleAgent
+
 func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
     var graph: CivicRoadGraph = Builder.make_test_graph()
     var spawner: CivicTrafficSpawner = Spawner.new()
+    _spawner = spawner
     if not spawner.configure(graph):
         _fail("spawner configuration")
         return
@@ -19,9 +24,11 @@ func _run() -> void:
     var reservations: CivicIntersectionReservations = Reservations.new()
     spawner.configure_intersection(signals, reservations)
     var north: CivicVehicleAgent = Vehicle.new()
+    _north = north
     north.route = PackedInt32Array([1, 4])
     north.lane_distance_m = 12.0
     var east: CivicVehicleAgent = Vehicle.new()
+    _east = east
     east.route = PackedInt32Array([3, 2])
     east.lane_distance_m = 12.0
     var empty := {"detected": false}
@@ -63,8 +70,17 @@ func _run() -> void:
         _fail("red stop-line boundary gap invalid")
         return
     print("CIVIC_CHAOS_TRAFFIC_STOP_LINE_PASS")
-    quit(0)
+    _finish(0)
 
 func _fail(message: String) -> void:
     push_error(message)
-    quit(1)
+    _finish(1)
+
+func _finish(exit_code: int) -> void:
+    if is_instance_valid(_north):
+        _north.free()
+    if is_instance_valid(_east):
+        _east.free()
+    if is_instance_valid(_spawner):
+        _spawner.free()
+    quit(exit_code)
