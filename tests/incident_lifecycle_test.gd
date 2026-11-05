@@ -27,7 +27,7 @@ func _run() -> void:
     assert(restored.incidents.size() == m.incidents.size())
     for id in m.incidents:
         assert(restored.incidents.has(id))
-        assert(restored.incidents[id] == m.incidents[id])
+        assert(JSON.stringify(restored.incidents[id]) == JSON.stringify(m.incidents[id]))
     assert(restored.event_log == m.event_log)
     assert(restored.event_log.size() == 5)
     assert(Manager.from_json("broken") == null)
