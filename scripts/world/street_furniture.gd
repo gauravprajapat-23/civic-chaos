@@ -93,7 +93,8 @@ func _tree(location: Vector3) -> void:
     root.position = location
     add_child(root)
     _box(root, "Trunk", Vector3(0, 1.15, 0), Vector3(0.4, 2.3, 0.4), Color(0.40, 0.25, 0.14))
-    _sphere(root, "Canopy", Vector3(0, 3.25, 0), 1.35, Color(0.20, 0.47, 0.25))
+    _sphere(root, "LowerCanopy", Vector3(0, 2.85, 0), 1.15, Color(0.18, 0.39, 0.23))
+    _sphere(root, "UpperCanopy", Vector3(0.25, 3.65, 0.1), 1.05, Color(0.27, 0.55, 0.30))
 
 func _bench(location: Vector3) -> void:
     var root := Node3D.new()
