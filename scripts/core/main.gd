@@ -7,6 +7,8 @@ extends Node3D
 @onready var pause_panel: Control = $CanvasLayer/PausePanel
 const StatusHUD = preload("res://scripts/ui/civic_status_hud.gd")
 const DebugOverlay = preload("res://scripts/debug/debug_overlay.gd")
+const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
+var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
 
@@ -51,6 +53,14 @@ func _ready() -> void:
     debug_overlay = DebugOverlay.new()
     debug_overlay.name = "AIDebugOverlay"
     add_child(debug_overlay)
+    graphics_lod = GraphicsLOD.new()
+    graphics_lod.name = "GraphicsLOD"
+    add_child(graphics_lod)
+    graphics_lod.configure(player.camera, CivicGraphicsLOD.Quality.LOW if OS.has_feature("mobile") else CivicGraphicsLOD.Quality.HIGH)
+    for mesh in get_tree().get_nodes_in_group("lod_meshes"):
+        if mesh is MeshInstance3D:
+            graphics_lod.register_mesh(mesh)
+    graphics_lod.apply_light_budget(self)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
