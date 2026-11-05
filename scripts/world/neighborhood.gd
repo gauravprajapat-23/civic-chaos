@@ -31,6 +31,7 @@ func rebuild() -> void:
             var center := Vector3(float(x) * (road_half + 9.0), building_height * 0.5, float(z) * (road_half + 9.0))
             _block("Building_%d_%d" % [x, z], center, Vector3(10, building_height, 10))
     _lane_markings(half, road_half)
+    _curb_accents(half, road_half)
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
@@ -114,6 +115,18 @@ func _lane_markings(half: float, road_half: float) -> void:
                 marking.position = Vector3(0, 0.025, float(side) * distance) if axis == 0 else Vector3(float(side) * distance, 0.025, 0)
                 add_child(marking)
 
+func _curb_accents(half: float, road_half: float) -> void:
+    # Thin raised edges add street depth without extra physics or textures.
+    var curb_material := _material(Color(0.81, 0.78, 0.69))
+    for side in [-1, 1]:
+        var direction: float = float(side)
+        _facade_panel(self, "CurbNorthSouth_%d" % side,
+            Vector3(direction * (road_half + 0.08), 0.13, 0),
+            Vector3(0.16, 0.18, half * 2.0), curb_material)
+        _facade_panel(self, "CurbEastWest_%d" % side,
+            Vector3(0, 0.13, direction * (road_half + 0.08)),
+            Vector3(half * 2.0, 0.18, 0.16), curb_material)
+
 func _decorate_building(building: Node3D, size: Vector3) -> void:
     var glass := _material(Color(0.17, 0.31, 0.40))
     var frame := _material(Color(0.91, 0.88, 0.78))
@@ -134,6 +147,10 @@ func _decorate_building(building: Node3D, size: Vector3) -> void:
             _facade_panel(building, "WindowFront_%d_%d" % [floor_index, column], Vector3(x, y, -size.z * 0.5 - 0.025), Vector3(1.25, 1.35, 0.07), glass)
             _facade_panel(building, "WindowBack_%d_%d" % [floor_index, column], Vector3(x, y, size.z * 0.5 + 0.025), Vector3(1.25, 1.35, 0.07), glass)
             _facade_panel(building, "WindowSide_%d_%d" % [floor_index, column], Vector3(-size.x * 0.5 - 0.025, y, x), Vector3(0.07, 1.35, 1.25), glass)
+    var awning := _material(Color(0.29, 0.43, 0.48))
+    _facade_panel(building, "EntranceAwning",
+        Vector3(0, -size.y * 0.5 + 2.45, -size.z * 0.5 - 0.55),
+        Vector3(2.6, 0.16, 1.2), awning)
     _facade_panel(building, "Entrance", Vector3(0, -size.y * 0.5 + 1.1, -size.z * 0.5 - 0.05), Vector3(1.7, 2.2, 0.10), roof)
     _facade_panel(building, "DoorHandle", Vector3(0.6, -size.y * 0.5 + 1.1, -size.z * 0.5 - 0.12), Vector3(0.08, 0.15, 0.05), frame)
 
