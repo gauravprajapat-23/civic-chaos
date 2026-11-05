@@ -12,6 +12,9 @@ signal interaction_message(message: String)
 @export var mouse_sensitivity: float = 0.0025
 @export var gamepad_look_speed: float = 2.5
 @export var interaction_distance: float = 3.0
+@export var fall_recovery_height: float = -8.0
+
+var _safe_spawn: Vector3 = Vector3.ZERO
 
 @onready var visual: Node3D = $Visual
 @onready var camera_pivot: Node3D = $CameraPivot
@@ -24,6 +27,7 @@ var _look_touch_index: int = -1
 var _last_touch_position := Vector2.ZERO
 
 func _ready() -> void:
+    _safe_spawn = global_position
     _gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
     _apply_camera_pitch()
     camera.current = true
@@ -57,6 +61,11 @@ func _unhandled_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
 
 func _physics_process(delta: float) -> void:
+    if global_position.y < fall_recovery_height:
+        global_position = _safe_spawn
+        velocity = Vector3.ZERO
+        interaction_message.emit("Returned to safe ground")
+        return
     var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
     if look.length_squared() > 0.001:
         rotate_camera(-look.x * gamepad_look_speed * delta, -look.y * gamepad_look_speed * delta)
