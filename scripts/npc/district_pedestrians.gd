@@ -1,6 +1,6 @@
 extends Node3D
 ## Lightweight, deterministic visual pedestrians for the district preview.
-## This is a presentation layer, not the reservation-based crossing simulation.
+## Sidewalk walkers reserve shared junction crossing zones.
 
 @export var pedestrian_count: int = 8
 @export var district_extent: float = 38.0
@@ -9,10 +9,13 @@ var _elapsed: float = 0.0
 var _signal_controller: CivicTrafficSignalController
 var _traffic_spawner: CivicTrafficSpawner
 var _walker_progress: Array[float] = []
+var _reservations: CivicIntersectionReservations
+var _crossing: Array[bool] = []
 
-func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner) -> void:
+func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner, reservations: CivicIntersectionReservations = null) -> void:
     _signal_controller = signals
     _traffic_spawner = spawner
+    _reservations = reservations
 
 func _ready() -> void:
     var shirt_colors := [
@@ -33,6 +36,7 @@ func _ready() -> void:
         var left_leg := _part(walker, "LeftLeg", Vector3(-0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
         var right_leg := _part(walker, "RightLeg", Vector3(0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
         _walker_progress.append(float(index) * 5.0)
+        _crossing.append(false)
         _walkers.append({
             "root": walker, "arms": [left_arm, right_arm], "legs": [left_leg, right_leg],
             "phase": float(index) * 1.7, "speed": 1.0 + float(index % 3) * 0.22,
@@ -72,11 +76,23 @@ func _process(delta: float) -> void:
         var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
         var can_walk: bool = true
-        if _signal_controller != null and old_progress < -6.0 and proposed >= -6.0:
-            can_walk = _can_cross(side)
+        if not _crossing[index] and old_progress < -6.0 and proposed >= -6.0:
+            if _can_cross(side) and _reserve_crossing(index, side):
+                _crossing[index] = true
+            else:
+                _walker_progress[index] = -6.0 + length * 0.5
+                can_walk = false
+        elif not _crossing[index] and absf(old_progress + 6.0) < 0.0001:
+            if _can_cross(side) and _reserve_crossing(index, side):
+                _crossing[index] = true
+            else:
+                can_walk = false
         if can_walk:
             _walker_progress[index] += delta * speed
         var progress: float = fposmod(_walker_progress[index], length) - length * 0.5
+        if _crossing[index] and progress >= 6.0:
+            _release_crossing(index, side)
+            _crossing[index] = false
         var sidewalk_center: float = 5.0
         match side:
             0:
@@ -114,3 +130,32 @@ func _can_cross(side: int) -> bool:
         if vehicle.global_position.distance_to(Vector3.ZERO) < 7.0:
             return false
     return true
+
+func _crossing_zone(side: int) -> String:
+    return "pedestrian_crossing_ew" if side < 2 else "pedestrian_crossing_ns"
+
+func _reserve_crossing(index: int, side: int) -> bool:
+    if _reservations == null:
+        return true
+    var pedestrian_id: int = 100000 + index
+    var zone: String = _crossing_zone(side)
+    var start_tick: int = _reservations.current_tick
+    var result: Dictionary = _reservations.request(pedestrian_id, PackedStringArray([zone]), start_tick, start_tick + 600)
+    if not bool(result.get("granted", false)):
+        return false
+    if not _reservations.occupy(pedestrian_id, zone):
+        _reservations.cancel(pedestrian_id)
+        return false
+    return true
+
+func _release_crossing(index: int, side: int) -> void:
+    if _reservations == null:
+        return
+    var pedestrian_id: int = 100000 + index
+    _reservations.release(pedestrian_id, _crossing_zone(side))
+    _reservations.cancel(pedestrian_id)
+
+func _exit_tree() -> void:
+    for index in range(_crossing.size()):
+        if _crossing[index]:
+            _release_crossing(index, index % 4)
