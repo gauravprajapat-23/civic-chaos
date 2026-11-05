@@ -26,7 +26,7 @@ static func from_data(data: Dictionary) -> CivicNpcPersonality:
             personality.set(trait, float(data[trait]))
     return personality
 
-static func seeded(seed: int) -> Resource:
+static func seeded(seed: int) -> CivicNpcPersonality:
     var rng := RandomNumberGenerator.new()
     rng.seed = seed
     var personality := CivicNpcPersonality.new()
