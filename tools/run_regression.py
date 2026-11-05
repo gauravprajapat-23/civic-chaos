@@ -21,7 +21,16 @@ def run(godot, args, timeout):
                                  cwd=ROOT, capture_output=True, text=True, timeout=timeout)
         return {"returncode": process.returncode, "output": process.stdout + process.stderr,
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
-    except (subprocess.TimeoutExpired, OSError) as error:
+    except subprocess.TimeoutExpired as error:
+        captured = error.stdout or b""
+        if isinstance(captured, bytes):
+            captured = captured.decode("utf-8", errors="replace")
+        stderr = error.stderr or b""
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        return {"returncode": -1, "output": str(error) + "\\n" + captured + "\\n" + stderr,
+                "elapsed_seconds": round(time.monotonic() - started, 3)}
+    except OSError as error:
         return {"returncode": -1, "output": str(error),
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
 
@@ -30,7 +39,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--godot", default=os.environ.get("GODOT_BIN", "godot"))
     parser.add_argument("--report", default="build/regression-report.json")
-    parser.add_argument("--timeout", type=int, default=90)
+    parser.add_argument("--timeout", type=int, default=30)
     args = parser.parse_args()
     workflow = WORKFLOW.read_text(encoding="utf-8")
     tests = list(dict.fromkeys(re.findall(r"res://tests/([\w-]+_test\.gd)", workflow)))
