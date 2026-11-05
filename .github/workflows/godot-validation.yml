@@ -126,6 +126,9 @@ jobs:
       - name: Test agent feedback
         run: godot --headless --path . --script res://tests/agent_feedback_test.gd
 
+      - name: Validate AI debug telemetry
+        run: godot --headless --path . --script res://tests/debug_telemetry_test.gd
+
       - name: Confirm failing tests return nonzero
         shell: bash
         run: |
