@@ -25,7 +25,18 @@ func _ready() -> void:
         Color(0.82, 0.66, 0.23)
     ]
     for index in range(pedestrian_count):
-        var walker := Node3D.new()
+        var walker := AnimatableBody3D.new()
+        walker.collision_layer = 8
+        walker.collision_mask = 0
+        walker.sync_to_physics = true
+        var collider := CollisionShape3D.new()
+        collider.name = "BodyCollision"
+        var capsule := CapsuleShape3D.new()
+        capsule.radius = 0.32
+        capsule.height = 1.75
+        collider.shape = capsule
+        collider.position.y = 0.87
+        walker.add_child(collider)
         walker.name = "Pedestrian_%02d" % index
         add_child(walker)
         var color: Color = shirt_colors[index % shirt_colors.size()]
