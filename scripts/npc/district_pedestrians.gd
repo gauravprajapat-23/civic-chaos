@@ -12,7 +12,8 @@ var _reservations: CivicIntersectionReservations
 var _crossing: Array[bool] = []
 const BODY_RADIUS: float = 0.32
 const PLAYER_CLEARANCE: float = 1.15
-const WALKER_CLEARANCE: float = 0.85
+const WALKER_CLEARANCE: float = 1.05
+const CROSSING_CLEARANCE: float = 1.3
 const VEHICLE_CLEARANCE: float = 1.5
 
 func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner, reservations: CivicIntersectionReservations = null) -> void:
@@ -30,7 +31,7 @@ func _ready() -> void:
     for index in range(pedestrian_count):
         var walker := AnimatableBody3D.new()
         walker.collision_layer = 8
-        walker.collision_mask = 3
+        walker.collision_mask = 1 | 2 | 4 | 8
         walker.sync_to_physics = true
         walker.set_meta("pedestrian_index", index)
         var collider := CollisionShape3D.new()
@@ -92,6 +93,7 @@ func _physics_process(delta: float) -> void:
         var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
         var can_walk: bool = true
+        var current_position: Vector3 = root.position
         if not _crossing[index] and old_progress < -6.0 and proposed >= -6.0:
             if _can_cross(side) and _reserve_crossing(index, side):
                 _crossing[index] = true
@@ -106,7 +108,7 @@ func _physics_process(delta: float) -> void:
         if can_walk:
             var next_progress: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
             var proposed_position: Vector3 = _walk_position(side, next_progress)
-            if _pedestrian_blocked(index, proposed_position) or _swept_path_blocked(index, root.position, proposed_position):
+            if _pedestrian_blocked(index, proposed_position) or _walker_path_occupied(index, current_position, proposed_position) or _swept_path_blocked(index, current_position, proposed_position):
                 can_walk = false
             else:
                 _walker_progress[index] += delta * speed
@@ -114,19 +116,19 @@ func _physics_process(delta: float) -> void:
         if _crossing[index] and progress >= 6.0:
             _release_crossing(index, side)
             _crossing[index] = false
-        var sidewalk_center: float = 5.0
+        var target_position: Vector3 = _walk_position(side, progress)
+        # Never teleport a pedestrian through another actor when the route wraps.
+        # A blocked pedestrian stays exactly where it was last frame.
+        if can_walk:
+            root.position = target_position
         match side:
             0:
-                root.position = Vector3(sidewalk_center, 0.23, progress)
                 root.rotation.y = PI
             1:
-                root.position = Vector3(-sidewalk_center, 0.23, -progress)
                 root.rotation.y = 0.0
             2:
-                root.position = Vector3(progress, 0.23, sidewalk_center)
                 root.rotation.y = -PI * 0.5
             3:
-                root.position = Vector3(-progress, 0.23, -sidewalk_center)
                 root.rotation.y = PI * 0.5
         var swing: float = sin(_elapsed * speed * 7.0 + data["phase"]) * 0.35 if can_walk else 0.0
         var arms: Array = data["arms"]
@@ -147,6 +149,28 @@ func _walk_position(side: int, progress: float) -> Vector3:
             return Vector3(progress, 0.23, offset)
         _:
             return Vector3(-progress, 0.23, -offset)
+
+## A moving pedestrian must not cross another pedestrian's occupied space.
+## Segment sampling also catches perpendicular routes at the junction.
+func _walker_path_occupied(index: int, start: Vector3, destination: Vector3) -> bool:
+    var travel: Vector3 = destination - start
+    travel.y = 0.0
+    # Route wrap is a teleport, not a valid movement step.
+    if travel.length_squared() > 4.0:
+        return true
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var relative: Vector3 = other.position - start
+        relative.y = 0.0
+        var fraction: float = clampf(relative.dot(travel) / maxf(travel.length_squared(), 0.000001), 0.0, 1.0)
+        var closest: Vector3 = start + travel * fraction
+        var gap: Vector3 = other.position - closest
+        gap.y = 0.0
+        if gap.length_squared() < CROSSING_CLEARANCE * CROSSING_CLEARANCE:
+            return true
+    return false
 
 func _pedestrian_blocked(index: int, next_position: Vector3) -> bool:
     # Evaluate current and proposed positions so a walker cannot step into
