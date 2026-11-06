@@ -212,7 +212,11 @@ func _advance_cars(delta: float) -> void:
         car.advance_fixed(delta)
         if car.speed_mps > 0.8 and car.lane_distance_m > float(starting_distances.get(car.get_instance_id(), 0.0)) + 0.6:
             moved_ids[car.get_instance_id()] = true
-        if blocker_removed and car.speed_mps > 0.8 and (car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 4.0):
+        # Count real vehicles that pass the *former* blockage while the
+        # towed offender is already clear of it. Waiting until the tow has
+        # fully left the district would miss cars that finished their route.
+        var old_obstruction_clear: bool = tow_started and (tow_progress_m - TOW_GAP_M) >= OFFENDER_DISTANCE + 6.0
+        if (blocker_removed or old_obstruction_clear) and car.speed_mps > 0.8 and (car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 4.0):
             released_ids[car.get_instance_id()] = true
 
 func _actual_stopped_count() -> int:
