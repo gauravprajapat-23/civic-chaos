@@ -141,6 +141,10 @@ func try_spawn() -> bool:
 		vehicle.queue_free()
 		rejected_total += 1
 		return false
+	if _spawn_occupied(vehicle):
+		vehicle.queue_free()
+		rejected_total += 1
+		return false
 	active_vehicles.append(vehicle)
 	spawned_total += 1
 	return true
@@ -160,3 +164,13 @@ func metrics() -> Dictionary:
 		"delay_seconds": total_delay_seconds,
 		"throughput_per_minute": float(completed_total) * 60.0 / maxf(float(current_tick) / 20.0, 0.05)
 	}
+
+func _spawn_occupied(candidate: CivicVehicleAgent) -> bool:
+	for other in active_vehicles:
+		if not is_instance_valid(other) or not other.active:
+			continue
+		var offset: Vector3 = other.global_position - candidate.global_position
+		offset.y = 0.0
+		if offset.length_squared() < spawn_clearance_m * spawn_clearance_m:
+			return true
+	return false
