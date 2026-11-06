@@ -37,3 +37,6 @@ Latest local regression results were reported by the user **before** these audit
 - Added player, other pedestrian, and vehicle clearance checks plus a physics shape check at each proposed destination; adjusted capsule floor clearance.
 - Added `tests/pedestrian_collision_test.gd` to the local regression runner.
 - **Open:** This is a stop-on-obstacle policy, not full navigation or swept-body motion. No engine run was available; head-on contact, crowd deadlocks, vehicle interactions and standing atop NPCs still need in-game verification. Do not close BUG-002 until all acceptance criteria pass.
+
+## Regression follow-up (2026-11-06)
+User's Godot 4.7.2 run: 35 PASS, 2 FAIL (`neighborhood_test.gd`, `world_collision_test.gd`), including `pedestrian_collision_test.gd` PASS. Boundary collider was not named as the test expected; repeated street furniture roots were auto-renamed and the test read `prop.name` after freeing the parent. Fixes committed to name boundary collision nodes, give furniture unique stable names, and avoid accessing freed props in test error reporting. **Rerun pending**; do not mark BUG-001 or BUG-002 closed yet.
