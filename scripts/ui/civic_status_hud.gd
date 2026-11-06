@@ -5,6 +5,7 @@ extends MarginContainer
 var mission_label: Label
 var incidents_label: Label
 var reputation_label: Label
+var dimensions_label: Label
 var traffic_label: Label
 var feedback_label: Label
 var _last_state: Dictionary = {}
@@ -25,6 +26,7 @@ func _ready() -> void:
     mission_label = _line(content)
     incidents_label = _line(content)
     reputation_label = _line(content)
+    dimensions_label = _line(content)
     traffic_label = _line(content)
     feedback_label = _line(content)
     render_state({})
@@ -56,6 +58,14 @@ func render_state(state: Dictionary) -> void:
     incidents_label.text = "INCIDENTS | --" if incident_count == null else "INCIDENTS | %d" % maxi(0, int(incident_count))
     var reputation: Variant = state.get("reputation", null)
     reputation_label.text = "REPUTATION | --" if reputation == null else "REPUTATION | %d/1000" % clampi(int(reputation), 0, 1000)
+    var civic_scores: Dictionary = state.get("scores", {})
+    if civic_scores.has("safety") and civic_scores.has("efficiency") and civic_scores.has("trust") and civic_scores.has("cooperation"):
+        dimensions_label.text = "CITY | Safety %d  Flow %d\nTrust %d  Cooperation %d" % [
+            int(civic_scores["safety"]), int(civic_scores["efficiency"]),
+            int(civic_scores["trust"]), int(civic_scores["cooperation"])
+        ]
+    else:
+        dimensions_label.text = "CITY | No civic metrics yet"
     var traffic: Dictionary = state.get("traffic", {})
     traffic_label.text = "TRAFFIC | No live data" if traffic.is_empty() else "TRAFFIC | Active %d  Queued %d  Completed %d" % [maxi(0, int(traffic.get("active", 0))), maxi(0, int(traffic.get("queue", 0))), maxi(0, int(traffic.get("completed", 0)))]
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))

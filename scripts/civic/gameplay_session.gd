@@ -127,6 +127,7 @@ func hud_state() -> Dictionary:
         "mission": (missions.missions.get(MISSION_ID, {}) as Dictionary).duplicate(true),
         "incidents": 0 if finished else 1,
         "reputation": metrics.reputation(),
+        "scores": metrics.scores.duplicate(true),
         "feedback": feedback
     }
 
