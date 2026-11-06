@@ -27,7 +27,7 @@ func _ready() -> void:
     for index in range(pedestrian_count):
         var walker := AnimatableBody3D.new()
         walker.collision_layer = 8
-        walker.collision_mask = 0
+        walker.collision_mask = 3
         walker.sync_to_physics = true
         var collider := CollisionShape3D.new()
         collider.name = "BodyCollision"
@@ -74,7 +74,7 @@ func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vec
     parent.add_child(part)
     return part
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
     if delta <= 0.0:
         return
     _elapsed += delta
@@ -99,7 +99,12 @@ func _process(delta: float) -> void:
             else:
                 can_walk = false
         if can_walk:
-            _walker_progress[index] += delta * speed
+            var next_progress: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
+            var proposed_position: Vector3 = _walk_position(side, next_progress)
+            if _pedestrian_blocked(index, proposed_position):
+                can_walk = false
+            else:
+                _walker_progress[index] += delta * speed
         var progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         if _crossing[index] and progress >= 6.0:
             _release_crossing(index, side)
@@ -125,6 +130,35 @@ func _process(delta: float) -> void:
         arms[1].rotation.x = -swing
         legs[0].rotation.x = -swing
         legs[1].rotation.x = swing
+
+func _walk_position(side: int, progress: float) -> Vector3:
+    var offset: float = 5.0
+    match side:
+        0:
+            return Vector3(offset, 0.2, progress)
+        1:
+            return Vector3(-offset, 0.2, -progress)
+        2:
+            return Vector3(progress, 0.2, offset)
+        _:
+            return Vector3(-progress, 0.2, -offset)
+
+func _pedestrian_blocked(index: int, next_position: Vector3) -> bool:
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var player_delta: Vector3 = player.global_position - to_global(next_position)
+        player_delta.y = 0.0
+        if player_delta.length_squared() < 1.6 * 1.6:
+            return true
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var separation: Vector3 = other.position - next_position
+        separation.y = 0.0
+        if separation.length_squared() < 0.85 * 0.85:
+            return true
+    return false
 
 func _can_cross(side: int) -> bool:
     if _signal_controller == null:
