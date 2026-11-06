@@ -20,8 +20,8 @@ Date: 2026-11-06 | Working branch: `fix/regression-nov05`
 ## Focused scenarios required
 | Scenario | Test | Status |
 |---|---|---|
-| Player cannot walk horizontally through NPC | `tests/player_pedestrian_contact_test.gd` (Phase 2) | NOT RUN |
-| Player falls through NPC roof to world floor | `tests/player_pedestrian_contact_test.gd` (Phase 2) | NOT RUN |
+| Player cannot walk horizontally through NPC | `tests/player_pedestrian_contact_test.gd` (commit `af04f32`) | NOT RUN |
+| Player falls through NPC roof to world floor | `tests/player_pedestrian_contact_test.gd` (commit `af04f32`) | NOT RUN |
 | NPC separation/crossing | `tests/pedestrian_collision_test.gd` | RETEST REQUIRED |
 | Vehicle stops for player | `tests/vehicle_obstacle_test.gd` | RETEST REQUIRED |
 | Road/surface alignment | `tests/surface_player_test.gd` | RETEST REQUIRED |
@@ -31,3 +31,7 @@ Date: 2026-11-06 | Working branch: `fix/regression-nov05`
 
 ## Reporting rule
 Log engine version, platform, branch commit, exact command, all failed assertions, reproducible setup, and any gameplay evidence. No GitHub Actions; no unobserved PASS claims.
+
+## Implementation / unverified change log
+- `af04f32` — player horizontal pedestrian cast and executable actual-frame regression registration.
+- Follow-up test correction requires that player remains on the **approach side** of the pedestrian after walking, catches falling through or returning to spawn, and asserts floor contact. Exact verification pending.

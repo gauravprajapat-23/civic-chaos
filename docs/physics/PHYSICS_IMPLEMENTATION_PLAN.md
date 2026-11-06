@@ -9,8 +9,8 @@ Date: 2026-11-06 | Branch: `fix/regression-nov05` | No GitHub Actions.
 - [ ] Capture failed test logs and reproducible gameplay evidence.
 
 ## Phase 2: Player and surfaces
-1. Add **horizontal-only** shape sweep against pedestrian bit 8 before player `move_and_slide()` while keeping normal player mask world+cars (5).
-2. Add actual physics-frame player approaching stationary pedestrian test, release test, and falling past a pedestrian without standing on it.
+1. [CODE ADDED, UNVERIFIED] **Horizontal-only** shape sweep against pedestrian bit 8 before player `move_and_slide()` while keeping normal player mask world+cars (5); commit `af04f32`.
+2. [TEST ADDED, NOT RUN] Actual physics-frame player approaching stationary pedestrian, release test, and falling past a pedestrian without standing on it; commit `af04f32`.
 3. Test curb and surface transitions; avoid creating second overlapping ground collider.
 4. Validate fall recovery, invalid load transforms and spawn occupancy.
 5. Run focused test, full regression and Windows gameplay. Record exact commit/log.

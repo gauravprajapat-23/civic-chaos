@@ -4,7 +4,7 @@ Status wording: OPEN = acceptance not proven; PARTIAL = code exists, real contac
 
 | ID | Priority | Status | Root cause and source | Exit criteria |
 |---|---|---|---|---|
-| PHYS-001 | P1 | OPEN | Player mask 5 excludes NPCs; no explicit horizontal contact guard in `scripts/player/player_controller.gd` | Player stops/slides around NPC without treating head as floor; physics-frame tests pass |
+| PHYS-001 | P1 | PARTIAL — NOT RUN | Player mask 5 excludes NPCs; horizontal-only sweep added in `scripts/player/player_controller.gd` at `af04f32`, pending real Godot run | Player stops/slides around NPC without treating head as floor; physics-frame tests pass |
 | PHYS-002 | P1 | PARTIAL | `scripts/npc/district_pedestrians.gd` direct Animatable position and proximity-only stall | Opposing, crossing and multi-NPC groups pass with no overlap or deadlock |
 | PHYS-003 | P1 | PARTIAL | `scripts/traffic/vehicle_agent.gd` sampled Node3D movement, static collider child | Vehicle collisions prevented at varied speeds/turns; no tunneling |
 | PHYS-004 | P1 | OPEN | `scripts/traffic/traffic_spawner.gd:_spawn_occupied` tests cars only by center distance | Reject full-volume overlapping cars, player, pedestrians and obstacles |
@@ -33,3 +33,8 @@ All are **pending a fresh Godot 4.7.2 run** on the current branch. Older 36/36 J
 - [ ] No P1 collisions remain
 
 Never close bugs or check runtime boxes without actual passing evidence. Issue IDs here complement, not replace, preexisting `docs/audits/ISSUE_REGISTER.md`.
+
+## Phase 2 player guard change (2026-11-06)
+- Commit `af04f32`: player-side horizontal cast against pedestrian layer 8, leaving vertical collision mask 5 unchanged; added `tests/player_pedestrian_contact_test.gd` and runner registration.
+- The regression runs 70 real physics frames into a stationary NPC, moves the NPC out of the way, and drops the player over an NPC to confirm actual-world grounding. A test failure cannot be hidden by the player passing through to the far side.
+- **Verification status: NOT RUN**; no headless Godot executable in this environment. Do not mark PHYS-001 closed.

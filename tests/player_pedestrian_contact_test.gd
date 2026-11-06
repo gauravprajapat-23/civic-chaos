@@ -50,8 +50,8 @@ func _run() -> void:
     Input.action_release("move_forward")
     var delta := player.global_position - pedestrian.global_position
     delta.y = 0.0
-    if delta.length() < 0.66:
-        _fail("player entered the pedestrian capsule horizontally")
+    if delta.length() < 0.66 or player.global_position.z < 0.65:
+        _fail("player overlapped or walked through the stationary pedestrian")
         return
     if player.global_position.z > 2.0:
         _fail("forward movement did not execute; NPC contact test would be vacuous")
@@ -73,8 +73,8 @@ func _run() -> void:
     player.velocity = Vector3.ZERO
     for frame in range(120):
         await physics_frame
-    if player.global_position.y > 0.35:
-        _fail("player landed on pedestrian head instead of world floor")
+    if player.global_position.y > 0.35 or player.global_position.y < -0.05 or absf(player.global_position.z) > 0.25 or not player.is_on_floor():
+        _fail("player failed to land on world floor beneath pedestrian")
         return
     stage.queue_free()
     print("CIVIC_CHAOS_PLAYER_PEDESTRIAN_CONTACT_PASS")

@@ -30,7 +30,7 @@ flowchart LR
 | Furniture | StaticBody3D, shape assertions added previously | 1 | 0 | `scripts/world/street_furniture.gd`, `tests/world_collision_test.gd` |
 
 ## Movement and contact gaps
-1. **PHYS-001 / P1:** The player has no pedestrian layer in its solid mask (correctly avoids NPCs becoming floors), but no separate player-side horizontal avoidance is present in `scripts/player/player_controller.gd`. A player can horizontally penetrate an NPC. Add collision-layer-8 horizontal shape sweep while leaving vertical floor resolution world-only.
+1. **PHYS-001 / P1:** The player has no pedestrian layer in its solid mask (correctly avoids NPCs becoming floors), and previously had no player-side horizontal avoidance. **Phase 2 candidate commit `af04f32`** now adds collision-layer-8 horizontal shape sweep while leaving vertical floor resolution world-only. Runtime behavior is **NOT RUN**.
 2. **PHYS-002 / P1:** `district_pedestrians.gd` moves `AnimatableBody3D.position` directly and uses O(N²) proximity, a destination intersection test and basic path geometry. When blocked it waits; it does not attempt sidesteps or route recovery. Initial spawn has no general spatial rejection loop.
 3. **PHYS-003 / P1:** `vehicle_agent.gd` advances a Node3D along centerlines and samples a child StaticBody shape at approximately 0.4 m intervals. Other cars, player and NPCs are in query mask, but this is not swept continuous physics or a dynamic contact response. `traffic_spawner.gd` bypasses these checks in isolated graph simulation mode; gameplay mode remains enabled.
 4. **PHYS-004 / P1:** `traffic_spawner.gd:_spawn_occupied` compares horizontal center distance to existing cars only. It does not test player, pedestrian, props or full oriented car footprints.
