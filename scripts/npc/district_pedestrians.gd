@@ -108,7 +108,8 @@ func _physics_process(delta: float) -> void:
         if can_walk:
             var next_progress: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
             var proposed_position: Vector3 = _walk_position(side, next_progress)
-            if _pedestrian_blocked(index, proposed_position) or _walker_path_occupied(index, current_position, proposed_position) or _swept_path_blocked(index, current_position, proposed_position):
+            var is_wrap: bool = current_position.distance_squared_to(proposed_position) > 4.0
+            if _pedestrian_blocked(index, proposed_position) or _walker_path_occupied(index, current_position, proposed_position) or (not is_wrap and _swept_path_blocked(index, current_position, proposed_position)):
                 can_walk = false
             else:
                 _walker_progress[index] += delta * speed
@@ -155,9 +156,9 @@ func _walk_position(side: int, progress: float) -> Vector3:
 func _walker_path_occupied(index: int, start: Vector3, destination: Vector3) -> bool:
     var travel: Vector3 = destination - start
     travel.y = 0.0
-    # Route wrap is a teleport, not a valid movement step.
+    # At route wrap, test only destination occupancy (not the teleport path).
     if travel.length_squared() > 4.0:
-        return true
+        return false
     for other_index in range(_walkers.size()):
         if other_index == index:
             continue
