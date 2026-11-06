@@ -13,13 +13,13 @@ func _run() -> void:
     root.add_child(stage)
     var floor := StaticBody3D.new()
     floor.name = "RoadSupport"
-    floor.position = Vector3(-25.0, -0.25, 0.0)
+    floor.position = Vector3(0.0, -0.25, 0.0)
     floor.collision_layer = 1
     floor.collision_mask = 0
     var floor_shape := CollisionShape3D.new()
     floor_shape.name = "CollisionShape3D"
     var box := BoxShape3D.new()
-    box.size = Vector3(100, 0.5, 24)
+    box.size = Vector3(140, 0.5, 24)
     floor_shape.shape = box
     floor.add_child(floor_shape)
     stage.add_child(floor)
@@ -118,19 +118,43 @@ func _run() -> void:
         _fail("marshal arrival did not advance mission")
         return
     var released: bool = false
-    for frame in range(550):
+    var observed_tow: bool = false
+    var last_towed_position: Vector3 = live.offender.global_position
+    var max_towed_step: float = Live.TOW_SPEED_MPS * (1.0 / float(Engine.physics_ticks_per_second)) + 0.22
+    for frame in range(1100):
         await physics_frame
+        if live.tow_started:
+            observed_tow = true
+            if not live.tow_completed:
+                if not is_instance_valid(live.tow_vehicle) or not is_instance_valid(live.offender):
+                    _fail("escort lost a vehicle before it reached its legal exit")
+                    return
+                var travel_step: float = live.offender.global_position.distance_to(last_towed_position)
+                if travel_step > max_towed_step:
+                    _fail("towed offender teleported %.2fm between physics frames" % travel_step)
+                    return
+                if live.blocker_removed:
+                    _fail("obstruction was declared removed while tow truck was still on road")
+                    return
+                if not live.city_graph.outgoing_legal_lanes(live.approach_lane_id, 1).has(live.exit_lane_id):
+                    _fail("tow convoy did not use a legal route")
+                    return
+        if is_instance_valid(live.offender):
+            last_towed_position = live.offender.global_position
         if live.finished:
             released = true
             break
+    if not observed_tow or not live.tow_completed:
+        _fail("visible tow convoy did not complete its authorized route")
+        return
     if not released:
         var cars: Array[String] = []
         for car in live.followers:
             cars.append("lane%d %.1fm/%.1fmps" % [car.current_route_index, car.lane_distance_m, car.speed_mps])
         _fail("real traffic failed to recover; released=%d queue=%d cars=%s" % [live.released_ids.size(), live.stopped_count, ", ".join(cars)])
         return
-    if is_instance_valid(live.offender) or not live.blocker_removed:
-        _fail("wrong-way obstruction was never physically cleared")
+    if is_instance_valid(live.offender) or is_instance_valid(live.tow_vehicle) or not live.blocker_removed:
+        _fail("tow convoy did not clear the actual vehicles from the legal exit")
         return
     if live.released_ids.size() < Live.REQUIRED_RELEASED:
         _fail("mission completed without actual moving vehicles passing blockage")

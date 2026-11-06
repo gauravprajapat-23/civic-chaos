@@ -316,6 +316,12 @@ func _advance_marshal(delta: float) -> void:
 func _start_tow_convoy() -> bool:
     if tow_started or tow_completed or not is_instance_valid(offender):
         return false
+    # The towing service must never operate before a real authorized report
+    # and a marshal's physical arrival/incident state transition.
+    if reported_tick < 0 or intervention_tick < 0:
+        return false
+    if session.incidents.incidents[incident_id]["state"] != CivicIncidentManager.INTERVENTION:
+        return false
     var legal_exits: Array[int] = city_graph.outgoing_legal_lanes(approach_lane_id, 1)
     if not legal_exits.has(exit_lane_id):
         return false
