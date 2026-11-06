@@ -46,7 +46,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 		for lane_id in road_graph.sorted_lane_ids():
 			var lane: CivicLaneData = road_graph.get_lane(lane_id)
 			var origin: Vector3 = lane.centerline[0]
-			if absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0:
+			if (absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0) and lane.centerline[1].length_squared() < origin.length_squared():
 				city_entry_lanes.append(lane_id)
 		if city_entry_lanes.is_empty():
 			return false
