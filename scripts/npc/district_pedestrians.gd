@@ -1,6 +1,5 @@
 extends Node3D
-## Lightweight, deterministic visual pedestrians for the district preview.
-## Sidewalk walkers reserve shared junction crossing zones.
+## Deterministic sidewalk pedestrians with physics clearance and junction reservations.
 
 @export var pedestrian_count: int = 8
 @export var district_extent: float = 38.0
@@ -11,6 +10,10 @@ var _traffic_spawner: CivicTrafficSpawner
 var _walker_progress: Array[float] = []
 var _reservations: CivicIntersectionReservations
 var _crossing: Array[bool] = []
+const BODY_RADIUS: float = 0.32
+const PLAYER_CLEARANCE: float = 1.15
+const WALKER_CLEARANCE: float = 0.85
+const VEHICLE_CLEARANCE: float = 1.5
 
 func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner, reservations: CivicIntersectionReservations = null) -> void:
     _signal_controller = signals
@@ -29,10 +32,11 @@ func _ready() -> void:
         walker.collision_layer = 8
         walker.collision_mask = 3
         walker.sync_to_physics = true
+        walker.set_meta("pedestrian_index", index)
         var collider := CollisionShape3D.new()
         collider.name = "BodyCollision"
         var capsule := CapsuleShape3D.new()
-        capsule.radius = 0.32
+        capsule.radius = BODY_RADIUS
         capsule.height = 1.75
         collider.shape = capsule
         collider.position.y = 0.87
@@ -48,6 +52,7 @@ func _ready() -> void:
         var right_leg := _part(walker, "RightLeg", Vector3(0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
         _walker_progress.append(float(index) * 5.0)
         _crossing.append(false)
+        walker.position = _walk_position(index % 4, fposmod(_walker_progress[index], district_extent * 1.65) - district_extent * 1.65 * 0.5)
         _walkers.append({
             "root": walker, "arms": [left_arm, right_arm], "legs": [left_leg, right_leg],
             "phase": float(index) * 1.7, "speed": 1.0 + float(index % 3) * 0.22,
@@ -101,7 +106,7 @@ func _physics_process(delta: float) -> void:
         if can_walk:
             var next_progress: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
             var proposed_position: Vector3 = _walk_position(side, next_progress)
-            if _pedestrian_blocked(index, proposed_position):
+            if _pedestrian_blocked(index, proposed_position) or _swept_path_blocked(index, root.position, proposed_position):
                 can_walk = false
             else:
                 _walker_progress[index] += delta * speed
@@ -144,21 +149,47 @@ func _walk_position(side: int, progress: float) -> Vector3:
             return Vector3(-progress, 0.2, -offset)
 
 func _pedestrian_blocked(index: int, next_position: Vector3) -> bool:
+    # Evaluate current and proposed positions so a walker cannot step into
+    # a player already overlapping its path.
     var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
     if player != null:
-        var player_delta: Vector3 = player.global_position - to_global(next_position)
-        player_delta.y = 0.0
-        if player_delta.length_squared() < 1.6 * 1.6:
-            return true
+        for candidate in [_walkers[index]["root"].position, next_position]:
+            var delta_to_player: Vector3 = player.global_position - to_global(candidate)
+            delta_to_player.y = 0.0
+            if delta_to_player.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+                return true
     for other_index in range(_walkers.size()):
         if other_index == index:
             continue
         var other: Node3D = _walkers[other_index]["root"]
         var separation: Vector3 = other.position - next_position
         separation.y = 0.0
-        if separation.length_squared() < 0.85 * 0.85:
+        if separation.length_squared() < WALKER_CLEARANCE * WALKER_CLEARANCE:
             return true
+    if _traffic_spawner != null:
+        for vehicle in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(vehicle) or not vehicle.active:
+                continue
+            var delta_to_vehicle: Vector3 = vehicle.global_position - to_global(next_position)
+            delta_to_vehicle.y = 0.0
+            if delta_to_vehicle.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                return true
     return false
+
+func _swept_path_blocked(index: int, from_position: Vector3, to_position: Vector3) -> bool:
+    var movement: Vector3 = to_position - from_position
+    if movement.length_squared() < 0.000001:
+        return false
+    var walker: AnimatableBody3D = _walkers[index]["root"] as AnimatableBody3D
+    var collider: CollisionShape3D = walker.get_node("BodyCollision") as CollisionShape3D
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.transform = Transform3D(walker.global_transform.basis, to_global(to_position) + Vector3(0.0, collider.position.y, 0.0))
+    query.collision_mask = 1 | 2 | 4 | 8
+    query.exclude = [walker.get_rid()]
+    query.margin = 0.03
+    # Test proposed body volume against all relevant solid obstacles.
+    return not get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 func _can_cross(side: int) -> bool:
     if _signal_controller == null:
