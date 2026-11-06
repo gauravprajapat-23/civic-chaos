@@ -40,7 +40,7 @@ func _ready() -> void:
         var walker := AnimatableBody3D.new()
         walker.collision_layer = 8
         walker.collision_mask = 0 # Sensing layer only; no rigid actor-actor collision.
-        walker.sync_to_physics = true
+        walker.sync_to_physics = false # We place walkers in _physics_process; never replay a stale synced transform.
         walker.set_meta("pedestrian_index", index)
         var collider := CollisionShape3D.new()
         collider.name = "BodyCollision"
@@ -166,52 +166,87 @@ func _physics_process(delta: float) -> void:
 ## When somebody is already embedded, create small local separation.
 ## A separate fallback is needed because planning from overlapping positions
 ## cannot know a legal path until the initial penetration is reduced.
-func _resolve_actor_overlap(index: int, delta: float) -> bool:
+func _resolve_actor_overlap(index: int, _delta: float) -> bool:
     var walker: Node3D = _walkers[index]["root"]
-    var danger_position: Vector3 = Vector3.ZERO
-    var nearest_distance: float = INF
-    var nearest_minimum: float = HARD_SEPARATION
     var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    var closest: Vector3 = Vector3.ZERO
+    var closest_ratio: float = INF
     if player != null:
-        var player_gap := Vector2(walker.global_position.x - player.global_position.x, walker.global_position.z - player.global_position.z).length()
-        if player_gap < PLAYER_CLEARANCE:
-            nearest_distance = player_gap
-            nearest_minimum = PLAYER_CLEARANCE
-            danger_position = to_local(player.global_position)
+        var to_player: Vector3 = walker.global_position - player.global_position
+        to_player.y = 0.0
+        var player_ratio: float = to_player.length() / PLAYER_CLEARANCE
+        if player_ratio < 1.0:
+            closest_ratio = player_ratio
+            closest = to_local(player.global_position)
     for other_index in range(_walkers.size()):
         if other_index == index:
             continue
         var other: Node3D = _walkers[other_index]["root"]
-        var gap := Vector2(walker.position.x - other.position.x, walker.position.z - other.position.z).length()
-        if gap < HARD_SEPARATION and (nearest_distance == INF or (gap / HARD_SEPARATION) < (nearest_distance / nearest_minimum)):
-            nearest_distance = gap
-            nearest_minimum = HARD_SEPARATION
-            danger_position = other.position
-    if nearest_distance == INF:
+        var gap: Vector3 = walker.position - other.position
+        gap.y = 0.0
+        var ratio: float = gap.length() / HARD_SEPARATION
+        if ratio < 1.0 and ratio < closest_ratio:
+            closest_ratio = ratio
+            closest = other.position
+    if closest_ratio == INF:
         return false
-    var away: Vector3 = walker.position - danger_position
+
+    # Normal path avoidance cannot escape a fully embedded start: it rejects
+    # every intermediate point as occupied. Reserve one small, clear landing
+    # point instead, then resume regular path planning on subsequent frames.
+    var away: Vector3 = walker.position - closest
     away.y = 0.0
-    if away.length_squared() < 0.0001:
-        var angle: float = float((index * 19 + 7) % 8) * PI / 4.0
-        away = Vector3(cos(angle), 0.0, sin(angle))
+    if away.length_squared() < 0.00001:
+        var heading: float = float((index * 5 + 1) % 16) * TAU / 16.0
+        away = Vector3(cos(heading), 0.0, sin(heading))
     away = away.normalized()
-    var correction: float = minf(maxf(0.08, nearest_minimum - nearest_distance + 0.05), 0.36)
-    var before: Vector3 = walker.position
-    for trial in [away, away.rotated(Vector3.UP, PI / 3.0), away.rotated(Vector3.UP, -PI / 3.0)]:
-        var destination: Vector3 = before + trial * correction
-        if _candidate_is_clear(index, before, destination, false):
-            walker.position = destination
-            var data: Dictionary = _walkers[index]
-            var side: int = data["side"]
-            var loop_length: float = district_extent * 1.65
-            var route_progress: float = fposmod(_walker_progress[index], loop_length) - loop_length * 0.5
-            var center: Vector3 = _walk_position(side, route_progress)
-            _sidestep_offsets[index] = clampf(
-                (destination - center).dot(_walker_right(side, float(data["speed"]))),
-                -2.2, 2.2
-            )
-            return true
+    var heading_angle: float = atan2(away.z, away.x)
+    for radius in [1.55, 1.95, 2.4, 3.1]:
+        for direction_step in [0, 1, -1, 2, -2, 3, -3, 4]:
+            var angle: float = heading_angle + float(direction_step) * PI / 4.0
+            var candidate: Vector3 = walker.position + Vector3(cos(angle), 0.0, sin(angle)) * radius
+            if _recovery_position_is_clear(index, candidate):
+                walker.position = candidate
+                var entry: Dictionary = _walkers[index]
+                var side: int = entry["side"]
+                var circumference: float = district_extent * 1.65
+                var progress: float = fposmod(_walker_progress[index], circumference) - circumference * 0.5
+                var route_center: Vector3 = _walk_position(side, progress)
+                _sidestep_offsets[index] = clampf(
+                    (candidate - route_center).dot(_walker_right(side, float(entry["speed"]))),
+                    -SIDESTEP_DISTANCE, SIDESTEP_DISTANCE
+                )
+                _blocked_frames[index] = 0
+                return true
+    # Do not teleport into another actor or a building if every option fails.
     return false
+
+func _recovery_position_is_clear(index: int, candidate: Vector3) -> bool:
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var player_offset: Vector3 = to_local(player.global_position) - candidate
+        player_offset.y = 0.0
+        if player_offset.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+            return false
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var gap: Vector3 = other.position - candidate
+        gap.y = 0.0
+        if gap.length_squared() < PERSONAL_SPACE * PERSONAL_SPACE:
+            return false
+    if _traffic_spawner != null:
+        for vehicle in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(vehicle) or not vehicle.active:
+                continue
+            var gap: Vector3 = vehicle.global_position - to_global(candidate)
+            gap.y = 0.0
+            if gap.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                return false
+    # Validate static world/car occupancy only at the recovery destination.
+    # Never apply the normal path sweep to a point already inside an actor.
+    return not _swept_path_blocked(index, candidate, candidate, true)
 
 ## People have right-of-way over an NPC's route. Approach is sensed before
 ## they touch; a pedestrian moves sideways instead of physically pushing the

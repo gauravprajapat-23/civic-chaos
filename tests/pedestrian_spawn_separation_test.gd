@@ -52,7 +52,7 @@ func _run() -> void:
     var difference: Vector3 = a.position - b.position
     difference.y = 0.0
     if difference.length() < MIN_SPACING:
-        _fail("overlapped NPCs failed to recover personal space")
+        _fail("overlapped NPCs failed to recover personal space (a=%s, b=%s, gap=%.3f, blocked=%s)" % [str(a.position), str(b.position), difference.length(), str(walkers._blocked_frames)])
         return
     # Explicitly reproduce the screenshot: player and NPC share one position.
     # No hard character collision is allowed to trap them together.
