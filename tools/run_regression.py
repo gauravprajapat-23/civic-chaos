@@ -43,7 +43,7 @@ def main():
     args = parser.parse_args()
     workflow = WORKFLOW.read_text(encoding="utf-8")
     tests = list(dict.fromkeys(re.findall(r"res://tests/([\w-]+_test\.gd)", workflow)))
-    tests.extend(("traffic_stop_line_test.gd", "traffic_braking_test.gd", "world_collision_test.gd", "pedestrian_collision_test.gd", "vehicle_obstacle_test.gd", "city_traffic_test.gd", "surface_player_test.gd", "player_pedestrian_contact_test.gd", "player_vehicle_contact_test.gd", "player_safe_restore_test.gd", "pedestrian_crowd_avoidance_test.gd", "pedestrian_spawn_separation_test.gd", "building_distance_lod_test.gd", "city_signal_stop_line_test.gd"))
+    tests.extend(("traffic_stop_line_test.gd", "traffic_braking_test.gd", "world_collision_test.gd", "pedestrian_collision_test.gd", "vehicle_obstacle_test.gd", "city_traffic_test.gd", "surface_player_test.gd", "player_pedestrian_contact_test.gd", "player_vehicle_contact_test.gd", "player_safe_restore_test.gd", "pedestrian_crowd_avoidance_test.gd", "pedestrian_spawn_separation_test.gd", "building_distance_lod_test.gd", "city_signal_stop_line_test.gd", "vehicle_world_obstacle_test.gd", "vehicle_spawn_occupancy_test.gd"))
     tests = list(dict.fromkeys(name for name in tests if (ROOT / "tests" / name).is_file()))
     if not tests:
         print("No regression tests discovered", file=sys.stderr)

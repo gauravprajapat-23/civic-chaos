@@ -118,12 +118,6 @@ func _path_has_vulnerable_obstacle(travel: float) -> bool:
     var collision_shape := collision_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
     if collision_shape == null or collision_shape.shape == null:
         return false
-    var space := get_world_3d().direct_space_state
-    var query := PhysicsShapeQueryParameters3D.new()
-    query.shape = collision_shape.shape
-    query.collision_mask = 2 | 4 | 8
-    query.exclude = [collision_body.get_rid()]
-    query.margin = 0.02
     var original_index := current_route_index
     var original_distance := lane_distance_m
     var remaining := travel
@@ -150,8 +144,47 @@ func _path_has_vulnerable_obstacle(travel: float) -> bool:
         var tangent: Vector3 = location["tangent"]
         var heading := atan2(-tangent.x, -tangent.z)
         var basis := Basis(Vector3.UP, heading)
-        query.transform = Transform3D(basis, location["position"] + basis * collision_shape.position)
-        if not space.intersect_shape(query, 1).is_empty():
+        if footprint_blocked_at(Transform3D(basis, location["position"])):
+            return true
+    return false
+
+## Reused by spawn validation and movement: floors support the car,
+## while pedestrians, other cars, buildings, walls and street furniture block it.
+## This is a footprint *overlap* query, not rigid-body vehicle physics.
+func footprint_blocked_at(vehicle_transform: Transform3D) -> bool:
+    if not is_inside_tree():
+        return false
+    var body: StaticBody3D = get_node_or_null("CollisionBody") as StaticBody3D
+    if body == null:
+        return false
+    var collider: CollisionShape3D = body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collider == null or collider.shape == null:
+        return false
+    var shape_transform: Transform3D = vehicle_transform * body.transform * collider.transform
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.transform = shape_transform
+    query.collision_mask = 1 | 2 | 4 | 8
+    query.exclude = [body.get_rid()]
+    query.margin = 0.02
+    var car_bottom: float = shape_transform.origin.y - 0.6
+    if collider.shape is BoxShape3D:
+        car_bottom = shape_transform.origin.y - (collider.shape as BoxShape3D).size.y * 0.5
+    var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 32)
+    for hit in hits:
+        var obstacle: CollisionObject3D = hit.get("collider") as CollisionObject3D
+        if obstacle == null:
+            continue
+        if (obstacle.collision_layer & 1) == 0:
+            return true
+        # Broad, horizontal terrain/road support is not a traffic obstruction.
+        # A sidewalk, building or sign protruding above the tyre clearance is.
+        var world_shape: CollisionShape3D = obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if world_shape == null or not (world_shape.shape is BoxShape3D):
+            return true
+        var world_box: BoxShape3D = world_shape.shape as BoxShape3D
+        var surface_top: float = world_shape.global_position.y + world_box.size.y * 0.5
+        if surface_top > car_bottom + 0.035:
             return true
     return false
 
