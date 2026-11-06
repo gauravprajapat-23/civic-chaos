@@ -63,3 +63,9 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 - Existing overlapping agents attempt small local depenetration even when traffic lights are red; NPCs yield to an approaching player and do not mistake road/sidewalk floors for obstacles.
 - `tests/player_pedestrian_contact_test.gd` now tests the *revised* user requirement (no hard blocking, but remains grounded). `tests/pedestrian_spawn_separation_test.gd` checks 12 initial spawn slots, 240 frames, forced NPC/NPC overlap and forced player/NPC overlap.
 - No physics test has been executed in this environment. **Keep PHYS-002 open pending passing Godot 4.7.2 tests plus actual visual confirmation**.
+
+## Actual engine failure: force-overlap recovery (2026-11-06)
+- User ran Godot 4.7.2 at `927fc8f`: import passed, all regression cases except `pedestrian_spawn_separation_test.gd` passed. Failure: `overlapped NPCs failed to recover personal space`. Exit code 1.
+- Candidate root cause: embedded NPC starts used regular path collision checks that cannot clear a pre-existing overlap. `sync_to_physics=true` also conflicted with manually updated transforms.
+- Fix candidate: `247cf80` adds bounded landing-point recovery, preserving geometry and player/NPC clearances, and disables redundant transform synchronization. Adds diagnostic positions if recovery still fails.
+- **RETEST PENDING:** do not close PHYS-002 until the new focused test and full suite pass on Godot 4.7.2, followed by a busy-street visual check.

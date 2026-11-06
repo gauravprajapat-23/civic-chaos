@@ -30,6 +30,9 @@ func _run() -> void:
         if walker.collision_layer != 8 or walker.collision_mask != 0:
             _fail("NPC must be a sensing-only body without NPC/player hard collision")
             return
+        if walker.sync_to_physics:
+            _fail("manual NPC movement must not be overwritten by synchronized physics transforms")
+            return
     if not _clear_spacing(walkers, player, 1.0, 1.2):
         _fail("spawned pedestrian overlaps another actor")
         return

@@ -61,3 +61,8 @@ Log engine version, platform, branch commit, exact command, all failed assertion
 - The previous player/NPC physical-blocking test was updated for the explicitly changed behavior: player no longer collides rigidly with pedestrians. Pedestrians should yield and recover; cars still detect them on sensing layer 8.
 - Static repository changes were reviewed and pushed, but **Godot 4.7.2 import = NOT RUN, test suite = NOT RUN, actual screenshot recheck = NOT RUN**. No GitHub Actions manually run.
 - Next validation: full local regression plus gameplay inspection around the screenshot crossing. If the new spawn test fails, retain the failure and fix the reported root cause rather than weakening its spacing checks.
+
+## User-supplied failing 2026-11-06 regression
+- Branch `927fc8f`, Godot `4.7.2.stable.official.ed1daf0bf`: successful import. All displayed tests PASS except `pedestrian_spawn_separation_test.gd`; error `overlapped NPCs failed to recover personal space`; runner exit 1.
+- Corrective code pushed in `247cf80`: use a separate bounded actor-overlap escape check rather than applying normal path clearance to already embedded agents; set `sync_to_physics = false` for manually moved AnimatableBody3D walkers.
+- Test now includes diagnostic coordinates and sync-mode contract. **Latest code NOT RUN** on Godot in the assistant environment. This section reports user-provided output only. No GitHub Actions triggered.
