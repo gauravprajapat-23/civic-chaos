@@ -48,6 +48,10 @@ func _run() -> void:
             else:
                 assert(actual_event[key] == expected_event[key])
     assert(restored.event_log.size() == 5)
+    # Malformed and valid-but-wrong-type JSON must fail *quietly*: strict
+    # headless tests treat Godot engine ERROR output as a real failure.
     assert(Manager.from_json("broken") == null)
+    assert(Manager.from_json("{bad") == null)
+    assert(Manager.from_json("null") == null)
     print("CIVIC_CHAOS_INCIDENT_PASS")
     quit(0)

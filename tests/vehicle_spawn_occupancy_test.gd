@@ -20,7 +20,10 @@ func _run() -> void:
         var blocker := StaticBody3D.new()
         blocker.collision_layer = 2 # Player / street-user footprint.
         blocker.collision_mask = 0
-        blocker.global_position = entry
+        # A fresh Node3D is not inside SceneTree. global_position requires
+        # tree membership and emitted Godot ERROR for every test blocker.
+        # stage has identity transform, so assign local position before add.
+        blocker.position = entry
         var collision := CollisionShape3D.new()
         var capsule := CapsuleShape3D.new()
         capsule.radius = 0.4

@@ -33,9 +33,16 @@ func _run() -> void:
         _fail("menu scene missing")
         return
     var menu := load("res://scenes/core/menu.tscn") as PackedScene
-    if menu == null or menu.instantiate() == null:
+    if menu == null:
         _fail("menu scene invalid")
         return
+    var menu_instance: Node = menu.instantiate()
+    if menu_instance == null:
+        _fail("menu scene could not instantiate")
+        return
+    # SceneTree does not own an unparented PackedScene instance. Without
+    # free(), it leaks Label/Font RIDs and ObjectDB nodes at engine exit.
+    menu_instance.free()
     var manager := Lifecycle.new()
     if not manager.has_method("set_paused") or not manager.has_method("restart_game"):
         _fail("lifecycle API missing")
