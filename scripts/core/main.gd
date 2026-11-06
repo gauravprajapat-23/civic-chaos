@@ -10,9 +10,11 @@ const DebugOverlay = preload("res://scripts/debug/debug_overlay.gd")
 const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
 const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
+const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
+var gameplay_session: CivicGameplaySession
 var _traffic_display_elapsed: float = 0.0
 
 func _enter_tree() -> void:
@@ -85,6 +87,13 @@ func _ready() -> void:
         var live_signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
         if live_signals != null:
             furniture.configure_signals(live_signals)
+    gameplay_session = GameplaySession.new() as CivicGameplaySession
+    gameplay_session.name = "CivicGameplaySession"
+    add_child(gameplay_session)
+    if not gameplay_session.configure(self, player, civic_hud):
+        push_error("Civic gameplay session could not start")
+    else:
+        gameplay_session.feedback_changed.connect(_on_interaction_message)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
