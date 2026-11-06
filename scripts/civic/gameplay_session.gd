@@ -136,3 +136,109 @@ func _publish() -> void:
     var state: Dictionary = _hud.current_state()
     state.merge(hud_state(), true)
     _hud.render_state(state)
+
+## One versioned civic snapshot lives beside the existing v1 player save.
+## Validation is pure and runs before any world or score changes.
+func snapshot() -> Dictionary:
+    return {
+        "schema_version": 1,
+        "tick": tick,
+        "incident_id": incident_id,
+        "reported_tick": reported_tick,
+        "intervention_tick": intervention_tick,
+        "cleanup_requested": cleanup_requested,
+        "finished": finished,
+        "feedback": feedback,
+        "incidents": incidents.snapshot(),
+        "missions": missions.snapshot(),
+        "metrics": metrics.snapshot()
+    }
+
+func can_restore(data: Variant) -> bool:
+    if not (data is Dictionary):
+        return false
+    var saved: Dictionary = data
+    if saved.get("schema_version") != 1:
+        return false
+    for field in ["tick", "incident_id", "reported_tick", "intervention_tick"]:
+        if not (saved.get(field) is int):
+            return false
+    for field in ["cleanup_requested", "finished"]:
+        if not (saved.get(field) is bool):
+            return false
+    if not (saved.get("feedback") is String):
+        return false
+    if not (saved.get("incidents") is Dictionary) or not (saved.get("missions") is Dictionary) or not (saved.get("metrics") is Dictionary):
+        return false
+    var saved_tick: int = saved["tick"]
+    var report_at: int = saved["reported_tick"]
+    var intervention_at: int = saved["intervention_tick"]
+    if saved_tick < 0 or saved["incident_id"] < 1:
+        return false
+    if report_at < -1 or report_at > saved_tick or intervention_at < -1 or intervention_at > saved_tick:
+        return false
+    if intervention_at >= 0 and report_at < 0:
+        return false
+    if bool(saved["cleanup_requested"]) and intervention_at < 0:
+        return false
+    if bool(saved["finished"]) and not bool(saved["cleanup_requested"]):
+        return false
+    var incident_copy: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(saved["incidents"]))
+    var mission_copy := CivicMissionManager.new()
+    var metric_copy := CivicCityMetrics.new()
+    if incident_copy == null or not mission_copy.restore(saved["missions"]) or not metric_copy.restore(saved["metrics"]):
+        return false
+    var id: int = saved["incident_id"]
+    if not incident_copy.incidents.has(id) or not mission_copy.missions.has(MISSION_ID):
+        return false
+    if saved_tick < incident_copy.current_tick or saved_tick < metric_copy.last_tick:
+        return false
+    var incident: Dictionary = incident_copy.incidents[id]
+    var mission: Dictionary = mission_copy.missions[MISSION_ID]
+    var progress: Dictionary = mission.get("progress", {})
+    if not progress.has("incident_reported") or not progress.has("obstruction_observed") or not progress.has("path_cleared"):
+        return false
+    if (report_at >= 0) != (int(progress["incident_reported"]) > 0):
+        return false
+    var incident_state: String = str(incident.get("state", ""))
+    if report_at >= 0 and incident_state == CivicIncidentManager.ACTIVE:
+        return false
+    if intervention_at >= 0 and incident_state != CivicIncidentManager.INTERVENTION and incident_state != CivicIncidentManager.RESOLVED:
+        return false
+    if bool(saved["finished"]):
+        if incident_state != CivicIncidentManager.RESOLVED or mission.get("state") != CivicMissionManager.COMPLETED or not mission_copy.rewarded.has(MISSION_ID):
+            return false
+        if int(progress["path_cleared"]) != 1:
+            return false
+    elif incident_state == CivicIncidentManager.RESOLVED:
+        return false
+    return true
+
+func restore(data: Variant) -> bool:
+    if not can_restore(data) or incident_id < 0:
+        return false
+    var saved: Dictionary = data
+    var replacement: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(saved["incidents"]))
+    if replacement == null:
+        return false
+    var next_missions := CivicMissionManager.new()
+    var next_metrics := CivicCityMetrics.new()
+    if not next_missions.restore(saved["missions"]) or not next_metrics.restore(saved["metrics"]):
+        return false
+    incidents = replacement
+    missions = next_missions
+    metrics = next_metrics
+    interactions.configure(incidents, missions)
+    tick = saved["tick"]
+    incident_id = saved["incident_id"]
+    reported_tick = saved["reported_tick"]
+    intervention_tick = saved["intervention_tick"]
+    cleanup_requested = saved["cleanup_requested"]
+    finished = saved["finished"]
+    feedback = saved["feedback"]
+    # The physical obstruction must match progress. Queued deletion is
+    # resolved on the next frame; do not respawn a completed incident.
+    if (cleanup_requested or finished) and is_instance_valid(marker):
+        marker.queue_free()
+    _publish()
+    return true

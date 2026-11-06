@@ -11,6 +11,7 @@ const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
 const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
+const SaveRepo = preload("res://scripts/core/save_repository.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
@@ -107,9 +108,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif event.is_action_pressed("pause_game"):
         _toggle_pause()
     elif event.is_action_pressed("save_game"):
-        lifecycle.save_player(player)
+        lifecycle.save_player(player, "", {"civic_session": gameplay_session.snapshot()})
     elif event.is_action_pressed("load_game"):
-        lifecycle.load_player(player)
+        var saved: Dictionary = SaveRepo.read_save()
+        if saved.has("civic_session") and not gameplay_session.can_restore(saved["civic_session"]):
+            _on_interaction_message("Save rejected: invalid civic progress")
+        elif lifecycle.load_player(player):
+            if saved.has("civic_session"):
+                gameplay_session.restore(saved["civic_session"])
     elif event.is_action_pressed("restart_game"):
         lifecycle.restart_game()
     elif event.is_action_pressed("return_to_menu"):
