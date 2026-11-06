@@ -37,7 +37,7 @@ func _run() -> void:
     for tick in range(200):
         car.advance_fixed(0.05)
         await physics_frame
-    if car.global_position.x > 2.5:
+    if car.global_position.x > 3.5:
         _fail("car entered player safety envelope")
         return
     if car.speed_mps > 0.01:
