@@ -163,7 +163,8 @@ func _start_wrong_way_mission() -> void:
     var live: CivicWrongWayLiveMission = WrongWayLiveMission.new() as CivicWrongWayLiveMission
     live.name = "WrongWayLiveMission"
     add_child(live)
-    if not live.configure(self, player, graph, gameplay_session):
+    var traffic_system: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    if not live.configure(self, player, graph, gameplay_session, traffic_system):
         live.queue_free()
         push_warning("Wrong-way mission could not stage a clear, safe road scenario")
         return

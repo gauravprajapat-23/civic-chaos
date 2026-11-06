@@ -20,6 +20,7 @@ const MARSHAL_SERVICE_TICKS: int = 35
 const RECOVERY_FRAMES: int = 12
 
 var city_graph: CivicRoadGraph
+var traffic_system: CivicTrafficSpawner
 var session: CivicGameplaySession
 var player: Node3D
 var marker: CivicWrongWayReportMarker
@@ -47,7 +48,7 @@ var feedback: String = "Spot the wrong-way car and the actual queue."
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
 
-func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_session: CivicGameplaySession) -> bool:
+func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_session: CivicGameplaySession, spawner: CivicTrafficSpawner = null) -> bool:
     if world == null or actor == null or graph == null or civic_session == null or incident_id >= 0:
         return false
     if not is_inside_tree() or not graph.validate().is_empty():
@@ -55,6 +56,7 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
     player = actor
     session = civic_session
     city_graph = graph
+    traffic_system = spawner
     if not _find_approach():
         return false
     tick = maxi(session.tick, session.incidents.current_tick)
@@ -188,6 +190,8 @@ func _advance_cars(delta: float) -> void:
         if not is_instance_valid(car) or not car.active:
             continue
         var obs: Dictionary = observations.get(car.get_instance_id(), {"detected": false})
+        if traffic_system != null:
+            obs = traffic_system.apply_stop_line_observation(car, obs)
         if bool(obs.get("detected", false)):
             car.set_lead_observation(float(obs["gap_m"]), float(obs["lead_speed_mps"]))
         else:
