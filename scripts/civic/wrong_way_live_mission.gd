@@ -41,6 +41,7 @@ var finished: bool = false
 var recovery_streak: int = 0
 var released_ids: Dictionary = {}
 var moved_ids: Dictionary = {}
+var starting_distances: Dictionary = {}
 var feedback: String = "Spot the wrong-way car and the actual queue."
 
 func _init() -> void:
@@ -134,6 +135,7 @@ func _stage_vehicles() -> bool:
             car.queue_free()
             return false
         followers.append(car)
+        starting_distances[car.get_instance_id()] = distance
     return followers.size() >= REQUIRED_STOPPED
 
 func _place_offender(distance: float) -> void:
@@ -187,7 +189,7 @@ func _advance_cars(delta: float) -> void:
         else:
             car.clear_lead_observation()
         car.advance_fixed(delta)
-        if car.lane_distance_m > 17.0 or car.current_route_index > 0:
+        if car.speed_mps > 0.8 and car.lane_distance_m > float(starting_distances.get(car.get_instance_id(), 0.0)) + 0.6:
             moved_ids[car.get_instance_id()] = true
         if blocker_removed and car.speed_mps > 0.8 and (car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 4.0):
             released_ids[car.get_instance_id()] = true
@@ -200,7 +202,8 @@ func _actual_stopped_count() -> int:
         if not is_instance_valid(car) or not car.active:
             continue
         # Queues must be measured from physical motion, never spawn-at-rest.
-        if car.lane_distance_m > 17.0 and car.current_route_index == 0 and car.speed_mps < 0.35:
+        var id: int = car.get_instance_id()
+        if moved_ids.has(id) and car.current_route_index == 0 and car.speed_mps < 0.35:
             count += 1
     return count
 
