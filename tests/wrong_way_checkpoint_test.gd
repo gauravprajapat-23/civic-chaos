@@ -193,6 +193,18 @@ func _run() -> void:
     if Live.checkpoint_valid(forged, graph, next_civic.snapshot()):
         _fail("checkpoint accepted completed mission with active gameplay flag")
         return
+    # A legal completed route is exact after normalization, but older
+    # floating-point saves may be a few millimetres past the endpoint.
+    var tiny_drift: Dictionary = completed_json.duplicate(true)
+    tiny_drift["tow_progress"] = float(tiny_drift["tow_progress"]) + 0.005
+    if not Live.checkpoint_valid(tiny_drift, graph, next_civic.snapshot()):
+        _fail("legitimate millimetre tow endpoint drift was refused")
+        return
+    var large_drift: Dictionary = completed_json.duplicate(true)
+    large_drift["tow_progress"] = float(large_drift["tow_progress"]) + 0.5
+    if Live.checkpoint_valid(large_drift, graph, next_civic.snapshot()):
+        _fail("invalid tow overshoot passed numerical-tolerance check")
+        return
     second_stage.queue_free()
     DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
     print("CIVIC_CHAOS_WRONG_WAY_CHECKPOINT_PASS")

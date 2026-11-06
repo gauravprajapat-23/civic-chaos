@@ -65,3 +65,28 @@ Manual gameplay: finish orange footpath tutorial, observe the wrong-way queue, i
 - [ ] Extended end-to-end recovery and UI checks on restart
 
 **No Godot engine executable was available in the editing environment. All code changes are unverified until the user runs the above tests.** No GitHub Actions were manually dispatched, though repository pushes may trigger the configured workflow.
+
+## 2026-11-06 — Actual restored-mission completion failure
+
+User ran Godot 4.7.2 on commit `27f5c13`. Headless import succeeded. The focused `wrong_way_checkpoint_test.gd` created a real wrong-way queue, saved during towing, reconstructed actors and completed the mission after reload. The test nevertheless failed at the final `checkpoint_valid` call (line 171 of that earlier test) with `final restored mission checkpoint is inconsistent`.
+
+**What was changed:** `_finish_tow_convoy` now stores the exact route-end progress when an authorized tow completes, rather than a near-end incremental position. The preflight validator allows at most 2 cm numeric variation at legal lane and tow endpoints while preserving strict checks for reported/inspected stage, authorized intervention, incident resolution, mission completion, follower history and once-only reward claims. The regression now checks that tiny endpoint drift is accepted and a 0.5 m overshoot is rejected. All 48 validator rejection branches optionally append a specific code and condition to an `Array` provided by the caller; routine invalid saves remain quiet.
+
+The completed checkpoint regression prints a structured summary with the exact failing `CKP-XX` condition and terminal follower states if another invariant still rejects the snapshot.
+
+**This is a targeted endpoint correction plus diagnostics, not a claim that the updated Godot test passed.** No Godot runtime is available in this editing environment.
+
+Rerun on your Windows PC:
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git switch fix/regression-nov05
+git pull --ff-only origin fix/regression-nov05
+$godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+& $godot --headless --path . --editor --import --quit
+if ($LASTEXITCODE -ne 0) { throw "Import failed" }
+& $godot --headless --path . --script res://tests/wrong_way_checkpoint_test.gd
+if ($LASTEXITCODE -ne 0) { throw "GAME-014 checkpoint test failed; share the CKP code from its output" }
+python tools/run_regression.py --godot $godot --timeout 90 --report build/game-014-completion-retest.json
+Write-Host "Exit code: $LASTEXITCODE"
+```
+The dedicated report file avoids touching locally modified `build/regression-report.json`. No GitHub Actions were manually dispatched.
