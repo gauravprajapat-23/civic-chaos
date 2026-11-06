@@ -556,7 +556,16 @@ func _retire_stalled_crossing(index: int, side: int) -> bool:
 
 func _walker_in_crossing_conflict(index: int, side: int) -> bool:
     var position: Vector3 = _walkers[index]["root"].position
-    var longitudinal: float = position.z if side == 0 else -position.z if side == 1 else position.x if side == 2 else -position.x
+    var longitudinal: float = 0.0
+    match side:
+        0:
+            longitudinal = position.z
+        1:
+            longitudinal = -position.z
+        2:
+            longitudinal = position.x
+        3:
+            longitudinal = -position.x
     var lateral: float = position.x if side < 2 else position.z
     return longitudinal >= -5.5 and longitudinal <= 5.5 and absf(lateral) <= 7.0
 
