@@ -104,7 +104,7 @@ func advance_fixed(delta: float) -> void:
     if feedback != null:
         feedback.observe_vehicle(speed_mps, active, stop_requested)
 
-## Guard the physical vehicle scene against player/pedestrian penetration.
+## Guard physical vehicles against player, pedestrian and other car penetration.
 ## Abstract Node3D agents used in deterministic unit tests have no collider;
 ## they keep the original lane-following behavior.
 func _path_has_vulnerable_obstacle(travel: float) -> bool:
@@ -119,7 +119,7 @@ func _path_has_vulnerable_obstacle(travel: float) -> bool:
     var space := get_world_3d().direct_space_state
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = collision_shape.shape
-    query.collision_mask = 2 | 8
+    query.collision_mask = 2 | 4 | 8
     query.exclude = [collision_body.get_rid()]
     query.margin = 0.02
     var original_index := current_route_index
