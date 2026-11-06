@@ -30,6 +30,13 @@ func _ready() -> void:
     label.pixel_size = 0.005
     label.position = Vector3(0, 1.55, 0)
     add_child(label)
+    var tutorial := Label3D.new()
+    tutorial.name = "InteractionPrompt"
+    tutorial.text = "E / USE  •  INSPECT"
+    tutorial.font_size = 38
+    tutorial.pixel_size = 0.005
+    tutorial.position = Vector3(0, 1.82, 0)
+    add_child(tutorial)
 
 func interact(by_player: Node) -> void:
     activated.emit(by_player)

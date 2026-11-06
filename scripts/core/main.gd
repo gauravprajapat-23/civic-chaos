@@ -119,6 +119,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif event.is_action_pressed("save_game"):
         lifecycle.save_player(player, "", {"civic_session": gameplay_session.snapshot()})
     elif event.is_action_pressed("load_game"):
+        if incident_card != null and incident_card.is_open():
+            incident_card.dismiss()
         var saved: Dictionary = SaveRepo.read_save()
         if saved.has("civic_session") and not gameplay_session.can_restore(saved["civic_session"]):
             _on_interaction_message("Save rejected: invalid civic progress")

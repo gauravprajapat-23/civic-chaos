@@ -29,7 +29,7 @@ var finished: bool = false
 var _world: Node3D
 var _player: Node3D
 var _hud: CivicStatusHUD
-var feedback: String = "Find the orange obstruction near the north footpath."
+var feedback: String = "Tutorial: find the orange crate on the north footpath. Aim at it and press E / USE."
 
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
