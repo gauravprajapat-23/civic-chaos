@@ -17,7 +17,8 @@ var intersection_reservations: CivicIntersectionReservations
 var traffic_spawner: CivicTrafficSpawner
 
 func _ready() -> void:
-    road_graph = Builder.make_test_graph()
+    var expanded_city: bool = get_parent() != null and get_parent().get_node_or_null("Neighborhood") != null
+    road_graph = Builder.make_city_graph() if expanded_city else Builder.make_test_graph()
     # The playable district already owns the road surface. Avoid overlapping meshes.
     if get_parent() == null or get_parent().get_node_or_null("Neighborhood") == null:
         Builder.make_road_visuals(self)
@@ -27,7 +28,7 @@ func _ready() -> void:
         return
     traffic_spawner = Spawner.new()
     add_child(traffic_spawner)
-    if not traffic_spawner.configure(road_graph, 12345):
+    if not traffic_spawner.configure(road_graph, 12345, expanded_city):
         push_error("Could not initialize traffic spawner")
         return
     traffic_signals = SignalController.new()
