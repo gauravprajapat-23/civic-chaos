@@ -51,3 +51,9 @@ User's Godot 4.7.2 run: 35 PASS, 2 FAIL (`neighborhood_test.gd`, `world_collisio
 - Playable `FourWayJunction` now uses the city graph when `Neighborhood` is a sibling; isolated junction tests retain original 8-lane graph.
 - City traffic spawner now chooses inbound perimeter roads and follows multi-segment routes. Added `tests/city_traffic_test.gd` to local regression runner.
 - **Open:** Godot runtime verification pending. Lane centerlines currently share road center rather than separated left/right lanes; intersection turn curves, right-of-way and traffic signals for new nodes, vehicle-vs-vehicle collisions, pedestrian crossings and map-aligned road visual verification remain necessary. Do not close BUG-004 as fully complete.
+
+## Pedestrian intersection overlap follow-up (2026-11-06)
+- Report: two NPCs overlap in the middle of the road.
+- Change: pedestrian-to-pedestrian movement-path clearance, conservative spacing, occupied route-reset checks, and no position changes when blocked; pedestrian mask now includes other pedestrian bodies.
+- Regression expanded to assert short-term pedestrian separation and occupied-path detection.
+- **Verification pending:** User must run Godot regression and inspect busy crossings; no engine run in agent environment. Pedestrian rerouting and full deadlock recovery remain future work.
