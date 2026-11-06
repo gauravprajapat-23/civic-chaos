@@ -567,12 +567,15 @@ func _update_recovery_watchdog() -> void:
         released_ids.size()
     ]
     if _last_progress_tick < 0 or signature != _last_progress_signature:
+        var had_stalled: bool = _stalled
         _last_progress_signature = signature
         _last_progress_tick = tick
         _stalled = false
+        if had_stalled:
+            _announce("Service is moving again. Keep the road clear while the team works.")
     elif not _stalled and tick - _last_progress_tick >= RECOVERY_STALL_TICKS:
         _stalled = true
-        feedback_changed.emit("Service delayed: real traffic or an obstacle is preventing progress. Use checkpoint recovery or restart the level.")
+        _announce("Service delayed: an obstacle or traffic is preventing progress. Reload a checkpoint or restart the level.")
 
 func recovery_help_needed() -> bool:
     return _stalled and not finished and reported_tick >= 0
