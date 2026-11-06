@@ -79,7 +79,7 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
         return false
     marker = ReportPoint.new() as CivicWrongWayReportMarker
     marker.name = "WrongWayEvidencePoint"
-    marker.position = Vector3(-20.0, 0.2, -6.5)
+    marker.position = Vector3(-20.0, 0.2, -5.3) # On the existing north-side pedestrian sidewalk.
     add_child(marker)
     marker.activated.connect(_on_marker_activated)
     _announce("A driver is driving the wrong way near Market Chowk! Watch the traffic.")

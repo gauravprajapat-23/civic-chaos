@@ -107,3 +107,13 @@ For detailed files and exact unverified acceptance commands see [GAME_CONTINUATI
 - [ ] Branching "ask owner" vs municipal report, live municipal helper animation and wrong-way scenario remain future work.
 
 **Implemented but NOT accepted until runtime and actual gameplay verification.** See [GAME_008_011_INCIDENT_CARD.md](GAME_008_011_INCIDENT_CARD.md).
+
+
+## GAME-012 live scenario — first implementation (2026-11-06)
+- [x] Source: red wrong-way offender on an actual city road, dynamically moving follower cars, real queue telemetry, sidewalk report point, visual marshal response, and measured physical release.
+- [x] Source: stage follows GAME-006 footpath completion; reuses incident service, mission objectives, city metrics and existing card.
+- [x] Test authored: `tests/wrong_way_live_mission_test.gd`, registered in local regression runner. **NOT RUN**.
+- [ ] Full local Godot 4.7.2 import and regression passes; PC scene walkthrough and screenshot verification.
+- [ ] GAME-013 authorized towing/traffic-safe reroute, GAME-014 save/resume, GAME-015 dialogues and retry flows.
+
+See [GAME_012_WRONG_WAY_LIVE.md](GAME_012_WRONG_WAY_LIVE.md). This is implemented source code, **not verified/accepted gameplay**.

@@ -72,6 +72,22 @@ func _run() -> void:
     if live.peak_stopped < 2 or live.released_ids.size() != 0:
         _fail("queue telemetry inconsistent before intervention")
         return
+    # The physical evidence point must expose the same card on E/USE; a
+    # remote interaction may not open it or bypass action authorization.
+    var card_requests: Array[Dictionary] = []
+    live.incident_card_requested.connect(func(state: Dictionary) -> void:
+        card_requests.append(state)
+    )
+    player.global_position = Vector3(25, 0, 25)
+    live.marker.interact(player)
+    if not card_requests.is_empty():
+        _fail("distant player opened wrong-way evidence")
+        return
+    player.global_position = live.marker.global_position + Vector3(0, 0, 1.8)
+    live.marker.interact(player)
+    if card_requests.size() != 1 or not bool(card_requests[0].get("can_inspect", false)):
+        _fail("nearby E/USE did not open a truthful wrong-way evidence card")
+        return
     var actual_stopped: int = 0
     for car in live.followers:
         if car.active and live.moved_ids.has(car.get_instance_id()) and car.speed_mps < 0.35:
@@ -118,6 +134,13 @@ func _run() -> void:
         return
     if live.released_ids.size() < Live.REQUIRED_RELEASED:
         _fail("mission completed without actual moving vehicles passing blockage")
+        return
+    var remaining_stopped: int = 0
+    for car in live.followers:
+        if car.active and car.current_route_index == 0 and live.moved_ids.has(car.get_instance_id()) and car.speed_mps < 0.35:
+            remaining_stopped += 1
+    if remaining_stopped != live.stopped_count:
+        _fail("queue telemetry was artificially cleared after offender removal")
         return
     if civic.incidents.incidents[live.incident_id]["state"] != CivicIncidentManager.RESOLVED:
         _fail("wrong-way incident not resolved")
