@@ -31,6 +31,8 @@ var active: bool = false
 @export_range(0.1, 3.0, 0.1) var reaction_seconds: float = 0.8
 var lead_gap_m: float = INF
 var lead_speed_mps: float = 0.0
+## Disabled only for legacy isolated junction throughput simulations.
+var physics_obstacle_checks_enabled: bool = true
 
 func set_lead_observation(gap_m: float, speed: float) -> void:
     lead_gap_m = maxf(0.0, gap_m)
@@ -94,7 +96,7 @@ func advance_fixed(delta: float) -> void:
     if is_finite(lead_gap_m):
         travel = CivicFollowingController.permitted_travel(travel, lead_gap_m, minimum_gap_m)
         next_speed = minf(next_speed, travel / delta)
-    if travel > 0.0 and _path_has_vulnerable_obstacle(travel):
+    if physics_obstacle_checks_enabled and travel > 0.0 and _path_has_vulnerable_obstacle(travel):
         travel = 0.0
         next_speed = 0.0
     speed_mps = next_speed
