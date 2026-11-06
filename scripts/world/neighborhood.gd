@@ -117,6 +117,7 @@ func _boundary_wall(wall_name: String, center: Vector3, dimensions: Vector3) -> 
     body.position = center
     add_child(body)
     var collider := CollisionShape3D.new()
+    collider.name = "CollisionShape3D"
     var shape := BoxShape3D.new()
     shape.size = dimensions
     collider.shape = shape
