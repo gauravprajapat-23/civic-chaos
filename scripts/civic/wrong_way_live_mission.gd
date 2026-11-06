@@ -177,8 +177,10 @@ func _physics_process(delta: float) -> void:
         _advance_marshal(delta)
     if blocker_removed:
         _measure_recovery()
+    # Periodic HUD updates are forwarded via feedback_changed, not a
+    # removed _publish() method. The city HUD polls live queue counts.
     if tick % 45 == 0:
-        _publish()
+        feedback_changed.emit(feedback)
 
 func _advance_cars(delta: float) -> void:
     # Probe all leads before advancing any follower, like CivicTrafficSpawner.

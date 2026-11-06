@@ -227,6 +227,7 @@ func try_interact() -> void:
     var destination := origin + camera.project_ray_normal(center) * (spring_arm.spring_length + interaction_distance + 1.0)
     var query := PhysicsRayQueryParameters3D.create(origin, destination)
     query.exclude = [get_rid()]
+    query.collision_mask = 1 | 16 # World interactables and non-blocking civic report posts.
     var hit := get_world_3d().direct_space_state.intersect_ray(query)
     if hit.is_empty():
         interaction_message.emit("Nothing to interact with")
