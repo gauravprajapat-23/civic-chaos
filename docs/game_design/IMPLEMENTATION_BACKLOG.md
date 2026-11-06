@@ -81,3 +81,18 @@ Write-Host "Exit code: $LASTEXITCODE"
 ```
 
 Tests are not run by this planning commit. Keep every incomplete task PLANNED even if supporting classes already exist.
+
+## Progress checkpoint — 2026-11-06 continuation
+For detailed files and exact unverified acceptance commands see [GAME_CONTINUATION_PROGRESS.md](GAME_CONTINUATION_PROGRESS.md).
+
+- [x] Source code added for GAME-003: left-side opposing lane offsets and no immediate U-turns; **not** final intersection design.
+- [x] Source code added for GAME-005: conservative pre-entry crossing reservation cleanup; inner-road deadlocks remain.
+- [x] Source code added for GAME-009: show actual four civic metrics on HUD.
+- [x] Source code added for GAME-010: versioned civic-state save/load with strict validation and JSON whole-number normalization.
+- [ ] Godot 4.7.2 import + new physics/civic regressions on latest head.
+- [ ] Gameplay visual check of roads, NPCs, distant buildings and live civic mission.
+- [ ] GAME-008/011 incident card, choices and tutorial.
+- [ ] GAME-012/015 real wrong-way mission.
+- [ ] Remaining gates G3–G7.
+
+**None of the above source additions are marked accepted without engine and playtest evidence.**
