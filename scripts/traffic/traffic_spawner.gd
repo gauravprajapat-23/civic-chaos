@@ -92,23 +92,42 @@ func advance_fixed(tick: int, delta: float) -> void:
 
 func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation: Dictionary) -> Dictionary:
 	var observation: Dictionary = initial_observation.duplicate()
-	# Treat a red/amber stop line as a stationary virtual lead vehicle.
-	var entry_lane: int = vehicle.route[0] if not vehicle.route.is_empty() else -1
-	if traffic_signals != null and vehicle.current_route_index == 0 and entry_lane >= 0:
-		var approach: String = str(({1: "N", 3: "E", 5: "S", 7: "W"}).get(entry_lane, ""))
-		var light_aspect: String = traffic_signals.aspect_for_approach(approach)
-		var lane: CivicLaneData = road_graph.get_lane(entry_lane)
-		if lane != null:
-			var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
-			var gap: float = stop_distance - vehicle.lane_distance_m
-			var pedestrian_occupied: bool = false
-			if crossing_reservations != null:
-				pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
-			if gap >= 0.0 and (light_aspect != "green" or pedestrian_occupied):
-				var safe_gap: float = maxf(0.0, gap + vehicle.minimum_gap_m)
-				if not observation.get("detected", false) or safe_gap < float(observation["gap_m"]):
-					observation = {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
+	# Signal membership is geometric. Legacy IDs 1/3/5/7 do not identify
+	# expanded-city lanes (IDs >= 100), and city cars cross multiple segments.
+	if traffic_signals == null or road_graph == null or vehicle.route.is_empty():
+		return observation
+	if not city_mode and vehicle.current_route_index != 0:
+		return observation
+	if vehicle.current_route_index >= vehicle.route.size():
+		return observation
+	var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
+	var approach: String = signal_approach_for_lane(lane, city_mode)
+	if approach.is_empty():
+		return observation # Outer intersections have no central-junction signal.
+	var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
+	var gap: float = stop_distance - vehicle.lane_distance_m
+	var pedestrian_occupied: bool = false
+	if crossing_reservations != null:
+		pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
+	if gap >= 0.0 and (traffic_signals.aspect_for_approach(approach) != "green" or pedestrian_occupied):
+		var safe_gap: float = maxf(0.0, gap + vehicle.minimum_gap_m)
+		if not observation.get("detected", false) or safe_gap < float(observation["gap_m"]):
+			observation = {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
 	return observation
+
+## A single signal controller currently represents the center junction.
+## Derive direction from geometry, never from numeric lane IDs.
+static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -> String:
+	if lane == null or lane.centerline.size() < 2:
+		return ""
+	var origin: Vector3 = lane.centerline[0]
+	var finish: Vector3 = lane.centerline[lane.centerline.size() - 1]
+	if expanded_city and Vector2(finish.x, finish.z).length() > 3.0:
+		return ""
+	var heading: Vector3 = finish - origin
+	if absf(heading.z) >= absf(heading.x):
+		return "N" if heading.z > 0.0 else "S"
+	return "W" if heading.x > 0.0 else "E"
 
 func try_spawn() -> bool:
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
