@@ -22,15 +22,16 @@ func _run() -> void:
         push_error("player avoidance failed")
         quit(1)
         return
-    var first: AnimatableBody3D = walkers.get_child(0) as AnimatableBody3D
-    var second: AnimatableBody3D = walkers.get_child(1) as AnimatableBody3D
-    var original_second: Vector3 = second.position
-    second.position = first.position + Vector3(0.65, 0, 0)
-    if not walkers._walker_path_occupied(0, first.position, first.position + Vector3(0.15, 0, 0)):
+    # Test the geometric clearance directly; physics-synchronized bodies can
+    # defer manual position assignments until the next physics frame.
+    if not Walkers._segment_near_point(Vector3.ZERO, Vector3(0.15, 0, 0), Vector3(0.65, 0, 0), 1.3):
         push_error("pedestrian path clearance failed")
         quit(1)
         return
-    second.position = original_second
+    if Walkers._segment_near_point(Vector3.ZERO, Vector3(0.15, 0, 0), Vector3(3, 0, 0), 1.3):
+        push_error("pedestrian path clearance falsely blocked distant NPC")
+        quit(1)
+        return
     for tick in range(120):
         await physics_frame
         for i in range(walkers.get_child_count()):
