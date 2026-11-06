@@ -12,17 +12,18 @@ Updated: 2026-11-06. This records observed bit masks, not a completed migration.
 
 | Entity | collision_layer | collision_mask | Note |
 |---|---:|---:|---|
-| Player | 2 | 5 | Must stay world+vehicle for vertical resolution; horizontal pedestrian avoidance uses a separate query with mask 8 |
+| Player | 2 | 1 | Grounding and physics slide against world only; actor collision uses separate horizontal sweep mask 12 |
 | Pedestrian | 8 | 15 | Existing source mask; actual motion still controlled by script |
 | Vehicle collider | 4 | 0 | Queryable solid to player; motion handled by route agent + explicit queries |
 | World generated block | 1 | 1 | Default Godot StaticBody3D values |
 | Furniture | 1 | 0 | World obstacle queried by actors |
 | Vehicle probe | n/a | 14 (2+4+8) | Explicit `PhysicsShapeQueryParameters3D` mask |
 | Pedestrian probe | n/a | 15 (1+2+4+8) | Explicit `PhysicsShapeQueryParameters3D` mask |
-| Player horizontal probe (Phase 2) | n/a | 8 | Explicit query only, no standing on NPC heads |
+| Player horizontal probe (Phase 2) | n/a | 12 (4+8) | Query against vehicles and NPCs, no standing on actor roofs |
+| Player safe restore occupancy probe (Phase 2) | n/a | 13 (1+4+8) | Reject blocked save/spawn placements with world-supported raycast |
 
 ### Design restrictions
-- Never add pedestrian bit 8 to the player's global collision mask as a shortcut: it permits pedestrian floor normals.
+- Never add pedestrian bit 8 **or vehicle bit 4** to the player's solid collision mask as a shortcut: it permits actor roofs to become floors.
 - Collision masks are not substitutes for physically safe movement.
 - Physics queries must exclude their owner RID.
 - Sensors/triggers should not collide as solid geometry.

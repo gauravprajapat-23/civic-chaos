@@ -21,7 +21,10 @@ Date: 2026-11-06 | Working branch: `fix/regression-nov05`
 | Scenario | Test | Status |
 |---|---|---|
 | Player cannot walk horizontally through NPC | `tests/player_pedestrian_contact_test.gd` (commit `af04f32`) | NOT RUN |
-| Player falls through NPC roof to world floor | `tests/player_pedestrian_contact_test.gd` (commit `af04f32`) | NOT RUN |
+| Player falls through NPC roof to world floor | `tests/player_pedestrian_contact_test.gd` (`af04f32`, updated `b442124`) | NOT RUN |
+| Player blocks horizontally against car, then releases | `tests/player_vehicle_contact_test.gd` (`b442124`) | NOT RUN |
+| Vehicle roof does not act as floor | `tests/player_vehicle_contact_test.gd` (`b442124`) | NOT RUN |
+| Safe save/load and fall recovery | `tests/player_safe_restore_test.gd` (`9aa948d`) | NOT RUN |
 | NPC separation/crossing | `tests/pedestrian_collision_test.gd` | RETEST REQUIRED |
 | Vehicle stops for player | `tests/vehicle_obstacle_test.gd` | RETEST REQUIRED |
 | Road/surface alignment | `tests/surface_player_test.gd` | RETEST REQUIRED |
@@ -35,3 +38,8 @@ Log engine version, platform, branch commit, exact command, all failed assertion
 ## Implementation / unverified change log
 - `af04f32` — player horizontal pedestrian cast and executable actual-frame regression registration.
 - Follow-up test correction requires that player remains on the **approach side** of the pedestrian after walking, catches falling through or returning to spawn, and asserts floor contact. Exact verification pending.
+
+## Phase 2 follow-up — current branch (2026-11-06)
+- `b442124`: Player now uses world-only collision mask and horizontal swept actor collision for pedestrians and cars. Ground snap length 0.24. The parked-car test advances actual physics frames to verify approach, obstruction, release and non-walkable roof.
+- `9aa948d`: Save loading no longer directly teleports player during input. The lifecycle queues a restore; player validates on the next physics tick and emits the final loaded/unsafe status. Validation checks ground normal, height proximity and capsule clearance against actors and world. Fall recovery checks safe spawn and deterministic nearby candidates.
+- **Verification:** Source changes pushed, no Godot binary installed in this environment. Import, all three contact/recovery tests, full suite and Windows/Android gameplay are **NOT RUN**. Existing earlier regression JSON must not be relabeled as current results.

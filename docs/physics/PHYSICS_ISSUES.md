@@ -4,14 +4,15 @@ Status wording: OPEN = acceptance not proven; PARTIAL = code exists, real contac
 
 | ID | Priority | Status | Root cause and source | Exit criteria |
 |---|---|---|---|---|
-| PHYS-001 | P1 | PARTIAL — NOT RUN | Player mask 5 excludes NPCs; horizontal-only sweep added in `scripts/player/player_controller.gd` at `af04f32`, pending real Godot run | Player stops/slides around NPC without treating head as floor; physics-frame tests pass |
+| PHYS-001 | P1 | PARTIAL — NOT RUN | Horizontal sweep added at `af04f32`, expanded to player vs NPC and vehicle (mask 12) at `b442124`; real run pending | Player stops/slides around NPC without treating head as floor; physics-frame tests pass |
 | PHYS-002 | P1 | PARTIAL | `scripts/npc/district_pedestrians.gd` direct Animatable position and proximity-only stall | Opposing, crossing and multi-NPC groups pass with no overlap or deadlock |
 | PHYS-003 | P1 | PARTIAL | `scripts/traffic/vehicle_agent.gd` sampled Node3D movement, static collider child | Vehicle collisions prevented at varied speeds/turns; no tunneling |
 | PHYS-004 | P1 | OPEN | `scripts/traffic/traffic_spawner.gd:_spawn_occupied` tests cars only by center distance | Reject full-volume overlapping cars, player, pedestrians and obstacles |
 | PHYS-005 | P2 | OPEN | `scripts/world/junction_builder.gd:make_city_graph` shares opposing lane centerlines | Directional left-driving offsets and non-clipping turns |
 | PHYS-006 | P2 | PARTIAL | `scripts/world/neighborhood.gd` raised world surfaces; geometry-specific tests insufficient | No z-fighting/falling at intersections, curbs, park |
-| PHYS-007 | P2 | OPEN | `scripts/core/game_lifecycle.gd:load_player` unvalidated saved transform | Unsafe/corrupted saves recover to legal ground |
+| PHYS-007 | P2 | PARTIAL — NOT RUN | `9aa948d` queues restore to player physics tick with floor/overlap check and near-spawn fallback | Unsafe/corrupted saves recover to legal ground |
 | PHYS-008 | P2 | OPEN | `scripts/npc/pedestrian_navigator.gd` uses direct global_position update | Establish ownership and collision-safe integration |
+| PHYS-009 | P1 | PARTIAL — NOT RUN | Player previously collided vertically with vehicle roofs; now world-only mask with actor horizontal sweep at `b442124` | Parked-car contact, player release, roof fall and moving-car contact verified in Godot |
 | PERF-PHYS-001 | P2 | OPEN | Pedestrian O(N²) nearby checks and repeated shape probes | PC 60 FPS, Android 30 FPS, 20 cars+30 NPCs (measured) |
 
 ## Historical regression failures requiring retest
@@ -38,3 +39,8 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 - Commit `af04f32`: player-side horizontal cast against pedestrian layer 8, leaving vertical collision mask 5 unchanged; added `tests/player_pedestrian_contact_test.gd` and runner registration.
 - The regression runs 70 real physics frames into a stationary NPC, moves the NPC out of the way, and drops the player over an NPC to confirm actual-world grounding. A test failure cannot be hidden by the player passing through to the far side.
 - **Verification status: NOT RUN**; no headless Godot executable in this environment. Do not mark PHYS-001 closed.
+
+## Phase 2 vehicle contact and recovery (2026-11-06)
+- `b442124`: player `collision_mask = 1`, `floor_snap_length = 0.24`; player query targets vehicle layer 4 and pedestrian layer 8. Both types block horizontal motion but neither serves as a floor. Structural tests and `tests/player_vehicle_contact_test.gd` updated/added. **NOT RUN**.
+- `9aa948d`: saved player location is queued from input and validated on next physics frame with a world-only floor ray plus complete character-shape check against world, vehicles and pedestrians. Invalid saves/falls attempt deterministic nearby grounded spawn positions. `tests/player_safe_restore_test.gd` added; isolated test save path avoids overwriting real saves. **NOT RUN**.
+- **Remaining:** Confirm controller actually moves, hits and releases obstacles. Test moving-car contacts and pedestrian overlaps at different frame rates. Add curb traversal/edge recovery checks. Do not close either P1 issue.
