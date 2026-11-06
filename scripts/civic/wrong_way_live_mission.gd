@@ -203,8 +203,8 @@ func _advance_cars(delta: float) -> void:
             released_ids[car.get_instance_id()] = true
 
 func _actual_stopped_count() -> int:
-    if blocker_removed:
-        return 0
+    # Never report a zero queue just because the obstruction vanished.
+    # Physical follower speeds and current lane positions remain authoritative.
     var count: int = 0
     for car in followers:
         if not is_instance_valid(car) or not car.active:
