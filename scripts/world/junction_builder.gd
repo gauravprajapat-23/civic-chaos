@@ -68,7 +68,9 @@ static func make_city_graph() -> CivicRoadGraph:
                     var lane := Lane.new()
                     lane.lane_id = lane_id
                     lane_id += 1
-                    lane.centerline = PackedVector3Array([here, there] if direction == 0 else [there, here])
+                    var origin: Vector3 = here if direction == 0 else there
+                    var destination: Vector3 = there if direction == 0 else here
+                    lane.centerline = _city_left_side_centerline(origin, destination)
                     lane.speed_limit_mps = 8.0
                     graph.add_lane(lane)
                     var source_key: String = key if direction == 0 else target_key
@@ -82,7 +84,27 @@ static func make_city_graph() -> CivicRoadGraph:
             for outgoing_id in departures[intersection_key]:
                 var outgoing: CivicLaneData = graph.get_lane(outgoing_id)
                 # Do not immediately reverse onto the same street segment.
-                if outgoing.centerline[1].distance_to(incoming.centerline[0]) > 0.01:
+                if outgoing.centerline[outgoing.centerline.size() - 1].distance_to(incoming.centerline[0]) > 0.01:
                     options.append(outgoing_id)
             incoming.next_lane_ids = options
     return graph
+
+## Indian left-side traffic: keep two-way vehicles on distinct mid-road paths.
+## Enter/exit the central junction node so legal route connections remain exact.
+## This is a lane-separation baseline; junction conflict scheduling still needs
+## dedicated intersection handling and physical playtests.
+static func _city_left_side_centerline(start: Vector3, finish: Vector3) -> PackedVector3Array:
+    var direction: Vector3 = finish - start
+    var road_length: float = direction.length()
+    if road_length < 10.0:
+        return PackedVector3Array([start, finish])
+    var forward: Vector3 = direction / road_length
+    var left: Vector3 = Vector3(forward.z, 0.0, -forward.x)
+    var shoulder: float = 1.25
+    var ramp_length: float = 4.0
+    return PackedVector3Array([
+        start,
+        start + forward * ramp_length + left * shoulder,
+        finish - forward * ramp_length + left * shoulder,
+        finish
+    ])
