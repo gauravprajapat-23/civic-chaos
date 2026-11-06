@@ -83,13 +83,21 @@ func incident_card_state() -> Dictionary:
     var progress: Dictionary = mission.get("progress", {})
     var observed: bool = int(progress.get("obstruction_observed", 0)) > 0
     var reported: bool = reported_tick >= 0
-    var phase: String = "Path reopened" if finished else "Municipal response in progress" if intervention_tick >= 0 else "Report accepted" if reported else "Evidence collected" if observed else "New civic incident"
+    var phase: String = "New civic incident"
+    if finished:
+        phase = "Path reopened"
+    elif intervention_tick >= 0:
+        phase = "Municipal response in progress"
+    elif reported:
+        phase = "Report accepted"
+    elif observed:
+        phase = "Evidence collected"
     return {
         "title": "Market Chowk | Footpath Blocked",
         "location": "North footpath, near the junction",
         "evidence": "An orange crate blocks the walking route. The sidewalk should remain clear for pedestrians.",
         "phase": phase,
-        "hint": "Inspect the obstruction first, then submit an accurate report. Municipal staff handle removal safely.",
+        "hint": feedback,
         "can_inspect": not observed and not finished,
         "can_report": observed and not reported and not finished,
         "reported": reported,

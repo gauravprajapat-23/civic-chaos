@@ -96,3 +96,14 @@ For detailed files and exact unverified acceptance commands see [GAME_CONTINUATI
 - [ ] Remaining gates G3–G7.
 
 **None of the above source additions are marked accepted without engine and playtest evidence.**
+
+## GAME-008 / GAME-011 progress — 2026-11-06
+
+- [x] Code added: in-world E/USE tutorial label, evidence modal with touch-sized Inspect/Report/Close controls, focus management and Escape dismissal.
+- [x] Code added: marker now opens the UI rather than auto-reporting; explicit actions recheck the actual actor, distance, incident stage and duplicates.
+- [x] Test added: `tests/gameplay_incident_card_test.gd` covers far-range denial, evidence unlock, remote-click denial, duplicate reporting and actual cleanup; registered in `tools/run_regression.py`.
+- [ ] Godot 4.7.2 import + focused test + full regression passing **on latest branch head**.
+- [ ] PC walkthrough (aim/E, button clicks, pause, F9) and Android device tap test.
+- [ ] Branching "ask owner" vs municipal report, live municipal helper animation and wrong-way scenario remain future work.
+
+**Implemented but NOT accepted until runtime and actual gameplay verification.** See [GAME_008_011_INCIDENT_CARD.md](GAME_008_011_INCIDENT_CARD.md).

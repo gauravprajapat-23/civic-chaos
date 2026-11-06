@@ -146,8 +146,12 @@ func _on_incident_card_requested(state: Dictionary) -> void:
 func _on_incident_card_action(action: String) -> void:
     if incident_card == null or not incident_card.is_open():
         return
-    gameplay_session.perform_incident_action(player, action)
+    var accepted: bool = gameplay_session.perform_incident_action(player, action)
     incident_card.render_card(gameplay_session.incident_card_state())
+    if accepted and action == "inspect" and not incident_card.report_button.disabled:
+        incident_card.report_button.grab_focus()
+    elif accepted and action == "report":
+        incident_card.close_button.grab_focus()
 
 func _on_incident_card_dismissed() -> void:
     player.set_physics_process(true)
