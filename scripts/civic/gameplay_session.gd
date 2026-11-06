@@ -30,6 +30,9 @@ var _player: Node3D
 var _hud: CivicStatusHUD
 var feedback: String = "Find the orange obstruction near the north footpath."
 
+func _init() -> void:
+    process_mode = Node.PROCESS_MODE_PAUSABLE
+
 func configure(world_root: Node3D, player_actor: Node3D, hud: CivicStatusHUD = null) -> bool:
     if world_root == null or player_actor == null or incident_id >= 0:
         return false
