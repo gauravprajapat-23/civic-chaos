@@ -69,3 +69,21 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 - Candidate root cause: embedded NPC starts used regular path collision checks that cannot clear a pre-existing overlap. `sync_to_physics=true` also conflicted with manually updated transforms.
 - Fix candidate: `247cf80` adds bounded landing-point recovery, preserving geometry and player/NPC clearances, and disables redundant transform synchronization. Adds diagnostic positions if recovery still fails.
 - **RETEST PENDING:** do not close PHYS-002 until the new focused test and full suite pass on Godot 4.7.2, followed by a busy-street visual check.
+
+## Next game-physics audit (2026-11-06, base `5ecb184`)
+**Source-only, no engine run.** Full actionable evidence and regression criteria: [NEXT_PHYSICS_AUDIT.md](NEXT_PHYSICS_AUDIT.md) and [NEXT_PHYSICS_TEST_PLAN.md](NEXT_PHYSICS_TEST_PLAN.md). User-reported Godot result at `927fc8f`: 45 pass / 1 fail (forced NPC overlap). The candidate fix at `5ecb184` remains unverified.
+
+| ID | Priority | Status | Focus |
+|---|---|---|---|
+| PHYS-010 | P1 | Confirmed source mismatch; runtime unverified | Expanded city lane IDs map to unknown/red stop-line approach |
+| PHYS-011 | P1 | Confirmed shared centerlines; runtime unverified | Opposite-direction traffic shares physical path |
+| PHYS-012 | P1 | Confirmed missing world mask; runtime unverified | Cars don't probe world geometry while moving |
+| PHYS-013 | P1 | Confirmed missing spawn checks | Car spawns check only nearby car centers |
+| PHYS-014 | P1 | Confirmed missing timeout cleanup | Blocked walker may retain crossing occupancy indefinitely |
+| PHYS-015 | P1 | Confirmed path discontinuity; runtime unverified | NPC recovery moves by large steps, then reconnects route unsafely |
+| PHYS-016 | P2 | Confirmed fallback omission | Player fall recovery exhaustion can leave player trapped |
+| PHYS-017 | P2 | Confirmed missing spawn checks | NPC spawn ignores geometry, vehicles, support surface |
+| PHYS-018 | P2 | Confirmed integration gap | Deadlock recovery modules not wired into live spawner |
+| PHYS-019 | P2 | Test/performance gap | No long-duration integrated city physics-soak test |
+
+**First fix to implement next:** PHYS-010, preceded by focused red/green expanded-city signal regression. Do not close any issue based solely on this audit.
