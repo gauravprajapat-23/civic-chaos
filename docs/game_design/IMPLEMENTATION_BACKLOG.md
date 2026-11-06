@@ -117,3 +117,13 @@ For detailed files and exact unverified acceptance commands see [GAME_CONTINUATI
 - [ ] GAME-013 authorized towing/traffic-safe reroute, GAME-014 save/resume, GAME-015 dialogues and retry flows.
 
 See [GAME_012_WRONG_WAY_LIVE.md](GAME_012_WRONG_WAY_LIVE.md). This is implemented source code, **not verified/accepted gameplay**.
+
+
+## GAME-013 progress — Authorised physical tow convoy (2026-11-06)
+- [x] Source: municipal tow service vehicle and tow link move red wrong-way offender *along the graph-legal lane*, instead of deleting it at marshal arrival.
+- [x] Source: in-road swept collision checks, signal occupancy, no unauthorized towing, retry after occupied staging, and mission completion gated on full convoy exit **plus measured queue release**.
+- [x] Tests authored: `authorized_tow_route_test.gd`, `authorized_tow_obstacle_test.gd`, strengthened `wrong_way_live_mission_test.gd` (non-teleport, actual tow, legal exit). Registered in strict runner.
+- [ ] Godot engine focused test and full strict runner verification; city scene visual assessment; mobile-device test.
+- [ ] GAME-014 persistence for the ongoing tow / mission; GAME-015 UX and retries.
+
+Full detail: [GAME_013_AUTHORIZED_TOW.md](GAME_013_AUTHORIZED_TOW.md). **Code added, NOT yet accepted as verified gameplay.**
