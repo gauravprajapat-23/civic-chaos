@@ -154,9 +154,14 @@ func try_interact_at_marker(actor: Node) -> bool:
     return perform_incident_action(actor, action)
 
 func _physics_process(_delta: float) -> void:
-    if incident_id < 0 or finished:
+    if incident_id < 0:
         return
+    # The incident manager remains shared after the tutorial finishes.
+    # Keep the session clock moving so later wrong-way events can be restored
+    # without an incident timestamp appearing to be in the future.
     tick += 1
+    if finished:
+        return
     if reported_tick >= 0 and intervention_tick < 0 and tick - reported_tick >= SERVICE_RESPONSE_TICKS:
         if incidents.transition(incident_id, CivicIncidentManager.INTERVENTION, tick, "municipal_response_dispatched"):
             intervention_tick = tick
