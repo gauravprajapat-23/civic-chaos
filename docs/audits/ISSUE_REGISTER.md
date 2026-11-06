@@ -8,7 +8,7 @@ Date: 2026-11-06 · Branch: `fix/regression-nov05`
 | BUG-001 | P0 | Fix committed; runtime verification pending | Street props | `scripts/world/street_furniture.gd:58–64,94–133` | All street prop roots converted to StaticBody3D; regression expanded; local Godot run still required | Godot imports; every prop has a valid physics collider |
 | BUG-002 | P1 | Partial fix committed; runtime verification pending | NPC/player | `scripts/npc/district_pedestrians.gd:77–125,146–162` | direct movement and incomplete avoidance, NPCs can overlap/stack | live player/NPC contact tests pass |
 | BUG-003 | P1 | Partial fix committed; runtime verification pending | Vehicle physics | `scripts/traffic/vehicle_agent.gd:125–135`, `scenes/traffic/vehicle_agent.tscn:65–76` | teleport-style lane positioning, no swept physical obstacle response | vehicle/player/NPC contact tests pass |
-| BUG-004 | P2 | Confirmed | Map/traffic | `scripts/world/junction_builder.gd:8–33`, `scripts/world/neighborhood.gd:75–99` | visual streets not represented in traffic graph | every driveable road connected and routed |
+| BUG-004 | P2 | Initial graph integration committed; runtime verification pending | Map/traffic | `scripts/world/junction_builder.gd:8–33`, `scripts/world/neighborhood.gd:75–99` | visual streets not represented in traffic graph | every driveable road connected and routed |
 | BUG-005 | P2 | Confirmed overlap; severity runtime-dependent | Ground | `scenes/core/main.tscn:7–12,42–51`, `scripts/world/neighborhood.gd:20–23` | redundant overlapping ground colliders | one coherent ground, no falling/z-fighting |
 | BUG-006 | P2 | Confirmed validation gap | Save/load | `scripts/core/game_lifecycle.gd:37–47` | loaded player position not collision-/bounds-validated | invalid save safely recovers |
 | BUG-007 | P2 | Confirmed source behavior | LOD | `scripts/rendering/graphics_lod.gd:42–55`, `scripts/core/main.gd:68–71` | distant building mesh hidden with no substitute | far skyline remains readable |
@@ -45,3 +45,9 @@ User's Godot 4.7.2 run: 35 PASS, 2 FAIL (`neighborhood_test.gd`, `world_collisio
 - Vehicle lane movement now probes physical player and pedestrian obstacles along the proposed path in sub-metre increments, stopping before entering occupied space; original simulation-only agent behavior remains unchanged.
 - Added `tests/vehicle_obstacle_test.gd` to local regression runner; covers stopping for a player and resuming after clearance.
 - **Open:** Godot import and regression are NOT RUN in the agent environment. Other vehicle contacts, emergency braking feel, spawn overlaps, high-speed tunneling and vehicle-to-vehicle physics require additional coverage. Do not close BUG-003 until verified on PC and Android.
+
+## BUG-004 implementation update (2026-11-06)
+- Added `CivicJunctionBuilder.make_city_graph()`: 5x5 intersections along x/z = [-120,-46,0,46,120], 80 directed road segments, no immediate U-turns, deterministic lane IDs.
+- Playable `FourWayJunction` now uses the city graph when `Neighborhood` is a sibling; isolated junction tests retain original 8-lane graph.
+- City traffic spawner now chooses inbound perimeter roads and follows multi-segment routes. Added `tests/city_traffic_test.gd` to local regression runner.
+- **Open:** Godot runtime verification pending. Lane centerlines currently share road center rather than separated left/right lanes; intersection turn curves, right-of-way and traffic signals for new nodes, vehicle-vs-vehicle collisions, pedestrian crossings and map-aligned road visual verification remain necessary. Do not close BUG-004 as fully complete.
