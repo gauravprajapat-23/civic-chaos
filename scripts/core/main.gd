@@ -122,27 +122,106 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif event.is_action_pressed("pause_game"):
         _toggle_pause()
     elif event.is_action_pressed("save_game"):
-        if is_instance_valid(wrong_way_world):
-            _on_interaction_message("Wrong-way mission checkpoint save is planned for GAME-014.")
-        else:
-            lifecycle.save_player(player, "", {"civic_session": gameplay_session.snapshot()})
+        _save_gameplay_checkpoint()
     elif event.is_action_pressed("load_game"):
-        if is_instance_valid(wrong_way_world):
-            _on_interaction_message("Finish or restart the wrong-way event before loading checkpoints.")
-            return
         if incident_card != null and incident_card.is_open():
             incident_card.dismiss()
-        var saved: Dictionary = SaveRepo.read_save()
-        if saved.has("civic_session") and not gameplay_session.can_restore(saved["civic_session"]):
-            _on_interaction_message("Save rejected: invalid civic progress")
-        elif lifecycle.load_player(player):
-            if saved.has("civic_session"):
-                if gameplay_session.restore(saved["civic_session"]) and gameplay_session.finished:
-                    call_deferred("_start_wrong_way_mission")
+        _load_gameplay_checkpoint()
     elif event.is_action_pressed("restart_game"):
         lifecycle.restart_game()
     elif event.is_action_pressed("return_to_menu"):
         lifecycle.return_to_menu()
+
+## GAME-014: F5/F9 saves one coherent player+civic+wrong-way document.
+## Restore is preflighted before the live game world is changed.
+func _save_gameplay_checkpoint() -> bool:
+    if gameplay_session == null:
+        return false
+    var civic: Dictionary = gameplay_session.snapshot()
+    var payload: Dictionary = {"civic_session": civic}
+    if is_instance_valid(wrong_way_world):
+        var live_state: Dictionary = wrong_way_world.snapshot()
+        var junction: Node = get_node_or_null("FourWayJunction")
+        var graph: CivicRoadGraph = null if junction == null else junction.get("road_graph") as CivicRoadGraph
+        if not CivicWrongWayLiveMission.checkpoint_valid(live_state, graph, civic):
+            _on_interaction_message("Checkpoint rejected: incomplete wrong-way mission state")
+            return false
+        payload["wrong_way_checkpoint"] = live_state
+    return lifecycle.save_player(player, "", payload)
+
+func _load_gameplay_checkpoint() -> bool:
+    var saved: Dictionary = SaveRepo.read_save()
+    if saved.is_empty():
+        _on_interaction_message("No valid checkpoint found")
+        return false
+    if not saved.has("civic_session"):
+        if is_instance_valid(wrong_way_world):
+            _on_interaction_message("Old player-only save cannot replace an active civic incident")
+            return false
+        return lifecycle.load_player(player)
+    var civic: Variant = saved["civic_session"]
+    if gameplay_session == null or not gameplay_session.can_restore(civic):
+        _on_interaction_message("Checkpoint rejected: invalid civic session")
+        return false
+    var has_live: bool = saved.has("wrong_way_checkpoint")
+    if not has_live and is_instance_valid(wrong_way_world):
+        _on_interaction_message("Checkpoint has no active wrong-way mission; restart the level to load it")
+        return false
+    var junction: Node = get_node_or_null("FourWayJunction")
+    var graph: CivicRoadGraph = null if junction == null else junction.get("road_graph") as CivicRoadGraph
+    var spawner: CivicTrafficSpawner = null if junction == null else junction.get("traffic_spawner") as CivicTrafficSpawner
+    if has_live and not CivicWrongWayLiveMission.checkpoint_valid(saved["wrong_way_checkpoint"], graph, civic):
+        _on_interaction_message("Checkpoint rejected: wrong-way incident data is inconsistent")
+        return false
+    var restored_world: CivicWrongWayLiveMission = wrong_way_world
+    var newly_prepared: bool = false
+    if has_live and not is_instance_valid(restored_world):
+        restored_world = WrongWayLiveMission.new() as CivicWrongWayLiveMission
+        restored_world.name = "WrongWayLiveMission"
+        add_child(restored_world)
+        if not restored_world.prepare_restore(self, player, graph, gameplay_session, spawner):
+            restored_world.queue_free()
+            _on_interaction_message("Checkpoint deferred: can't safely reconstruct road vehicles")
+            return false
+        newly_prepared = true
+    # Scene actor is only requested to move to an authenticated safe location.
+    # The player controller validates collision/floor before actual placement.
+    if not lifecycle.load_player(player):
+        if newly_prepared:
+            restored_world.queue_free()
+        return false
+    var old_civic: Dictionary = gameplay_session.snapshot()
+    var old_live: Dictionary = wrong_way_world.snapshot() if is_instance_valid(wrong_way_world) else {}
+    if not gameplay_session.restore(civic):
+        if newly_prepared:
+            restored_world.queue_free()
+        _on_interaction_message("Checkpoint rejected: civic restore failed")
+        return false
+    if has_live and not restored_world.restore(saved["wrong_way_checkpoint"]):
+        gameplay_session.restore(old_civic)
+        if newly_prepared:
+            restored_world.queue_free()
+        elif is_instance_valid(wrong_way_world):
+            wrong_way_world.restore(old_live)
+        _on_interaction_message("Checkpoint rejected: wrong-way world could not be rebuilt")
+        return false
+    if newly_prepared:
+        wrong_way_world = restored_world
+        _connect_wrong_way_signals(restored_world)
+    if not has_live and gameplay_session.finished:
+        call_deferred("_start_wrong_way_mission")
+    if civic_hud != null and is_instance_valid(wrong_way_world):
+        var state: Dictionary = civic_hud.current_state()
+        state.merge(wrong_way_world.hud_state(), true)
+        civic_hud.render_state(state)
+    _on_interaction_message("Checkpoint restored. Mission, vehicles and civic progress resumed.")
+    return true
+
+func _connect_wrong_way_signals(live: CivicWrongWayLiveMission) -> void:
+    if not live.incident_card_requested.is_connected(_on_wrong_way_card_requested):
+        live.incident_card_requested.connect(_on_wrong_way_card_requested)
+    if not live.feedback_changed.is_connected(_on_interaction_message):
+        live.feedback_changed.connect(_on_interaction_message)
 
 ## Once the first playable tutorial is complete, stage a second physical
 ## mission on the same west approach of the existing city road graph.
@@ -169,8 +248,7 @@ func _start_wrong_way_mission() -> void:
         push_warning("Wrong-way mission could not stage a clear, safe road scenario")
         return
     wrong_way_world = live
-    live.incident_card_requested.connect(_on_wrong_way_card_requested)
-    live.feedback_changed.connect(_on_interaction_message)
+    _connect_wrong_way_signals(live)
     _on_interaction_message("NEW MISSION: Wrong Way, Wrong Day. Follow the west road to the yellow report post.")
 
 func _on_incident_card_requested(state: Dictionary) -> void:
