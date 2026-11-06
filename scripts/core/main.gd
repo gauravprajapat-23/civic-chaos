@@ -351,10 +351,16 @@ func _toggle_pause() -> void:
     pause_panel.visible = get_tree().paused
     if civic_hud != null:
         civic_hud.visible = not get_tree().paused
+    if mission_guide != null:
+        mission_guide.visible = not get_tree().paused
 
 func _on_resume_pressed() -> void:
     lifecycle.set_paused(false)
     pause_panel.visible = false
+    if civic_hud != null:
+        civic_hud.visible = true
+    if mission_guide != null:
+        mission_guide.visible = true
 
 func _on_menu_pressed() -> void:
     lifecycle.return_to_menu()

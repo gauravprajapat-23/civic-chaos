@@ -515,6 +515,13 @@ func _create_marshal() -> void:
     caption.font_size = 44
     caption.pixel_size = 0.006
     marshal.add_child(caption)
+    var speech := Label3D.new()
+    speech.name = "MarshalSpeech"
+    speech.text = "Keep the footpath clear."
+    speech.font_size = 36
+    speech.pixel_size = 0.005
+    speech.position = Vector3(0, 2.58, 0)
+    marshal.add_child(speech)
 
 func _measure_recovery() -> void:
     if tow_completed and released_ids.size() >= REQUIRED_RELEASED and stopped_count == 0:
@@ -536,6 +543,10 @@ func _measure_recovery() -> void:
 
 func _announce(message: String) -> void:
     feedback = message
+    if is_instance_valid(marshal):
+        var bubble := marshal.get_node_or_null("MarshalSpeech") as Label3D
+        if bubble != null:
+            bubble.text = message.substr(0, 88)
     feedback_changed.emit(message)
 
 
