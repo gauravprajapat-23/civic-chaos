@@ -44,3 +44,7 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 - `b442124`: player `collision_mask = 1`, `floor_snap_length = 0.24`; player query targets vehicle layer 4 and pedestrian layer 8. Both types block horizontal motion but neither serves as a floor. Structural tests and `tests/player_vehicle_contact_test.gd` updated/added. **NOT RUN**.
 - `9aa948d`: saved player location is queued from input and validated on next physics frame with a world-only floor ray plus complete character-shape check against world, vehicles and pedestrians. Invalid saves/falls attempt deterministic nearby grounded spawn positions. `tests/player_safe_restore_test.gd` added; isolated test save path avoids overwriting real saves. **NOT RUN**.
 - **Remaining:** Confirm controller actually moves, hits and releases obstacles. Test moving-car contacts and pedestrian overlaps at different frame rates. Add curb traversal/edge recovery checks. Do not close either P1 issue.
+
+## Phase 2 expanded unsafe restore fixtures
+- Commit `1b7f908` broadens safe-load coverage to vehicle and pedestrian occupied volumes, not just static buildings and unsupported coordinates.
+- Current status remains **PARTIAL — NOT RUN** until Godot physics-frame verification passes.
