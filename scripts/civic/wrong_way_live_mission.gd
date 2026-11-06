@@ -2,7 +2,8 @@ class_name CivicWrongWayLiveMission
 extends Node3D
 ## GAME-012: physical wrong-way car + live stopped followers + civic intervention.
 ## Unlike CivicWrongWayScenario this never invents a queue from demand counters.
-## GAME-013/014 still need a legal tow route, dynamic dispatch and persistence.
+## GAME-013: municipal tow convoy follows a graph-verified legal route.
+## Checkpoint persistence (GAME-014) is a separate milestone.
 signal incident_card_requested(state: Dictionary)
 signal feedback_changed(message: String)
 signal mission_completed
@@ -18,6 +19,9 @@ const REQUIRED_RELEASED: int = 2
 const MARSHAL_DISPATCH_TICKS: int = 24
 const MARSHAL_SERVICE_TICKS: int = 35
 const RECOVERY_FRAMES: int = 12
+const TOW_GAP_M: float = 6.5
+const TOW_SPEED_MPS: float = 7.0
+const TOW_SWEEP_STEP_M: float = 0.30
 
 var city_graph: CivicRoadGraph
 var traffic_system: CivicTrafficSpawner
@@ -26,6 +30,11 @@ var player: Node3D
 var marker: CivicWrongWayReportMarker
 var offender: CivicVehicleAgent
 var marshal: Node3D
+var tow_vehicle: CivicVehicleAgent
+var tow_cable: MeshInstance3D
+var tow_progress_m: float = 0.0
+var tow_started: bool = false
+var tow_completed: bool = false
 var followers: Array[CivicVehicleAgent] = []
 var approach_lane_id: int = -1
 var exit_lane_id: int = -1
@@ -175,6 +184,8 @@ func _physics_process(delta: float) -> void:
     peak_stopped = maxi(peak_stopped, stopped_count)
     if reported_tick >= 0:
         _advance_marshal(delta)
+    if tow_started and not tow_completed:
+        _advance_tow_convoy(delta)
     if blocker_removed:
         _measure_recovery()
     # Periodic text updates use the existing feedback signal.
@@ -235,9 +246,11 @@ func incident_card_state() -> Dictionary:
     if finished:
         status = "Traffic restored"
     elif blocker_removed:
-        status = "Obstruction removed; verifying traffic flow"
+        status = "Tow complete; verifying traffic flow"
+    elif tow_started:
+        status = "Municipal tow convoy clearing the legal route"
     elif intervention_tick >= 0:
-        status = "Marshal at scene"
+        status = "Marshal preparing authorized removal"
     elif reported_tick >= 0:
         status = "Authorized service requested"
     elif inspected:
@@ -293,12 +306,165 @@ func _advance_marshal(delta: float) -> void:
                 intervention_tick = tick
                 session.missions.record_event(MISSION_ID, "marshal_intervened")
                 _announce("Marshal arrived. The driver is being directed out of the lane.")
-    if intervention_tick >= 0 and not blocker_removed and tick - intervention_tick >= MARSHAL_SERVICE_TICKS:
-        # GAME-013 will replace staged authorized removal with a legal tow route.
-        if is_instance_valid(offender):
-            offender.queue_free()
-        blocker_removed = true
-        _announce("Wrong-way obstruction removed; observing actual traffic release.")
+    if intervention_tick >= 0 and not tow_started and tick - intervention_tick >= MARSHAL_SERVICE_TICKS:
+        if _start_tow_convoy():
+            _announce("City tow service connected. The wrong-way car is being moved along a legal lane.")
+
+## A collision-bearing tow truck leads the offending car backwards at a
+## fixed spacing. Both remain physically present until they reach a legal exit;
+## there is no button-triggered deletion or instant off-road teleport.
+func _start_tow_convoy() -> bool:
+    if tow_started or tow_completed or not is_instance_valid(offender):
+        return false
+    var legal_exits: Array[int] = city_graph.outgoing_legal_lanes(approach_lane_id, 1)
+    if not legal_exits.has(exit_lane_id):
+        return false
+    var truck := VehicleScene.instantiate() as CivicVehicleAgent
+    if truck == null:
+        return false
+    truck.name = "MunicipalTowTruck"
+    add_child(truck)
+    if not truck.configure(city_graph, PackedInt32Array([approach_lane_id, exit_lane_id]), VehicleProfile.new()):
+        truck.queue_free()
+        return false
+    truck.physics_obstacle_checks_enabled = false # Convoy performs its own swept collision checks.
+    var initial_progress: float = OFFENDER_DISTANCE + TOW_GAP_M
+    truck.global_transform = _tow_pose(initial_progress, false)
+    truck.lane_distance_m = initial_progress
+    if truck.footprint_blocked_at(truck.global_transform):
+        truck.queue_free()
+        return false
+    tow_vehicle = truck
+    tow_progress_m = initial_progress
+    var paint := StandardMaterial3D.new()
+    paint.albedo_color = Color(1.0, 0.68, 0.08)
+    var visual := truck.get_node_or_null("Visual") as MeshInstance3D
+    if visual != null:
+        visual.material_override = paint
+    var sign := Label3D.new()
+    sign.name = "MunicipalTowLabel"
+    sign.text = "CITY TOW SERVICE"
+    sign.position = Vector3(0.0, 2.25, 0.0)
+    sign.font_size = 40
+    sign.pixel_size = 0.006
+    truck.add_child(sign)
+    var beacon := MeshInstance3D.new()
+    beacon.name = "AmberBeacon"
+    beacon.position = Vector3(0.0, 2.02, 0.0)
+    var beacon_mesh := SphereMesh.new()
+    beacon_mesh.radius = 0.20
+    beacon_mesh.height = 0.40
+    beacon.mesh = beacon_mesh
+    var beacon_paint := StandardMaterial3D.new()
+    beacon_paint.albedo_color = Color(1.0, 0.58, 0.05)
+    beacon_paint.emission_enabled = true
+    beacon_paint.emission = Color(0.8, 0.35, 0.01)
+    beacon.material_override = beacon_paint
+    truck.add_child(beacon)
+    tow_cable = MeshInstance3D.new()
+    tow_cable.name = "TowLink"
+    var cable_mesh := BoxMesh.new()
+    cable_mesh.size = Vector3(0.10, 0.10, 1.0)
+    tow_cable.mesh = cable_mesh
+    var cable_material := StandardMaterial3D.new()
+    cable_material.albedo_color = Color(0.15, 0.17, 0.18)
+    tow_cable.material_override = cable_material
+    add_child(tow_cable)
+    tow_started = true
+    _update_tow_link()
+    return true
+
+## The two directed city lanes form one continuous graph-legal tow route.
+## The towed offender remains facing *backwards* until it reaches the exit.
+func _tow_pose(progress: float, reverse_facing: bool) -> Transform3D:
+    var inbound: CivicLaneData = city_graph.get_lane(approach_lane_id)
+    var inbound_length: float = inbound.length_m()
+    var lane: CivicLaneData = inbound
+    var distance: float = progress
+    if progress >= inbound_length:
+        lane = city_graph.get_lane(exit_lane_id)
+        distance = progress - inbound_length
+    var location: Dictionary = CivicVehicleAgent.sample_centerline(lane.centerline, distance)
+    var tangent: Vector3 = location["tangent"]
+    var heading: float = atan2(-tangent.x, -tangent.z)
+    if reverse_facing:
+        heading += PI
+    return Transform3D(Basis(Vector3.UP, heading), location["position"])
+
+func _tow_route_length() -> float:
+    return city_graph.get_lane(approach_lane_id).length_m() + city_graph.get_lane(exit_lane_id).length_m()
+
+func _advance_tow_convoy(delta: float) -> void:
+    if not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
+        return
+    var remaining: float = maxf(0.0, _tow_route_length() - tow_progress_m)
+    if remaining <= 0.01:
+        _finish_tow_convoy()
+        return
+    var travel: float = minf(TOW_SPEED_MPS * delta, remaining)
+    # A convoy obeys the central signal and the pedestrian crossing.
+    if traffic_system != null:
+        var signal_observation: Dictionary = traffic_system.apply_stop_line_observation(
+            tow_vehicle, {"detected": false})
+        if bool(signal_observation.get("detected", false)):
+            var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
+            travel = minf(travel, stop_gap)
+    if travel <= 0.0001:
+        tow_vehicle.speed_mps = 0.0
+        return
+    # Probe several intermediate footprints, including corners, BEFORE
+    # advancing either collision body; nothing may overlap an actor or prop.
+    var samples: int = maxi(1, int(ceil(travel / TOW_SWEEP_STEP_M)))
+    for index in range(1, samples + 1):
+        var candidate_progress: float = tow_progress_m + travel * float(index) / float(samples)
+        var tow_pose: Transform3D = _tow_pose(candidate_progress, false)
+        var offender_pose: Transform3D = _tow_pose(candidate_progress - TOW_GAP_M, true)
+        if tow_vehicle.footprint_blocked_at(tow_pose) or offender.footprint_blocked_at(offender_pose):
+            tow_vehicle.speed_mps = 0.0
+            return
+    tow_progress_m += travel
+    tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
+    offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
+    var inbound_length: float = city_graph.get_lane(approach_lane_id).length_m()
+    if tow_progress_m >= inbound_length:
+        tow_vehicle.current_route_index = 1
+        tow_vehicle.lane_distance_m = tow_progress_m - inbound_length
+    else:
+        tow_vehicle.current_route_index = 0
+        tow_vehicle.lane_distance_m = tow_progress_m
+    tow_vehicle.speed_mps = travel / delta
+    _update_tow_link()
+    # Only declare physical clearance once the whole convoy reaches the exit.
+    if tow_progress_m >= _tow_route_length() - 0.01:
+        _finish_tow_convoy()
+
+func _update_tow_link() -> void:
+    if not is_instance_valid(tow_cable) or not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
+        return
+    var displacement: Vector3 = tow_vehicle.global_position - offender.global_position
+    if displacement.length_squared() <= 0.01:
+        return
+    var cable_length: float = maxf(0.1, displacement.length() - 3.0)
+    var box: BoxMesh = tow_cable.mesh as BoxMesh
+    box.size = Vector3(0.10, 0.10, cable_length)
+    tow_cable.global_position = (tow_vehicle.global_position + offender.global_position) * 0.5 + Vector3.UP * 0.68
+    var heading: Vector3 = displacement.normalized()
+    tow_cable.rotation.y = atan2(-heading.x, -heading.z)
+
+func _finish_tow_convoy() -> void:
+    if tow_completed or not tow_started:
+        return
+    if tow_progress_m < _tow_route_length() - 0.01:
+        return
+    tow_completed = true
+    blocker_removed = true
+    if is_instance_valid(tow_vehicle):
+        tow_vehicle.queue_free()
+    if is_instance_valid(offender):
+        offender.queue_free()
+    if is_instance_valid(tow_cable):
+        tow_cable.queue_free()
+    _announce("Municipal tow reached the legal exit. Watch actual traffic recover.")
 
 func _create_marshal() -> void:
     marshal = Node3D.new()
@@ -324,7 +490,7 @@ func _create_marshal() -> void:
     marshal.add_child(caption)
 
 func _measure_recovery() -> void:
-    if released_ids.size() >= REQUIRED_RELEASED and stopped_count == 0:
+    if tow_completed and released_ids.size() >= REQUIRED_RELEASED and stopped_count == 0:
         recovery_streak += 1
     else:
         recovery_streak = 0
