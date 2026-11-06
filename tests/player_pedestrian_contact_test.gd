@@ -56,6 +56,7 @@ func _run() -> void:
     if absf(player.global_position.x) > 0.5:
         _fail("pedestrian contact unexpectedly pushed player sideways")
         return
+        return
     # Clear the walker and confirm that the obstacle guard releases.
     pedestrian.global_position = Vector3(10.0, 0.0, 0.0)
     await physics_frame
