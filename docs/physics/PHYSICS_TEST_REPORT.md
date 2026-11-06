@@ -55,3 +55,9 @@ Log engine version, platform, branch commit, exact command, all failed assertion
 - `tests/pedestrian_collision_test.gd` now watches separation for 360 physics frames with a 0.72m floor (previously 120 frames / 0.64m).
 - `tests/pedestrian_crowd_avoidance_test.gd` constructs a forced perpendicular approach and an opposing-direction approach, observing all pedestrian pairs each frame and asserting forward progress rather than permanent deadlock.
 - `tools/run_regression.py` explicitly registers the new test. **Godot outcome = NOT RUN**. No GitHub Actions executed.
+
+## Follow-up: screenshot of player/NPC overlapping at identical coordinates (2026-11-06)
+- Changes committed on branch `fix/regression-nov05`: `404755a` remove hard actor collision and add player yielding/local soft depenetration; `27f32d9` move player spawn to safe sidewalk and add `tests/pedestrian_spawn_separation_test.gd`; `484caae` separate overlaps even when stopped at traffic lights; `28b9969` ignore ground surfaces in NPC obstacle tests; `224ebcc` add forced player+NPC same-position scenario.
+- The previous player/NPC physical-blocking test was updated for the explicitly changed behavior: player no longer collides rigidly with pedestrians. Pedestrians should yield and recover; cars still detect them on sensing layer 8.
+- Static repository changes were reviewed and pushed, but **Godot 4.7.2 import = NOT RUN, test suite = NOT RUN, actual screenshot recheck = NOT RUN**. No GitHub Actions manually run.
+- Next validation: full local regression plus gameplay inspection around the screenshot crossing. If the new spawn test fails, retain the failure and fix the reported root cause rather than weakening its spacing checks.

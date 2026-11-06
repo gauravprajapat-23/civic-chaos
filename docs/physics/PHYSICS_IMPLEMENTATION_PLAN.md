@@ -16,7 +16,7 @@ Date: 2026-11-06 | Branch: `fix/regression-nov05` | No GitHub Actions.
 5. Run focused test, full regression and Windows gameplay. Record exact commit/log.
 
 ## Phase 3: Pedestrians
-- [CODE ADDED, NOT RUN] Bounded deterministic sidestep/yield and alternate passing-side retry (`f89584b`). Full navigation reroute remains future work.
+- [CODE ADDED, NOT RUN] Bounded sidestep/yield and alternate passing side; later screenshot fix explicitly disables NPC rigid blocking and adds player yielding, local separation and floor-filtered obstacle probes (`404755a`–`28b9969`). Full route reroute remains future work.
 - [TEST ADDED, NOT RUN] Safe spawn clearance, perpendicular approach, head-on movement, 360/420 physics-frame separation and progress assertions (`f4922dd`). Busy junction/30-NPC playtest remains outstanding.
 - Separate navigation goal choice from movement/collision resolution.
 
@@ -50,3 +50,13 @@ Write-Host "Regression exit: $LASTEXITCODE"
 ```
 
 No GitHub Actions. Prefer small commits, never weaken assertions to make tests green.
+
+## Screenshot-specific immediate verification
+- [x] Code: player start moved from central junction to nearby sidewalk.
+- [x] Code: NPC layer 8/mask 0 retained for car detection without rigid character collision.
+- [x] Code: NPC spawn search must find a clear position or skip; active overlaps trigger small local corrections.
+- [x] Tests authored: forced NPC/NPC and player/NPC overlap, 240 frames normal crowd movement.
+- [ ] Run Godot import against exact branch head.
+- [ ] Execute `tests/pedestrian_spawn_separation_test.gd`, `tests/player_pedestrian_contact_test.gd`, `tests/pedestrian_collision_test.gd` and `tests/pedestrian_crowd_avoidance_test.gd`.
+- [ ] Run full local `tools/run_regression.py` suite.
+- [ ] Visually verify player approaching NPC, red-light crossing yielding, 30-NPC crowd and traffic stops.

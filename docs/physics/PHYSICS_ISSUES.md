@@ -5,7 +5,7 @@ Status wording: OPEN = acceptance not proven; PARTIAL = code exists, real contac
 | ID | Priority | Status | Root cause and source | Exit criteria |
 |---|---|---|---|---|
 | PHYS-001 | P1 | PARTIAL — NOT RUN | Horizontal sweep added at `af04f32`, expanded to player vs NPC and vehicle (mask 12) at `b442124`; real run pending | Player stops/slides around NPC without treating head as floor; physics-frame tests pass |
-| PHYS-002 | P1 | PARTIAL — NOT RUN | `f89584b` introduces safe spawn clearance, swept shape sampling, and deterministic side-step/yield recovery in `scripts/npc/district_pedestrians.gd`; source-patched, Godot unverified | Opposing, crossing and multi-NPC groups pass with no overlap or deadlock |
+| PHYS-002 | P1 | PARTIAL — NOT RUN | Screenshot-driven nonblocking NPC sensor layer plus soft spacing/player yielding, forced-overlap recovery and safe spawn implemented in `404755a` to `224ebcc`; engine unverified | Opposing, crossing and multi-NPC groups pass with no overlap or deadlock |
 | PHYS-003 | P1 | PARTIAL | `scripts/traffic/vehicle_agent.gd` sampled Node3D movement, static collider child | Vehicle collisions prevented at varied speeds/turns; no tunneling |
 | PHYS-004 | P1 | OPEN | `scripts/traffic/traffic_spawner.gd:_spawn_occupied` tests cars only by center distance | Reject full-volume overlapping cars, player, pedestrians and obstacles |
 | PHYS-005 | P2 | OPEN | `scripts/world/junction_builder.gd:make_city_graph` shares opposing lane centerlines | Directional left-driving offsets and non-clipping turns |
@@ -55,3 +55,11 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 - Regression commit `f4922dd`: strengthen the existing physics-frame NPC test to 360 frames and add `tests/pedestrian_crowd_avoidance_test.gd` for perpendicular crossing and opposing/head-on movement (420 frames each).
 - Follow-up `068a7ee`: avoid statically typing custom test walkers as bare Node3D when accessing script-specific members.
 - **Status: PARTIAL — NOT RUN.** GitHub code committed but no Godot 4.7.2 import, headless tests or visual screenshot comparison executed here. Do not close PHYS-002 until both automated tests and a busy crossing playtest pass.
+
+## Screenshot root-cause follow-up: player + pedestrians occupying same space
+- Previous implementation combined animatable-body masks with player pedestrian horizontal probe and route-freeze behavior; this did not reliably separate an existing overlap.
+- Current design intentionally removes hard NPC/player and NPC/NPC contact. NPCs remain on sensing layer 8 with mask 0 for traffic braking, but script handles pedestrian-personal-space and player right-of-way.
+- Player no longer probes pedestrian layer; still blocks solid vehicles and world. Live spawn moved out of the central roadway. NPC spawn code refuses occupied slots instead of placing a walker after exhausted attempts.
+- Existing overlapping agents attempt small local depenetration even when traffic lights are red; NPCs yield to an approaching player and do not mistake road/sidewalk floors for obstacles.
+- `tests/player_pedestrian_contact_test.gd` now tests the *revised* user requirement (no hard blocking, but remains grounded). `tests/pedestrian_spawn_separation_test.gd` checks 12 initial spawn slots, 240 frames, forced NPC/NPC overlap and forced player/NPC overlap.
+- No physics test has been executed in this environment. **Keep PHYS-002 open pending passing Godot 4.7.2 tests plus actual visual confirmation**.

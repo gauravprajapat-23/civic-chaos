@@ -29,3 +29,16 @@ Updated: 2026-11-06. This records observed bit masks, not a completed migration.
 - Sensors/triggers should not collide as solid geometry.
 - Keep simulated traffic tests separate from gameplay collision-physics tests; do not disable active gameplay obstacle checks to pass a throughput test.
 - Every layer change must update scripts, scenes, query masks and actual-frame regression tests together.
+
+## Updated soft-agent contract (screenshot fix, 2026-11-06)
+The earlier observed-contract rows above are a **historical snapshot**. The **current** contract on `fix/regression-nov05` is:
+
+| Actor / query | Layer | Mask | Interaction |
+|---|---:|---:|---|
+| Player `CharacterBody3D` | 2 | 1 | Solid world only |
+| Player horizontal query | n/a | 4 | Stop at vehicles, **not** NPCs |
+| NPC `AnimatableBody3D` | 8 | 0 | Non-blocking traffic-detectable sensor; manual navigation |
+| NPC obstacle shape query | n/a | 5 | World solids and cars; ground/road/sidewalk surface contacts filtered |
+| Vehicle detection query | n/a | 14 | Still sees player, cars and NPC sensors |
+
+Avoidance and local separation are scripted in `scripts/npc/district_pedestrians.gd`; no hard NPC–NPC or NPC–player physics contact is intended. Do not restore old actor collision masks without revisiting tests and the user's explicit design request.

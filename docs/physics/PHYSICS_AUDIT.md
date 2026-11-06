@@ -48,3 +48,10 @@ Player–world: physical; player–car and player–NPC: horizontal sweep, not s
 
 ## Next action
 Run new `tests/player_vehicle_contact_test.gd` and `tests/player_safe_restore_test.gd` along with `tests/player_pedestrian_contact_test.gd`, full local regression, then inspect contacts at 30/60/120 FPS. Do not mark any issue completed merely from a static source inspection.
+
+## 2026-11-06: Player + NPC overlap screenshot follow-up
+The requirement was clarified by gameplay screenshots: pedestrians should **not hard-collide with each other or the player**, but they must still appear separated. Current code no longer uses NPCs as physical blockers. Their `AnimatableBody3D` keeps layer 8 (traffic sensor) with collision mask 0; the player uses a world-only solid mask plus a **vehicle-only** horizontal query. Geometry-based NPC personal-space, proactive player yielding, and limited local overlap recovery replace rigid-body contact. Cars can still detect pedestrians through layer 8.
+
+Live player now spawns on a sidewalk at `Vector3(5.7, 0.25, -8.0)` rather than at `Vector3(0, 0.1, 0)` in the junction. Pedestrian spawns use clearance checks with an explicit no-slot skip (never force-overlap after exhausting candidates). The pedestrian obstacle probe ignores ground/floor boxes while retaining building, prop, and vehicle obstruction.
+
+Source commits: `404755a`, `27f32d9`, `484caae`, `28b9969`, `224ebcc`. Godot import and visual verification **NOT RUN**; a live screenshot is required before closing the issue.
