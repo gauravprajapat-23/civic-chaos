@@ -57,7 +57,7 @@ func _run() -> void:
     print("CIVIC_CHAOS_PEDESTRIAN_CROWD_AVOIDANCE_PASS")
     quit(0)
 
-func _position_walker(walkers: Node3D, index: int, side: int, progress: float, speed: float, loop_length: float) -> void:
+func _position_walker(walkers, index: int, side: int, progress: float, speed: float, loop_length: float) -> void:
     var entry: Dictionary = walkers._walkers[index]
     entry["side"] = side
     entry["speed"] = speed
@@ -67,7 +67,7 @@ func _position_walker(walkers: Node3D, index: int, side: int, progress: float, s
     walkers._sidestep_offsets[index] = 0.0
     walkers._blocked_frames[index] = 0
 
-func _is_separated(walkers: Node3D) -> bool:
+func _is_separated(walkers) -> bool:
     var list: Array = walkers.get_children()
     for i in range(list.size()):
         for j in range(i + 1, list.size()):
