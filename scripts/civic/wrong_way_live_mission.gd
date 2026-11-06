@@ -58,6 +58,12 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
     if not _find_approach():
         return false
     tick = maxi(session.tick, session.incidents.current_tick)
+    # Stage first; a blocked entrance must never leave an orphaned civic
+    # incident or mission that prevents a later safe retry.
+    if not _stage_vehicles():
+        _clear_staging()
+        push_warning("Wrong-way scene delayed: road occupancy prevents safe staging")
+        return false
     var created: Dictionary = session.incidents.create_incident("wrong_way_driving", 901, tick, "market_west_approach")
     if not bool(created.get("ok", false)):
         return false
@@ -68,10 +74,6 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
         {"event": "marshal_intervened", "target": 1},
         {"event": "sustained_recovery", "target": 1}
     ]}) or not session.missions.start(MISSION_ID):
-        return false
-    if not _stage_vehicles():
-        _clear_staging()
-        push_warning("Wrong-way live mission could not safely stage vehicles")
         return false
     marker = ReportPoint.new() as CivicWrongWayReportMarker
     marker.name = "WrongWayEvidencePoint"
@@ -107,6 +109,8 @@ func _stage_vehicles() -> bool:
     # legal route navigation. It is initially seen moving backwards against
     # lane direction, then blocks until the authorized service arrives.
     _place_offender(OFFENDER_DISTANCE + 3.0)
+    if offender.footprint_blocked_at(offender.global_transform):
+        return false
     var body := offender.get_node_or_null("Visual") as MeshInstance3D
     if body != null:
         var red := StandardMaterial3D.new()

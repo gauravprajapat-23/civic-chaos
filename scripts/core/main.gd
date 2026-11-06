@@ -23,6 +23,7 @@ var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
+var _wrong_way_retry_elapsed: float = 0.0
 
 func _enter_tree() -> void:
     _bind_key("move_forward", KEY_W)
@@ -230,6 +231,11 @@ func _on_interaction_message(message: String) -> void:
         civic_hud.render_state(state)
 
 func _process(delta: float) -> void:
+    if gameplay_session != null and gameplay_session.finished and not is_instance_valid(wrong_way_world):
+        _wrong_way_retry_elapsed += delta
+        if _wrong_way_retry_elapsed >= 4.0:
+            _wrong_way_retry_elapsed = 0.0
+            call_deferred("_start_wrong_way_mission")
     _traffic_display_elapsed += delta
     if _traffic_display_elapsed < 0.5 or civic_hud == null:
         return
