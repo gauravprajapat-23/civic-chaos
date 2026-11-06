@@ -23,8 +23,8 @@ func rebuild() -> void:
     _world_boundary(terrain_half)
     _block("NorthRoad", Vector3(0, -0.005, -half * 0.5), Vector3(road_width, 0.08, half))
     _block("SouthRoad", Vector3(0, -0.005, half * 0.5), Vector3(road_width, 0.08, half))
-    _block("EastRoad", Vector3(half * 0.5, -0.005, 0), Vector3(half, 0.08, road_width))
-    _block("WestRoad", Vector3(-half * 0.5, -0.005, 0), Vector3(half, 0.08, road_width))
+    _block("EastRoad", Vector3(half * 0.5, -0.012, 0), Vector3(half, 0.08, road_width))
+    _block("WestRoad", Vector3(-half * 0.5, -0.012, 0), Vector3(half, 0.08, road_width))
     for side in [-1, 1]:
         var sign_value: float = float(side)
         _block("SidewalkX%d" % side, Vector3(sign_value * (road_half + sidewalk_width * 0.5), 0.1, 0), Vector3(sidewalk_width, 0.2, half * 2.0))
@@ -79,9 +79,9 @@ func _outer_blocks(half: float) -> void:
     for side in [-1, 1]:
         var offset: float = float(side) * secondary_offset
         _block("SecondaryRoad_NS_%d" % side,
-            Vector3(offset, -0.005, 0), Vector3(road_width, 0.08, half * 2.0))
+            Vector3(offset, -0.018, 0), Vector3(road_width, 0.08, half * 2.0))
         _block("SecondaryRoad_EW_%d" % side,
-            Vector3(0, -0.005, offset), Vector3(half * 2.0, 0.08, road_width))
+            Vector3(0, -0.026, offset), Vector3(half * 2.0, 0.08, road_width))
     var coordinates := [-72.0, -24.0, 24.0, 72.0]
     for row in range(coordinates.size()):
         for column in range(coordinates.size()):
