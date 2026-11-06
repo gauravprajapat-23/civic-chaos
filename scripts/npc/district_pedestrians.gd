@@ -117,16 +117,16 @@ func _physics_process(delta: float) -> void:
         var sidewalk_center: float = 5.0
         match side:
             0:
-                root.position = Vector3(sidewalk_center, 0.2, progress)
+                root.position = Vector3(sidewalk_center, 0.23, progress)
                 root.rotation.y = PI
             1:
-                root.position = Vector3(-sidewalk_center, 0.2, -progress)
+                root.position = Vector3(-sidewalk_center, 0.23, -progress)
                 root.rotation.y = 0.0
             2:
-                root.position = Vector3(progress, 0.2, sidewalk_center)
+                root.position = Vector3(progress, 0.23, sidewalk_center)
                 root.rotation.y = -PI * 0.5
             3:
-                root.position = Vector3(-progress, 0.2, -sidewalk_center)
+                root.position = Vector3(-progress, 0.23, -sidewalk_center)
                 root.rotation.y = PI * 0.5
         var swing: float = sin(_elapsed * speed * 7.0 + data["phase"]) * 0.35 if can_walk else 0.0
         var arms: Array = data["arms"]
@@ -140,13 +140,13 @@ func _walk_position(side: int, progress: float) -> Vector3:
     var offset: float = 5.0
     match side:
         0:
-            return Vector3(offset, 0.2, progress)
+            return Vector3(offset, 0.23, progress)
         1:
-            return Vector3(-offset, 0.2, -progress)
+            return Vector3(-offset, 0.23, -progress)
         2:
-            return Vector3(progress, 0.2, offset)
+            return Vector3(progress, 0.23, offset)
         _:
-            return Vector3(-progress, 0.2, -offset)
+            return Vector3(-progress, 0.23, -offset)
 
 func _pedestrian_blocked(index: int, next_position: Vector3) -> bool:
     # Evaluate current and proposed positions so a walker cannot step into
@@ -188,7 +188,7 @@ func _swept_path_blocked(index: int, from_position: Vector3, to_position: Vector
     query.collision_mask = 1 | 2 | 4 | 8
     query.exclude = [walker.get_rid()]
     query.margin = 0.03
-    # Test proposed body volume against all relevant solid obstacles.
+    # Keep the capsule clear of the sidewalk top to avoid floor false positives.
     return not get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 func _can_cross(side: int) -> bool:
