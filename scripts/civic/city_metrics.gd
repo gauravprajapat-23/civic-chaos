@@ -63,6 +63,26 @@ func restore(data: Dictionary) -> bool:
             return false
         if not (entry.get("applied") is Dictionary):
             return false
+        var event_tick: Variant = entry.get("tick")
+        if not (event_tick is int or event_tick is float):
+            return false
+        var tick_number: float = float(event_tick)
+        if not is_finite(tick_number) or tick_number < 0.0 or tick_number > float(data["last_tick"]) or tick_number != floorf(tick_number):
+            return false
+        if not data["processed_events"].has(entry["id"]):
+            return false
+        var applied: Dictionary = entry["applied"]
+        if applied.size() != DIMENSIONS.size():
+            return false
+        for dimension in DIMENSIONS:
+            var delta: Variant = applied.get(dimension)
+            if not (delta is int or delta is float):
+                return false
+            var amount: float = float(delta)
+            if not is_finite(amount) or absf(amount) > 100.0 or amount != floorf(amount):
+                return false
+            applied[dimension] = int(amount)
+        entry["tick"] = int(tick_number)
         restored_history.append(entry)
     # Do not mutate any live scores or audit records before all validation
     # succeeds; malformed saves must leave the current manager unchanged.

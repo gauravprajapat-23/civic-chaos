@@ -67,10 +67,25 @@ func _run() -> void:
     if not resumed.can_restore(done):
         _fail("legitimate completed snapshot rejected")
         return
+    if resumed.metrics.history.size() != 1:
+        _fail("completed mission must have one auditable civic outcome")
+        return
+    # Exercise a real disk round trip AFTER an outcome exists, not just an
+    # in-memory typed Array[Dictionary]. This reproduces the reported failure.
+    if not saving.save_player(player, SAVE_PATH, {"civic_session": done}):
+        _fail("completed civic checkpoint failed to save")
+        return
+    var completed_file: Dictionary = SaveRepo.read_save(SAVE_PATH)
+    if not completed_file.has("civic_session"):
+        _fail("completed civic checkpoint missing from disk")
+        return
     var replay = Session.new()
     stage.add_child(replay)
-    if not replay.configure(stage, player) or not replay.restore(done):
-        _fail("completed session failed to restore")
+    if not replay.configure(stage, player) or not replay.restore(completed_file["civic_session"]):
+        _fail("completed JSON civic checkpoint failed to restore")
+        return
+    if replay.metrics.history.size() != 1:
+        _fail("civic outcome history lost from completed JSON checkpoint")
         return
     await process_frame
     if is_instance_valid(replay.marker):
