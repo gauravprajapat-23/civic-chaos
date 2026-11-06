@@ -36,7 +36,13 @@ static func read_save(path: String = DEFAULT_PATH) -> Dictionary:
         return {}
     var raw := file.get_as_text()
     file.close()
-    var parsed: Variant = JSON.parse_string(raw)
+    # Corrupt / truncated saves are expected input failures. JSON.parse_string
+    # logs a Godot ERROR for malformed input, so use the parser instance API
+    # and return an empty result without polluting a strict regression run.
+    var parser := JSON.new()
+    if parser.parse(raw) != OK:
+        return {}
+    var parsed: Variant = parser.data
     if not parsed is Dictionary:
         return {}
     var document: Dictionary = parsed
