@@ -39,3 +39,49 @@ static func make_road_visuals(parent: Node3D) -> void:
         road.start_point = Vector3.ZERO
         road.end_point = direction * 20.0
         parent.add_child(road)
+
+## Road centers match neighborhood.gd: main axes 0 and secondary axes +/-46.
+## Each adjacent pair of intersections has directed lanes in both directions.
+## Road segments are routed through intersections; no U-turns are permitted.
+static func make_city_graph() -> CivicRoadGraph:
+    var graph := Graph.new()
+    var coordinates := [-120.0, -46.0, 0.0, 46.0, 120.0]
+    var lane_id := 100
+    var arrivals: Dictionary = {}
+    var departures: Dictionary = {}
+    for x_index in range(coordinates.size()):
+        for z_index in range(coordinates.size()):
+            var here := Vector3(coordinates[x_index], 0.0, coordinates[z_index])
+            var key := "%d:%d" % [x_index, z_index]
+            arrivals[key] = []
+            departures[key] = []
+            for neighbor in [Vector2i(x_index + 1, z_index), Vector2i(x_index, z_index + 1)]:
+                if neighbor.x >= coordinates.size() or neighbor.y >= coordinates.size():
+                    continue
+                var there := Vector3(coordinates[neighbor.x], 0.0, coordinates[neighbor.y])
+                var target_key := "%d:%d" % [neighbor.x, neighbor.y]
+                if not arrivals.has(target_key):
+                    arrivals[target_key] = []
+                    departures[target_key] = []
+                for direction in range(2):
+                    var lane := Lane.new()
+                    lane.lane_id = lane_id
+                    lane_id += 1
+                    lane.centerline = PackedVector3Array([here, there] if direction == 0 else [there, here])
+                    lane.speed_limit_mps = 8.0
+                    graph.add_lane(lane)
+                    var source_key: String = key if direction == 0 else target_key
+                    var destination_key: String = target_key if direction == 0 else key
+                    departures[source_key].append(lane.lane_id)
+                    arrivals[destination_key].append(lane.lane_id)
+    for intersection_key in arrivals.keys():
+        for incoming_id in arrivals[intersection_key]:
+            var incoming: CivicLaneData = graph.get_lane(incoming_id)
+            var options := PackedInt32Array()
+            for outgoing_id in departures[intersection_key]:
+                var outgoing: CivicLaneData = graph.get_lane(outgoing_id)
+                # Do not immediately reverse onto the same street segment.
+                if outgoing.centerline[1].distance_to(incoming.centerline[0]) > 0.01:
+                    options.append(outgoing_id)
+            incoming.next_lane_ids = options
+    return graph
