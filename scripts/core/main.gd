@@ -189,12 +189,9 @@ func _load_gameplay_checkpoint() -> bool:
             _on_interaction_message("Checkpoint deferred: can't safely reconstruct road vehicles")
             return false
         newly_prepared = true
-    # Scene actor is only requested to move to an authenticated safe location.
-    # The player controller validates collision/floor before actual placement.
-    if not lifecycle.load_player(player):
-        if newly_prepared:
-            restored_world.queue_free()
-        return false
+    # Restore all world actors first. Only request the player's safe-position
+    # move after mission reconstruction succeeds, so a rejected checkpoint
+    # does not leave a queued player teleport behind.
     var old_civic: Dictionary = gameplay_session.snapshot()
     var old_live: Dictionary = wrong_way_world.snapshot() if is_instance_valid(wrong_way_world) else {}
     if not gameplay_session.restore(civic):
@@ -209,6 +206,15 @@ func _load_gameplay_checkpoint() -> bool:
         elif is_instance_valid(wrong_way_world):
             wrong_way_world.restore(old_live)
         _on_interaction_message("Checkpoint rejected: wrong-way world could not be rebuilt")
+        return false
+    # The player controller performs collision/floor checks and applies
+    # accepted positions on the next physics frame.
+    if not lifecycle.load_player(player):
+        gameplay_session.restore(old_civic)
+        if newly_prepared:
+            restored_world.queue_free()
+        elif is_instance_valid(wrong_way_world):
+            wrong_way_world.restore(old_live)
         return false
     if newly_prepared:
         wrong_way_world = restored_world
