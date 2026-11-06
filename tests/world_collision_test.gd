@@ -35,12 +35,10 @@ func _run() -> void:
             if child is CollisionShape3D:
                 var collider := child as CollisionShape3D
                 if collider.shape == null or collider.disabled or not collider.shape is BoxShape3D:
-                    furniture.free()
                     _fail(walkers, "invalid street prop collider: " + prop.name)
                     return
                 var box := collider.shape as BoxShape3D
                 if box.size.x <= 0.0 or box.size.y <= 0.0 or box.size.z <= 0.0:
-                    furniture.free()
                     _fail(walkers, "empty street prop collider: " + prop.name)
                     return
                 shape_count += 1
