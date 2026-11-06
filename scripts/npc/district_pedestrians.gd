@@ -118,6 +118,9 @@ func _physics_process(delta: float) -> void:
         var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
         var can_walk: bool = true
+        # Safety recovery is independent of traffic-light permission. A walker
+        # at a red crossing must still move away from an overlapping player.
+        var recovering: bool = _resolve_actor_overlap(index, delta)
         if not _crossing[index] and old_progress < -6.0 and proposed >= -6.0:
             if _can_cross(side) and _reserve_crossing(index, side):
                 _crossing[index] = true
@@ -129,11 +132,10 @@ func _physics_process(delta: float) -> void:
                 _crossing[index] = true
             else:
                 can_walk = false
-        if can_walk:
-            if _resolve_actor_overlap(index, delta) or _yield_to_player(index, delta):
-                can_walk = false
-            else:
-                can_walk = _advance_clear_walker(index, delta, length)
+        if recovering or _yield_to_player(index, delta):
+            can_walk = false
+        elif can_walk:
+            can_walk = _advance_clear_walker(index, delta, length)
         if can_walk:
             _blocked_frames[index] = 0
         else:
