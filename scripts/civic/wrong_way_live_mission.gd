@@ -3,7 +3,7 @@ extends Node3D
 ## GAME-012: physical wrong-way car + live stopped followers + civic intervention.
 ## Unlike CivicWrongWayScenario this never invents a queue from demand counters.
 ## GAME-013: municipal tow convoy follows a graph-verified legal route.
-## Checkpoint persistence (GAME-014) is a separate milestone.
+## GAME-014: versioned actor-index checkpoints with safe rehydration.
 signal incident_card_requested(state: Dictionary)
 signal feedback_changed(message: String)
 signal mission_completed
@@ -22,6 +22,7 @@ const RECOVERY_FRAMES: int = 12
 const TOW_GAP_M: float = 6.5
 const TOW_SPEED_MPS: float = 7.0
 const TOW_SWEEP_STEP_M: float = 0.30
+const CHECKPOINT_VERSION: int = 1
 
 var city_graph: CivicRoadGraph
 var traffic_system: CivicTrafficSpawner
@@ -33,6 +34,7 @@ var marshal: Node3D
 var tow_vehicle: CivicVehicleAgent
 var tow_cable: MeshInstance3D
 var tow_progress_m: float = 0.0
+var offender_distance_m: float = OFFENDER_DISTANCE + 3.0
 var tow_started: bool = false
 var tow_completed: bool = false
 var followers: Array[CivicVehicleAgent] = []
@@ -156,6 +158,7 @@ func _stage_vehicles() -> bool:
 func _place_offender(distance: float) -> void:
     if not is_instance_valid(offender):
         return
+    offender_distance_m = distance
     var lane: CivicLaneData = city_graph.get_lane(approach_lane_id)
     var sampled: Dictionary = CivicVehicleAgent.sample_centerline(lane.centerline, distance)
     offender.global_position = sampled["position"]
@@ -317,7 +320,7 @@ func _advance_marshal(delta: float) -> void:
 ## A collision-bearing tow truck leads the offending car backwards at a
 ## fixed spacing. Both remain physically present until they reach a legal exit;
 ## there is no button-triggered deletion or instant off-road teleport.
-func _start_tow_convoy() -> bool:
+func _start_tow_convoy(restore_progress: float = -1.0) -> bool:
     if tow_started or tow_completed or not is_instance_valid(offender):
         return false
     # The towing service must never operate before a real authorized report
@@ -338,9 +341,11 @@ func _start_tow_convoy() -> bool:
         truck.queue_free()
         return false
     truck.physics_obstacle_checks_enabled = false # Convoy performs its own swept collision checks.
-    var initial_progress: float = OFFENDER_DISTANCE + TOW_GAP_M
+    var initial_progress: float = OFFENDER_DISTANCE + TOW_GAP_M if restore_progress < 0.0 else restore_progress
     truck.global_transform = _tow_pose(initial_progress, false)
-    truck.lane_distance_m = initial_progress
+    var inbound_length: float = city_graph.get_lane(approach_lane_id).length_m()
+    truck.current_route_index = 1 if initial_progress >= inbound_length else 0
+    truck.lane_distance_m = initial_progress - inbound_length if truck.current_route_index == 1 else initial_progress
     if truck.footprint_blocked_at(truck.global_transform):
         truck.queue_free()
         return false
@@ -381,6 +386,9 @@ func _start_tow_convoy() -> bool:
     tow_cable.material_override = cable_material
     add_child(tow_cable)
     tow_started = true
+    if restore_progress >= 0.0:
+        offender.global_transform = _tow_pose(restore_progress - TOW_GAP_M, true)
+        offender_distance_m = restore_progress - TOW_GAP_M
     _update_tow_link()
     return true
 
@@ -435,6 +443,7 @@ func _advance_tow_convoy(delta: float) -> void:
     tow_progress_m += travel
     tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
     offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
+    offender_distance_m = tow_progress_m - TOW_GAP_M
     var inbound_length: float = city_graph.get_lane(approach_lane_id).length_m()
     if tow_progress_m >= inbound_length:
         tow_vehicle.current_route_index = 1
@@ -533,3 +542,291 @@ func hud_state() -> Dictionary:
         "incident_queue": stopped_count,
         "incident_peak_queue": peak_stopped
     }
+
+## GAME-014: stable logical IDs, never ObjectDB instance IDs, are written to disk.
+## A follower's queue history is stored by its index in the fixed convoy list.
+func snapshot() -> Dictionary:
+    var saved_followers: Array[Dictionary] = []
+    for index in range(followers.size()):
+        var car: CivicVehicleAgent = followers[index]
+        var id: int = car.get_instance_id()
+        saved_followers.append({
+            "route_index": car.current_route_index,
+            "distance": car.lane_distance_m,
+            "speed": car.speed_mps,
+            "target_speed": car.target_speed_mps,
+            "active": car.active,
+            "moved": moved_ids.has(id),
+            "released": released_ids.has(id),
+            "starting_distance": float(starting_distances.get(id, 0.0))
+        })
+    var marshal_progress: float = 0.0
+    if is_instance_valid(marshal):
+        marshal_progress = clampf((marshal.position.z + 8.0) / 3.7, 0.0, 1.0)
+    return {
+        "schema_version": CHECKPOINT_VERSION,
+        "incident_id": incident_id,
+        "approach_lane_id": approach_lane_id,
+        "exit_lane_id": exit_lane_id,
+        "tick": tick,
+        "inspected": inspected,
+        "reported_tick": reported_tick,
+        "intervention_tick": intervention_tick,
+        "marshal_present": is_instance_valid(marshal),
+        "marshal_progress": marshal_progress,
+        "offender_distance": offender_distance_m,
+        "tow_started": tow_started,
+        "tow_completed": tow_completed,
+        "tow_progress": tow_progress_m,
+        "blocker_removed": blocker_removed,
+        "finished": finished,
+        "peak_stopped": peak_stopped,
+        "recovery_streak": recovery_streak,
+        "feedback": feedback,
+        "followers": saved_followers
+    }
+
+## Pure input preflight. Can be called before the gameplay session or any
+## vehicle has been moved; a bad save cannot mutate live world state.
+static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant) -> bool:
+    if not (raw is Dictionary) or graph == null or not (civic is Dictionary):
+        return false
+    var data: Dictionary = raw
+    var session_data: Dictionary = civic
+    if not _whole(data.get("schema_version"), CHECKPOINT_VERSION, CHECKPOINT_VERSION):
+        return false
+    for key in ["incident_id", "approach_lane_id", "exit_lane_id", "tick", "reported_tick", "intervention_tick",
+        "peak_stopped", "recovery_streak"]:
+        if not _whole(data.get(key), -1, 1000000000):
+            return false
+    var tick_value: int = int(data["tick"])
+    if int(data["incident_id"]) < 1 or int(data["tick"]) < 0:
+        return false
+    for stamp in ["reported_tick", "intervention_tick"]:
+        if int(data[stamp]) > tick_value:
+            return false
+    if int(data["intervention_tick"]) >= 0 and int(data["reported_tick"]) < 0:
+        return false
+    for flag in ["inspected", "marshal_present", "tow_started", "tow_completed", "blocker_removed", "finished"]:
+        if not (data.get(flag) is bool):
+            return false
+    if not (data.get("feedback") is String):
+        return false
+    if not _finite_range(data.get("marshal_progress"), 0.0, 1.0):
+        return false
+    if not _finite_range(data.get("tow_progress"), 0.0, 500.0):
+        return false
+    if not _finite_range(data.get("offender_distance"), 0.0, 500.0):
+        return false
+    if not (data.get("followers") is Array) or data["followers"].size() != 4:
+        return false
+    var inbound: CivicLaneData = graph.get_lane(int(data["approach_lane_id"]))
+    var outbound: CivicLaneData = graph.get_lane(int(data["exit_lane_id"]))
+    if inbound == null or outbound == null or not graph.outgoing_legal_lanes(inbound.lane_id, 1).has(outbound.lane_id):
+        return false
+    if inbound.centerline[0].distance_to(Vector3(-46, 0, 0)) > 0.1 or outbound.centerline[outbound.centerline.size() - 1].distance_to(Vector3(46, 0, 0)) > 0.1:
+        return false
+    var total_length: float = inbound.length_m() + outbound.length_m()
+    if float(data["offender_distance"]) > total_length or float(data["tow_progress"]) > total_length:
+        return false
+    if int(data["peak_stopped"]) > data["followers"].size() or int(data["recovery_streak"]) > RECOVERY_FRAMES:
+        return false
+    if bool(data["inspected"]) and int(data["reported_tick"]) < 0:
+        # Inspection without reporting is valid; reporting without inspection is not.
+        pass
+    if int(data["reported_tick"]) >= 0 and not bool(data["inspected"]):
+        return false
+    if bool(data["marshal_present"]) and int(data["reported_tick"]) < 0:
+        return false
+    if bool(data["tow_started"]) and (int(data["intervention_tick"]) < 0 or not bool(data["marshal_present"])):
+        return false
+    if bool(data["tow_completed"]) and not bool(data["tow_started"]):
+        return false
+    if bool(data["blocker_removed"]) != bool(data["tow_completed"]):
+        return false
+    if bool(data["finished"]) and not bool(data["tow_completed"]):
+        return false
+    if bool(data["tow_started"]):
+        if float(data["tow_progress"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data["tow_progress"]) > total_length:
+            return false
+        if bool(data["tow_completed"]) and float(data["tow_progress"]) < total_length - 0.01:
+            return false
+    elif float(data["tow_progress"]) != 0.0:
+        return false
+    if not (session_data.get("incidents") is Dictionary) or not (session_data.get("missions") is Dictionary):
+        return false
+    var incident_state: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(session_data["incidents"]))
+    var mission_state := CivicMissionManager.new()
+    if incident_state == null or not mission_state.restore(session_data["missions"]):
+        return false
+    if not incident_state.incidents.has(int(data["incident_id"])) or not mission_state.missions.has(MISSION_ID):
+        return false
+    var saved_incident: Dictionary = incident_state.incidents[int(data["incident_id"])]
+    if saved_incident.get("kind") != "wrong_way_driving" or saved_incident.get("location_key") != "market_west_approach":
+        return false
+    if tick_value < incident_state.current_tick:
+        return false
+    var mission: Dictionary = mission_state.missions[MISSION_ID]
+    var progress: Dictionary = mission["progress"]
+    for objective in ["congestion_observed", "incident_reported", "marshal_intervened", "sustained_recovery"]:
+        if not progress.has(objective) or not _whole(progress[objective], 0, 1):
+            return false
+    if bool(data["inspected"]) != (int(progress["congestion_observed"]) == 1):
+        return false
+    if (int(data["reported_tick"]) >= 0) != (int(progress["incident_reported"]) == 1):
+        return false
+    if (int(data["intervention_tick"]) >= 0) != (int(progress["marshal_intervened"]) == 1):
+        return false
+    if bool(data["finished"]) != (int(progress["sustained_recovery"]) == 1):
+        return false
+    var current_state: String = str(saved_incident.get("state", ""))
+    if bool(data["finished"]):
+        if current_state != CivicIncidentManager.RESOLVED or mission["state"] != CivicMissionManager.COMPLETED or not mission_state.rewarded.has(MISSION_ID):
+            return false
+    elif int(data["intervention_tick"]) >= 0:
+        if current_state != CivicIncidentManager.INTERVENTION:
+            return false
+    elif int(data["reported_tick"]) >= 0:
+        if current_state != CivicIncidentManager.ESCALATED:
+            return false
+    elif current_state != CivicIncidentManager.ACTIVE:
+        return false
+    for item in data["followers"]:
+        if not (item is Dictionary):
+            return false
+        for flag in ["active", "moved", "released"]:
+            if not (item.get(flag) is bool):
+                return false
+        if not _whole(item.get("route_index"), 0, 1):
+            return false
+        var segment: CivicLaneData = inbound if int(item["route_index"]) == 0 else outbound
+        if not _finite_range(item.get("distance"), 0.0, segment.length_m()):
+            return false
+        for speed_key in ["speed", "target_speed"]:
+            if not _finite_range(item.get(speed_key), 0.0, 45.0):
+                return false
+        if not _finite_range(item.get("starting_distance"), 0.0, inbound.length_m()):
+            return false
+        if bool(item["released"]) and not bool(item["moved"]):
+            return false
+        if not bool(item["active"]) and float(item["speed"]) != 0.0:
+            return false
+    return true
+
+static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= minimum and number <= maximum and number == floorf(number)
+
+static func _finite_range(value: Variant, minimum: float, maximum: float) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= minimum and number <= maximum
+
+## Recreate physical staging without registering or overwriting any civic
+## manager state. Called only after checkpoint_valid has succeeded.
+func prepare_restore(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_session: CivicGameplaySession, spawner: CivicTrafficSpawner = null) -> bool:
+    if incident_id >= 0 or not is_inside_tree() or graph == null or civic_session == null or actor == null:
+        return false
+    player = actor
+    session = civic_session
+    city_graph = graph
+    traffic_system = spawner
+    if not _find_approach() or not _stage_vehicles():
+        _clear_staging()
+        return false
+    marker = ReportPoint.new() as CivicWrongWayReportMarker
+    marker.name = "WrongWayEvidencePoint"
+    marker.position = Vector3(-20.0, 0.2, -5.3)
+    add_child(marker)
+    marker.activated.connect(_on_marker_activated)
+    return true
+
+## Preserve existing actors on same-scene F9. A fresh scene uses
+## prepare_restore first, then restores the validated mission checkpoint.
+func restore(raw: Variant) -> bool:
+    if not checkpoint_valid(raw, city_graph, session.snapshot()):
+        return false
+    var data: Dictionary = raw
+    if not [ -1, int(data["incident_id"]) ].has(incident_id):
+        return false
+    if approach_lane_id != int(data["approach_lane_id"]) or exit_lane_id != int(data["exit_lane_id"]):
+        return false
+    if followers.size() != data["followers"].size():
+        return false
+    if bool(data["tow_started"]) and not bool(data["tow_completed"]) and not tow_started and not is_instance_valid(offender):
+        return false
+    tick = int(data["tick"])
+    incident_id = int(data["incident_id"])
+    inspected = data["inspected"]
+    reported_tick = int(data["reported_tick"])
+    intervention_tick = int(data["intervention_tick"])
+    peak_stopped = int(data["peak_stopped"])
+    recovery_streak = int(data["recovery_streak"])
+    feedback = data["feedback"]
+    moved_ids.clear()
+    released_ids.clear()
+    starting_distances.clear()
+    for index in range(followers.size()):
+        var car: CivicVehicleAgent = followers[index]
+        var record: Dictionary = data["followers"][index]
+        car.current_route_index = int(record["route_index"])
+        car.lane_distance_m = float(record["distance"])
+        car.speed_mps = float(record["speed"])
+        car.target_speed_mps = float(record["target_speed"])
+        car.active = bool(record["active"])
+        car.clear_lead_observation()
+        car._place_on_lane()
+        var id: int = car.get_instance_id()
+        starting_distances[id] = float(record["starting_distance"])
+        if bool(record["moved"]):
+            moved_ids[id] = true
+        if bool(record["released"]):
+            released_ids[id] = true
+    stopped_count = _actual_stopped_count()
+    if stopped_count > peak_stopped:
+        return false # Corrupted telemetry must not be accepted.
+    if bool(data["marshal_present"]):
+        if not is_instance_valid(marshal):
+            _create_marshal()
+        marshal.position = Vector3(-19.5, 0.0, -8.0 + 3.7 * float(data["marshal_progress"]))
+    elif is_instance_valid(marshal):
+        marshal.queue_free()
+        marshal = null
+    tow_started = false
+    tow_completed = false
+    blocker_removed = false
+    if is_instance_valid(tow_vehicle):
+        remove_child(tow_vehicle)
+        tow_vehicle.queue_free()
+        tow_vehicle = null
+    if is_instance_valid(tow_cable):
+        remove_child(tow_cable)
+        tow_cable.queue_free()
+        tow_cable = null
+    tow_progress_m = 0.0
+    if bool(data["tow_started"]):
+        if bool(data["tow_completed"]):
+            tow_started = true
+            tow_completed = true
+            blocker_removed = true
+            tow_progress_m = float(data["tow_progress"])
+            if is_instance_valid(offender):
+                offender.queue_free()
+                offender = null
+        else:
+            if not _start_tow_convoy(float(data["tow_progress"])):
+                return false
+    else:
+        if is_instance_valid(offender):
+            _place_offender(float(data["offender_distance"]))
+        else:
+            # Finished worlds cannot be rewound into an unsafe active phase
+            # without a new scene; this is the only rejected rewind case.
+            return false
+    finished = bool(data["finished"])
+    if finished and is_instance_valid(marker):
+        marker.queue_free()
+    return true
