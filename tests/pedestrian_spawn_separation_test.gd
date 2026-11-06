@@ -54,6 +54,19 @@ func _run() -> void:
     if difference.length() < MIN_SPACING:
         _fail("overlapped NPCs failed to recover personal space")
         return
+    # Explicitly reproduce the screenshot: player and NPC share one position.
+    # No hard character collision is allowed to trap them together.
+    walkers.set_physics_process(false)
+    player.global_position = a.global_position
+    await physics_frame
+    walkers.set_physics_process(true)
+    for tick in range(45):
+        await physics_frame
+    var player_gap: Vector3 = a.global_position - player.global_position
+    player_gap.y = 0.0
+    if player_gap.length() < 1.0:
+        _fail("NPC remained embedded inside the player after overlap recovery")
+        return
     stage.queue_free()
     print("CIVIC_CHAOS_PEDESTRIAN_SPAWN_SEPARATION_PASS")
     quit(0)
