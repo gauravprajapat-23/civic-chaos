@@ -136,3 +136,15 @@ Full detail: [GAME_013_AUTHORIZED_TOW.md](GAME_013_AUTHORIZED_TOW.md). **Code ad
 - [ ] Godot 4.7.2 focused and full strict tests; visible PC/Android mission restore; GAME-013 tow verification still outstanding.
 
 Full details: [GAME_014_CHECKPOINTS.md](GAME_014_CHECKPOINTS.md). **Not yet engine-verified.**
+
+
+## GAME-015 — Guided missions, dialogue and recoverable stalls (2026-11-06)
+
+- [x] Source: real waypoint direction/distance and readable objective progression for the tutorial and wrong-way mission.
+- [x] Source: Neighborhood Radio and marshal dialogue, visual speech label, pause-safe guide.
+- [x] Source: after a prolonged genuinely stalled service, show *opt-in* Reload Checkpoint and confirmation-gated Restart Level; never auto-award or reset traffic.
+- [x] Regression source: `mission_guide_test.gd` and `mission_guidance_flow_test.gd` registered in strict runner.
+- [ ] Fresh Godot runtime test and 3D playthrough, including GAME-013 towing and GAME-014 checkpoint regression.
+- [ ] Localization/audio/animation polish and mobile UI acceptance.
+
+Details: [GAME_015_MISSION_GUIDE.md](GAME_015_MISSION_GUIDE.md). **Code committed, runtime unverified.**
