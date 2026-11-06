@@ -50,8 +50,12 @@ func _run() -> void:
             furniture.free()
             _fail(walkers, "expected exactly one collision shape: " + prop.name)
             return
-        var kind: String = prop.name.get_slice("_", 0)
-        if not counts.has(kind):
+        var kind := ""
+        for prefix in counts.keys():
+            if prop.name.begins_with(str(prefix)):
+                kind = str(prefix)
+                break
+        if kind.is_empty():
             furniture.free()
             _fail(walkers, "unknown street prop: " + prop.name)
             return
