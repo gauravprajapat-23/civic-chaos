@@ -110,7 +110,6 @@ func _physics_process(delta: float) -> void:
         var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
         var can_walk: bool = true
-        var current_position: Vector3 = root.position
         if not _crossing[index] and old_progress < -6.0 and proposed >= -6.0:
             if _can_cross(side) and _reserve_crossing(index, side):
                 _crossing[index] = true

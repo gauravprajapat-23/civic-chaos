@@ -32,7 +32,7 @@ func _run() -> void:
         push_error("pedestrian path clearance falsely blocked distant NPC")
         quit(1)
         return
-    for tick in range(120):
+    for tick in range(360):
         await physics_frame
         for i in range(walkers.get_child_count()):
             var a: Node3D = walkers.get_child(i)
@@ -40,7 +40,7 @@ func _run() -> void:
                 var other: Node3D = walkers.get_child(j)
                 var separation: Vector3 = a.position - other.position
                 separation.y = 0.0
-                if separation.length_squared() < 0.64 * 0.64:
+                if separation.length_squared() < 0.72 * 0.72:
                     push_error("pedestrians overlap during simulation: %d %d" % [i, j])
                     quit(1)
                     return
