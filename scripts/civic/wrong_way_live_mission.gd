@@ -177,8 +177,8 @@ func _physics_process(delta: float) -> void:
         _advance_marshal(delta)
     if blocker_removed:
         _measure_recovery()
-    # Periodic HUD updates are forwarded via feedback_changed, not a
-    # removed _publish() method. The city HUD polls live queue counts.
+    # Periodic text updates use the existing feedback signal.
+    # The main city HUD independently polls the live stopped-car counts.
     if tick % 45 == 0:
         feedback_changed.emit(feedback)
 
