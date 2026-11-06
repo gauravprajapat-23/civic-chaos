@@ -7,7 +7,7 @@ Date: 2026-11-06 · Branch: `fix/regression-nov05`
 |---|---|---|---|---|---|---|
 | BUG-001 | P0 | Fix committed; runtime verification pending | Street props | `scripts/world/street_furniture.gd:58–64,94–133` | All street prop roots converted to StaticBody3D; regression expanded; local Godot run still required | Godot imports; every prop has a valid physics collider |
 | BUG-002 | P1 | Partial fix committed; runtime verification pending | NPC/player | `scripts/npc/district_pedestrians.gd:77–125,146–162` | direct movement and incomplete avoidance, NPCs can overlap/stack | live player/NPC contact tests pass |
-| BUG-003 | P1 | Confirmed design gap | Vehicle physics | `scripts/traffic/vehicle_agent.gd:125–135`, `scenes/traffic/vehicle_agent.tscn:65–76` | teleport-style lane positioning, no swept physical obstacle response | vehicle/player/NPC contact tests pass |
+| BUG-003 | P1 | Partial fix committed; runtime verification pending | Vehicle physics | `scripts/traffic/vehicle_agent.gd:125–135`, `scenes/traffic/vehicle_agent.tscn:65–76` | teleport-style lane positioning, no swept physical obstacle response | vehicle/player/NPC contact tests pass |
 | BUG-004 | P2 | Confirmed | Map/traffic | `scripts/world/junction_builder.gd:8–33`, `scripts/world/neighborhood.gd:75–99` | visual streets not represented in traffic graph | every driveable road connected and routed |
 | BUG-005 | P2 | Confirmed overlap; severity runtime-dependent | Ground | `scenes/core/main.tscn:7–12,42–51`, `scripts/world/neighborhood.gd:20–23` | redundant overlapping ground colliders | one coherent ground, no falling/z-fighting |
 | BUG-006 | P2 | Confirmed validation gap | Save/load | `scripts/core/game_lifecycle.gd:37–47` | loaded player position not collision-/bounds-validated | invalid save safely recovers |
@@ -40,3 +40,8 @@ Latest local regression results were reported by the user **before** these audit
 
 ## Regression follow-up (2026-11-06)
 User's Godot 4.7.2 run: 35 PASS, 2 FAIL (`neighborhood_test.gd`, `world_collision_test.gd`), including `pedestrian_collision_test.gd` PASS. Boundary collider was not named as the test expected; repeated street furniture roots were auto-renamed and the test read `prop.name` after freeing the parent. Fixes committed to name boundary collision nodes, give furniture unique stable names, and avoid accessing freed props in test error reporting. **Rerun pending**; do not mark BUG-001 or BUG-002 closed yet.
+
+## BUG-003 implementation update (2026-11-06)
+- Vehicle lane movement now probes physical player and pedestrian obstacles along the proposed path in sub-metre increments, stopping before entering occupied space; original simulation-only agent behavior remains unchanged.
+- Added `tests/vehicle_obstacle_test.gd` to local regression runner; covers stopping for a player and resuming after clearance.
+- **Open:** Godot import and regression are NOT RUN in the agent environment. Other vehicle contacts, emergency braking feel, spawn overlaps, high-speed tunneling and vehicle-to-vehicle physics require additional coverage. Do not close BUG-003 until verified on PC and Android.
