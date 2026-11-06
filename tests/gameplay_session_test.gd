@@ -17,6 +17,9 @@ func _run() -> void:
     if not session.configure(stage, player):
         _fail("session failed to configure")
         return
+    if session.process_mode != Node.PROCESS_MODE_PAUSABLE:
+        _fail("gameplay session must not advance while paused")
+        return
     if session.try_interact_at_marker(player):
         _fail("out-of-range inspection was accepted")
         return

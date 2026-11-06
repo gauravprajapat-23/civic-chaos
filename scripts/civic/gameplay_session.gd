@@ -1,6 +1,7 @@
 class_name CivicGameplaySession
 extends Node
 ## GAME-006: first player-facing use of existing civic managers.
+## Attach as PROCESS_MODE_PAUSABLE so paused gameplay does not advance cleanup.
 ## Intro scene: remove an *actual* sidewalk obstruction by inspection,
 ## valid reporting and authorized cleanup. No synthetic traffic queue claims.
 

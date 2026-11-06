@@ -89,6 +89,7 @@ func _ready() -> void:
             furniture.configure_signals(live_signals)
     gameplay_session = GameplaySession.new() as CivicGameplaySession
     gameplay_session.name = "CivicGameplaySession"
+    gameplay_session.process_mode = Node.PROCESS_MODE_PAUSABLE
     add_child(gameplay_session)
     if not gameplay_session.configure(self, player, civic_hud):
         push_error("Civic gameplay session could not start")
