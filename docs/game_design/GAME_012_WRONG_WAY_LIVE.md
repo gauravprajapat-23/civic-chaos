@@ -76,3 +76,35 @@ Follow-up candidate code:
 - `tools/run_regression.py` now treats **any Godot ERROR or SCRIPT ERROR** (including missing InputMap errors) as failure, not just a few specific parse errors. Replay and editor-import checks also use this strict rule.
 
 **Source changes committed, new Godot run NOT PERFORMED by assistant.** No GitHub Actions manually dispatched. Do not mark GAME-012's full regression verified until latest branch head is tested on Godot 4.7.2.
+
+## 2026-11-06 — Follow-up regression: three test failures after strict runner
+Actual user-supplied Godot 4.7.2 log on `dc79e68`:
+- Headless editor import **completed**.
+- Focused `gameplay_persistence_test.gd` **PASS**, `wrong_way_report_post_test.gd` **PASS**.
+- Full run **FAILED** in exactly three cases: `lifecycle_test.gd`, `incident_lifecycle_test.gd`, `vehicle_spawn_occupancy_test.gd`. Other displayed cases, including `wrong_way_live_mission_test.gd`, passed.
+- Life-cycle test failure was caused by two issues now caught by strict ERROR scanning: deliberate corrupt JSON parsing emitted `ERROR: Parse JSON failed`; an unparented instantiated menu scene was not freed and emitted resource/RID leak errors on quit.
+- Incident-lifecycle test deliberately parsed `broken`, which triggered the same JSON parse ERROR.
+- Spawn occupancy test set `blocker.global_position` **before** its StaticBody3D was added to SceneTree, producing repeated `Condition "!is_inside_tree()"` errors even though its intended tests continued.
+
+Code-only corrections pushed:
+- `scripts/core/save_repository.gd` and `scripts/civic/incident_manager.gd`: use `JSON.new().parse(...)` with a checked error return, rather than `JSON.parse_string`, for expected untrusted/invalid input. Both retain negative tests that reject invalid input.
+- `tests/lifecycle_test.gd`: explicitly free the instantiated menu scene (and its UI resources) after checking the scene loads.
+- `tests/vehicle_spawn_occupancy_test.gd`: assign blocker `position` before parenting; leave the physics-footprint assertions intact.
+- `tests/incident_lifecycle_test.gd`: add malformed-object/null JSON rejection checks.
+
+**Latest corrections NOT YET RERUN on Godot.** Keep the strict `ERROR:/SCRIPT ERROR:` regression scanner; do not suppress real engine errors or drop tests. No GitHub Actions manually triggered.
+
+Focused retest:
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git switch fix/regression-nov05
+git pull --ff-only origin fix/regression-nov05
+$godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+& $godot --headless --path . --editor --import --quit
+& $godot --headless --path . --script res://tests/lifecycle_test.gd
+& $godot --headless --path . --script res://tests/incident_lifecycle_test.gd
+& $godot --headless --path . --script res://tests/vehicle_spawn_occupancy_test.gd
+python tools/run_regression.py --godot $godot --timeout 60 --report build/game-012-strict-retest.json
+Write-Host "Exit code: $LASTEXITCODE"
+```
+Separate report path avoids modifying user's existing `build/regression-report.json`.
