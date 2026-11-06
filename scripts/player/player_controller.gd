@@ -102,8 +102,8 @@ func _physics_process(delta: float) -> void:
             velocity.y = -0.1
     else:
         velocity.y -= _gravity * delta
-    # Actor roofs must not act as ground. Sweep horizontal player movement
-    # against cars and pedestrians before world-only move_and_slide().
+    # Keep car collision horizontal; pedestrians yield without hard blocking.
+    # The player stays grounded on world surfaces, not other characters.
     _limit_horizontal_actor_motion(delta)
     move_and_slide()
     _animate_walk(delta)
@@ -175,8 +175,8 @@ func _try_place_on_ground(requested: Vector3) -> bool:
     reset_physics_interpolation()
     return true
 
-## Horizontal contact with pedestrians and vehicles without using either as a floor.
-## Static/kinematic traffic still senses player layer 2 for emergency stopping.
+## Horizontal contact with vehicles only (never a roof/floor).
+## Pedestrians use proactive social avoidance rather than hard contact.
 func _limit_horizontal_actor_motion(delta: float) -> void:
     var horizontal_motion := Vector3(velocity.x * delta, 0.0, velocity.z * delta)
     if horizontal_motion.length_squared() <= 0.0000001:
@@ -188,7 +188,7 @@ func _limit_horizontal_actor_motion(delta: float) -> void:
     query.shape = collider.shape
     query.transform = collider.global_transform
     query.motion = horizontal_motion
-    query.collision_mask = 4 | 8 # Vehicle and pedestrian bodies; never treated as floors.
+    query.collision_mask = 4 # Solid vehicles only; NPCs are soft-avoidance agents.
     query.exclude = [get_rid()]
     query.margin = 0.02
     var space := get_world_3d().direct_space_state

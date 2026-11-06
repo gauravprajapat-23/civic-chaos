@@ -1,5 +1,5 @@
 extends SceneTree
-## Actual-frame player/NPC collision guard, release and non-stacking test.
+## Player can walk freely past sensor-only NPCs; NPC heads are not floors.
 const PlayerScene = preload("res://scenes/player/player_root.tscn")
 
 func _initialize() -> void:
@@ -50,11 +50,11 @@ func _run() -> void:
     Input.action_release("move_forward")
     var delta := player.global_position - pedestrian.global_position
     delta.y = 0.0
-    if delta.length() < 0.66 or player.global_position.z < 0.65:
-        _fail("player overlapped or walked through the stationary pedestrian")
+    if player.global_position.z > -1.5:
+        _fail("player was physically blocked by a sensing-only pedestrian")
         return
-    if player.global_position.z > 2.0:
-        _fail("forward movement did not execute; NPC contact test would be vacuous")
+    if absf(player.global_position.x) > 0.5:
+        _fail("pedestrian contact unexpectedly pushed player sideways")
         return
     # Clear the walker and confirm that the obstacle guard releases.
     pedestrian.global_position = Vector3(10.0, 0.0, 0.0)
@@ -65,7 +65,7 @@ func _run() -> void:
         await physics_frame
     Input.action_release("move_forward")
     if player.global_position.z >= z_before - 0.75:
-        _fail("player did not resume walking after pedestrian cleared")
+        _fail("player movement stopped unexpectedly after pedestrian moved")
         return
     # The NPC capsule must not act as a solid floor while falling.
     pedestrian.global_position = Vector3.ZERO

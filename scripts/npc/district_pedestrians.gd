@@ -11,13 +11,15 @@ var _walker_progress: Array[float] = []
 var _reservations: CivicIntersectionReservations
 var _crossing: Array[bool] = []
 const BODY_RADIUS: float = 0.32
-const PLAYER_CLEARANCE: float = 1.15
+const PLAYER_CLEARANCE: float = 1.4
+const PLAYER_YIELD_RADIUS: float = 2.3
+const PLAYER_YIELD_SPEED: float = 5.5
 const WALKER_CLEARANCE: float = 1.05
 const CROSSING_CLEARANCE: float = 1.3
 const VEHICLE_CLEARANCE: float = 1.5
-const PERSONAL_SPACE: float = 1.2
+const PERSONAL_SPACE: float = 1.4
 const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
-const SIDESTEP_DISTANCE: float = 0.85
+const SIDESTEP_DISTANCE: float = 1.4
 const SIDESTEP_SPEED: float = 1.5
 var _sidestep_offsets: Array[float] = []
 var _blocked_frames: Array[int] = []
@@ -37,7 +39,7 @@ func _ready() -> void:
     for index in range(pedestrian_count):
         var walker := AnimatableBody3D.new()
         walker.collision_layer = 8
-        walker.collision_mask = 1 | 2 | 4 | 8
+        walker.collision_mask = 0 # Sensing layer only; no rigid actor-actor collision.
         walker.sync_to_physics = true
         walker.set_meta("pedestrian_index", index)
         var collider := CollisionShape3D.new()
@@ -61,11 +63,17 @@ func _ready() -> void:
         # themselves through simple stop-on-obstacle avoidance.
         var spawn_progress: float = float(index) * 5.0
         var loop_length: float = district_extent * 1.65
-        for attempt in range(96):
+        var found_spawn: bool = false
+        for attempt in range(192):
             var spawn_fraction: float = fposmod(spawn_progress, loop_length) - loop_length * 0.5
             if _spawn_is_clear(_walk_position(index % 4, spawn_fraction)):
+                found_spawn = true
                 break
             spawn_progress += PERSONAL_SPACE + 0.3
+        if not found_spawn:
+            push_warning("Pedestrian spawn skipped: all safe slots occupied (%d)" % index)
+            walker.queue_free()
+            continue
         _walker_progress.append(spawn_progress)
         _sidestep_offsets.append(0.0)
         _blocked_frames.append(0)
@@ -122,7 +130,10 @@ func _physics_process(delta: float) -> void:
             else:
                 can_walk = false
         if can_walk:
-            can_walk = _advance_clear_walker(index, delta, length)
+            if _resolve_actor_overlap(index, delta) or _yield_to_player(index, delta):
+                can_walk = false
+            else:
+                can_walk = _advance_clear_walker(index, delta, length)
         if can_walk:
             _blocked_frames[index] = 0
         else:
@@ -149,6 +160,99 @@ func _physics_process(delta: float) -> void:
         arms[1].rotation.x = -swing
         legs[0].rotation.x = -swing
         legs[1].rotation.x = swing
+
+## When somebody is already embedded, create small local separation.
+## A separate fallback is needed because planning from overlapping positions
+## cannot know a legal path until the initial penetration is reduced.
+func _resolve_actor_overlap(index: int, delta: float) -> bool:
+    var walker: Node3D = _walkers[index]["root"]
+    var danger_position: Vector3 = Vector3.ZERO
+    var nearest_distance: float = INF
+    var nearest_minimum: float = HARD_SEPARATION
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var player_gap := Vector2(walker.global_position.x - player.global_position.x, walker.global_position.z - player.global_position.z).length()
+        if player_gap < PLAYER_CLEARANCE:
+            nearest_distance = player_gap
+            nearest_minimum = PLAYER_CLEARANCE
+            danger_position = to_local(player.global_position)
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var gap := Vector2(walker.position.x - other.position.x, walker.position.z - other.position.z).length()
+        if gap < HARD_SEPARATION and (nearest_distance == INF or (gap / HARD_SEPARATION) < (nearest_distance / nearest_minimum)):
+            nearest_distance = gap
+            nearest_minimum = HARD_SEPARATION
+            danger_position = other.position
+    if nearest_distance == INF:
+        return false
+    var away: Vector3 = walker.position - danger_position
+    away.y = 0.0
+    if away.length_squared() < 0.0001:
+        var angle: float = float((index * 19 + 7) % 8) * PI / 4.0
+        away = Vector3(cos(angle), 0.0, sin(angle))
+    away = away.normalized()
+    var correction: float = minf(maxf(0.08, nearest_minimum - nearest_distance + 0.05), 0.36)
+    var before: Vector3 = walker.position
+    for trial in [away, away.rotated(Vector3.UP, PI / 3.0), away.rotated(Vector3.UP, -PI / 3.0)]:
+        var destination: Vector3 = before + trial * correction
+        if _candidate_is_clear(index, before, destination, false):
+            walker.position = destination
+            var data: Dictionary = _walkers[index]
+            var side: int = data["side"]
+            var loop_length: float = district_extent * 1.65
+            var route_progress: float = fposmod(_walker_progress[index], loop_length) - loop_length * 0.5
+            var center: Vector3 = _walk_position(side, route_progress)
+            _sidestep_offsets[index] = clampf(
+                (destination - center).dot(_walker_right(side, float(data["speed"]))),
+                -2.2, 2.2
+            )
+            return true
+    return false
+
+## People have right-of-way over an NPC's route. Approach is sensed before
+## they touch; a pedestrian moves sideways instead of physically pushing the
+## player or remaining motionless in front of them.
+func _yield_to_player(index: int, delta: float) -> bool:
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player == null:
+        return false
+    var root: Node3D = _walkers[index]["root"]
+    var to_player: Vector3 = player.global_position - root.global_position
+    to_player.y = 0.0
+    if to_player.length_squared() >= PLAYER_YIELD_RADIUS * PLAYER_YIELD_RADIUS:
+        return false
+    var entry: Dictionary = _walkers[index]
+    var side: int = entry["side"]
+    var speed: float = entry["speed"]
+    var loop_length: float = district_extent * 1.65
+    var progress: float = fposmod(_walker_progress[index], loop_length) - loop_length * 0.5
+    var center: Vector3 = _walk_position(side, progress)
+    var lateral: Vector3 = _walker_right(side, speed)
+    var player_local: Vector3 = to_local(player.global_position)
+    var player_side: float = (player_local - center).dot(lateral)
+    var direction: float = -1.0 if player_side > 0.0 else 1.0
+    for sign_value in [direction, -direction]:
+        var new_offset: float = move_toward(
+            _sidestep_offsets[index],
+            sign_value * SIDESTEP_DISTANCE,
+            PLAYER_YIELD_SPEED * delta
+        )
+        var candidate: Vector3 = center + lateral * new_offset
+        var previous: Vector3 = root.position
+        var old_gap: Vector3 = previous - player_local
+        var new_gap: Vector3 = candidate - player_local
+        old_gap.y = 0.0
+        new_gap.y = 0.0
+        if new_gap.length_squared() + 0.00001 < old_gap.length_squared():
+            continue
+        if _candidate_is_clear(index, previous, candidate, false):
+            root.position = candidate
+            _sidestep_offsets[index] = new_offset
+            return true
+    # When the player occupies the walkway, wait rather than walk into them.
+    return true
 
 ## Spawn and route-reset clearance are checked against already committed
 ## pedestrian positions, never the unoccupied route centerline alone.
@@ -330,7 +434,7 @@ func _swept_path_blocked(index: int, from_position: Vector3, to_position: Vector
         return true
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = collider.shape
-    query.collision_mask = 1 | 2 | 4 | 8
+    query.collision_mask = 1 | 4 # Solid city/vehicles only; people handled with personal-space rules.
     query.exclude = [walker.get_rid()]
     query.margin = 0.015
     var distance: float = (to_position - from_position).length()
