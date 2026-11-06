@@ -27,15 +27,17 @@ func set_paused(value: bool) -> void:
     get_tree().paused = value
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if value else Input.MOUSE_MODE_CAPTURED
 
-func save_player(player: Node3D, path: String = SaveRepo.DEFAULT_PATH) -> bool:
+func save_player(player: Node3D, path: String = "") -> bool:
     var pos := player.global_position
     var data := {"player": {"x": pos.x, "y": pos.y, "z": pos.z, "yaw": player.rotation.y}}
-    var ok: bool = SaveRepo.write_save(data, path)
+    var destination: String = SaveRepo.DEFAULT_PATH if path.is_empty() else path
+    var ok: bool = SaveRepo.write_save(data, destination)
     lifecycle_message.emit("Game saved" if ok else "Save failed")
     return ok
 
-func load_player(player: Node3D, path: String = SaveRepo.DEFAULT_PATH) -> bool:
-    var data: Dictionary = SaveRepo.read_save(path)
+func load_player(player: Node3D, path: String = "") -> bool:
+    var destination: String = SaveRepo.DEFAULT_PATH if path.is_empty() else path
+    var data: Dictionary = SaveRepo.read_save(destination)
     if data.is_empty():
         lifecycle_message.emit("No valid save found")
         return false

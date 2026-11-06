@@ -35,6 +35,30 @@ func _run() -> void:
     obstacle.add_child(obstacle_shape)
     stage.add_child(obstacle)
 
+    # Occupied saves must also reject cars and pedestrians, not just walls.
+    var parked_car := StaticBody3D.new()
+    parked_car.collision_layer = 4
+    parked_car.collision_mask = 0
+    parked_car.position = Vector3(-5.0, 0.7, 0.0)
+    var car_shape := CollisionShape3D.new()
+    var car_box := BoxShape3D.new()
+    car_box.size = Vector3(1.6, 1.2, 3.0)
+    car_shape.shape = car_box
+    parked_car.add_child(car_shape)
+    stage.add_child(parked_car)
+    var pedestrian := AnimatableBody3D.new()
+    pedestrian.collision_layer = 8
+    pedestrian.collision_mask = 0
+    pedestrian.position = Vector3(0.0, 0.0, -4.0)
+    var npc_shape := CollisionShape3D.new()
+    var capsule := CapsuleShape3D.new()
+    capsule.radius = 0.32
+    capsule.height = 1.75
+    npc_shape.shape = capsule
+    npc_shape.position.y = 0.87
+    pedestrian.add_child(npc_shape)
+    stage.add_child(pedestrian)
+
     var player := PlayerScene.instantiate() as CivicPlayerController
     player.position = Vector3(0.0, 0.2, 4.0)
     stage.add_child(player)
@@ -53,29 +77,27 @@ func _run() -> void:
         _fail("safe saved position was not applied on physics tick")
         return
 
-    if not Repo.write_save({"player": {"x": 5.0, "y": 0.1, "z": 0.0, "yaw": 0.0}}, TEST_SAVE):
-        _fail("failed to write blocked-location test save")
-        return
-    if not manager.load_player(player, TEST_SAVE):
-        _fail("blocked save was unexpectedly rejected before the physics check")
-        return
-    await physics_frame
-    await physics_frame
-    if player.global_position.distance_to(Vector3(0.0, 0.12, 4.0)) > 0.3:
-        _fail("blocked building location did not safely recover near spawn")
-        return
-
-    if not Repo.write_save({"player": {"x": 999.0, "y": 0.1, "z": 0.0, "yaw": 0.0}}, TEST_SAVE):
-        _fail("failed to write out-of-world test save")
-        return
-    if not manager.load_player(player, TEST_SAVE):
-        _fail("out-of-world save not queued for validation")
-        return
-    await physics_frame
-    await physics_frame
-    if player.global_position.distance_to(Vector3(0.0, 0.12, 4.0)) > 0.3:
-        _fail("out-of-world save did not recover to the safe spawn")
-        return
+    # Every unsafe location must recover to the known clear spawn.
+    for unsafe in [
+        Vector3(5.0, 0.1, 0.0),   # inside a building
+        Vector3(-5.0, 0.1, 0.0),  # parked vehicle
+        Vector3(0.0, 0.1, -4.0),  # pedestrian
+        Vector3(999.0, 0.1, 0.0) # outside all supported terrain
+    ]:
+        var sample := {"player": {
+            "x": unsafe.x, "y": unsafe.y, "z": unsafe.z, "yaw": 0.0
+        }}
+        if not Repo.write_save(sample, TEST_SAVE):
+            _fail("failed to write unsafe-location test save")
+            return
+        if not manager.load_player(player, TEST_SAVE):
+            _fail("unsafe save not queued for physics validation")
+            return
+        await physics_frame
+        await physics_frame
+        if player.global_position.distance_to(Vector3(0.0, 0.12, 4.0)) > 0.3:
+            _fail("unsafe save did not recover near spawn: " + str(unsafe))
+            return
 
     # Falling through a gap must also choose a grounded, unoccupied position.
     player.global_position = Vector3(0.0, -9.0, 4.0)
