@@ -6,7 +6,7 @@ Date: 2026-11-06 · Branch: `fix/regression-nov05`
 | ID | Priority | Status | System | Evidence (file:lines) | Root cause / impact | Acceptance |
 |---|---|---|---|---|---|---|
 | BUG-001 | P0 | Fix committed; runtime verification pending | Street props | `scripts/world/street_furniture.gd:58–64,94–133` | All street prop roots converted to StaticBody3D; regression expanded; local Godot run still required | Godot imports; every prop has a valid physics collider |
-| BUG-002 | P1 | Confirmed design gap; symptom user-reported | NPC/player | `scripts/npc/district_pedestrians.gd:77–125,146–162` | direct movement and incomplete avoidance, NPCs can overlap/stack | live player/NPC contact tests pass |
+| BUG-002 | P1 | Partial fix committed; runtime verification pending | NPC/player | `scripts/npc/district_pedestrians.gd:77–125,146–162` | direct movement and incomplete avoidance, NPCs can overlap/stack | live player/NPC contact tests pass |
 | BUG-003 | P1 | Confirmed design gap | Vehicle physics | `scripts/traffic/vehicle_agent.gd:125–135`, `scenes/traffic/vehicle_agent.tscn:65–76` | teleport-style lane positioning, no swept physical obstacle response | vehicle/player/NPC contact tests pass |
 | BUG-004 | P2 | Confirmed | Map/traffic | `scripts/world/junction_builder.gd:8–33`, `scripts/world/neighborhood.gd:75–99` | visual streets not represented in traffic graph | every driveable road connected and routed |
 | BUG-005 | P2 | Confirmed overlap; severity runtime-dependent | Ground | `scenes/core/main.tscn:7–12,42–51`, `scripts/world/neighborhood.gd:20–23` | redundant overlapping ground colliders | one coherent ground, no falling/z-fighting |
@@ -31,3 +31,9 @@ Latest local regression results were reported by the user **before** these audit
 - Fix: `8a99b58` changes streetlights, trees, bins, benches to StaticBody3D and uses layer 1/mask 0.
 - Regression: `80d4200` adds collider/layer/shape/count assertions; `811f95a` accounts for Godot's automatic duplicate-node renaming.
 - **Not closed:** Headless Godot import and regression execution are still pending on a machine with Godot 4.7.2.
+
+## BUG-002 implementation update (2026-11-06)
+- Initialized NPC bodies at their intended sidewalk coordinates on spawn.
+- Added player, other pedestrian, and vehicle clearance checks plus a physics shape check at each proposed destination; adjusted capsule floor clearance.
+- Added `tests/pedestrian_collision_test.gd` to the local regression runner.
+- **Open:** This is a stop-on-obstacle policy, not full navigation or swept-body motion. No engine run was available; head-on contact, crowd deadlocks, vehicle interactions and standing atop NPCs still need in-game verification. Do not close BUG-002 until all acceptance criteria pass.
