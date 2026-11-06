@@ -127,3 +127,12 @@ See [GAME_012_WRONG_WAY_LIVE.md](GAME_012_WRONG_WAY_LIVE.md). This is implemente
 - [ ] GAME-014 persistence for the ongoing tow / mission; GAME-015 UX and retries.
 
 Full detail: [GAME_013_AUTHORIZED_TOW.md](GAME_013_AUTHORIZED_TOW.md). **Code added, NOT yet accepted as verified gameplay.**
+
+
+## GAME-014 — active wrong-way checkpoints (2026-11-06)
+- [x] Code: `CivicWrongWayLiveMission` JSON-safe versioned snapshots and pure cross-manager preflight; stable follower-index data, lane and tow progress.
+- [x] Code: F5/F9 scene wiring, new-scene physical car rebuild, post-tutorial shared clock, backward-compatible player-only saves.
+- [x] Regression source: `wrong_way_checkpoint_test.gd` registered, including on-disk JSON recreation after mid-tow checkpoint and duplicate rewards checks.
+- [ ] Godot 4.7.2 focused and full strict tests; visible PC/Android mission restore; GAME-013 tow verification still outstanding.
+
+Full details: [GAME_014_CHECKPOINTS.md](GAME_014_CHECKPOINTS.md). **Not yet engine-verified.**
