@@ -114,6 +114,7 @@ func _run() -> void:
     if saved_reward != 0:
         _fail("uncompleted wrong-way mission already paid a reward")
         return
+    var original_mission_count: int = civic.missions.missions.size()
     stage.queue_free()
     await physics_frame
     await physics_frame
@@ -141,7 +142,7 @@ func _run() -> void:
     if next_live.incident_id != int(saved_tow["incident_id"]) or next_live.tow_progress_m < float(saved_tow["tow_progress"]) - 0.01:
         _fail("tow state or incident ID changed on restore")
         return
-    if next_civic.missions.missions.size() != civic.missions.missions.size():
+    if next_civic.missions.missions.size() != original_mission_count:
         _fail("duplicate mission registered during scene reconstruction")
         return
     if next_live.perform_incident_action(next_player, "report"):
