@@ -43,3 +43,8 @@ Log engine version, platform, branch commit, exact command, all failed assertion
 - `b442124`: Player now uses world-only collision mask and horizontal swept actor collision for pedestrians and cars. Ground snap length 0.24. The parked-car test advances actual physics frames to verify approach, obstruction, release and non-walkable roof.
 - `9aa948d`: Save loading no longer directly teleports player during input. The lifecycle queues a restore; player validates on the next physics tick and emits the final loaded/unsafe status. Validation checks ground normal, height proximity and capsule clearance against actors and world. Fall recovery checks safe spawn and deterministic nearby candidates.
 - **Verification:** Source changes pushed, no Godot binary installed in this environment. Import, all three contact/recovery tests, full suite and Windows/Android gameplay are **NOT RUN**. Existing earlier regression JSON must not be relabeled as current results.
+
+## Test fixture expansion at commit `1b7f908`
+- `tests/player_safe_restore_test.gd` now tests blocked save points inside a building, a parked vehicle (layer 4), a pedestrian (layer 8), and outside the map, in addition to a valid restore and fall recovery. Uses an isolated `user://` test save file and removes it after completion.
+- `scripts/core/game_lifecycle.gd` retains the production default path while supporting an optional test-only path.
+- **Verification: NOT RUN** (engine unavailable); a committed test is not a passing test.
