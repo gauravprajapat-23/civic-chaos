@@ -1,0 +1,83 @@
+# Civic Chaos — Actionable First-Playable Backlog
+Planning IDs `GAME-001`–`GAME-028` (these are **not** GitHub issue numbers). Status: **PLANNED** unless otherwise marked. Main roadmap: [PHASED_BUILD_PLAN.md](PHASED_BUILD_PLAN.md).
+
+## Workflow
+One task/branch at a time → reproduce or define failing scenario → implement → run local Godot import + focused tests → full regression when systems touch physics → manual gameplay check → commit → update result. **No GitHub Actions.**
+
+## Gate G0 — Reliability before features
+| ID | Priority | Task / implementation | Evidence of acceptance |
+|---|---|---|---|
+| GAME-001 | P0 | Revalidate latest `pedestrian_spawn_separation_test.gd`, `graphics_lod_test.gd`, `building_distance_lod_test.gd`, then full suite; use separate report file to preserve user work | Exact latest commit, Godot 4.7.2 output, all relevant PASS |
+| GAME-002 | P0 | Repair expanded-city signal mapping PHYS-010; red/green stop lines derived from world lane direction | City signal test with real lane IDs >=100; car advances on green |
+| GAME-003 | P0 | Separate opposing lanes and legal turn connectors PHYS-011 | Two-way traffic plays without head-on body overlap; intersection graph validated |
+| GAME-004 | P0 | Safe vehicle-vs-world collision and spawn occupancy PHYS-012/013 | Cars cannot clip into walls, people, props, parked vehicles |
+| GAME-005 | P1 | NPC crossing ownership and route-safe recovery PHYS-014/015/017 | 30 NPC test, no overlap, no visible teleport, no held-crossing softlock |
+
+## Gate G1 — Actual civic gameplay
+| ID | Priority | Task / implementation | Evidence of acceptance |
+|---|---|---|---|
+| GAME-006 | P0 | Add `CivicGameplaySession` that owns existing civic service instances and event routing | Session active in main 3D scene; deterministic tick and unique IDs |
+| GAME-007 | P0 | Bridge world incident spawn/observe/resolve to manager lifecycle and objective progress | Real object triggers one incident; no duplicates; transitions legal |
+| GAME-008 | P0 | Build `IncidentMarker` with proximity, focus prompt, evidence and action confirmation | E/touch opens correct card; wrong distance rejected |
+| GAME-009 | P1 | Connect live `CivicStatusHUD` mission, incidents and four civic metrics | HUD accurately follows simulation; no placeholder while session active |
+| GAME-010 | P0 | Wire mission/incident/metrics/unlocks/seed save and versioned migration | Save/load/restart consistent; no duplicated rewards |
+| GAME-011 | P1 | Tutorial walk-and-inspect with hints + accessible action choices | New player completes first interaction without developer intervention |
+
+## Gate G2 — Wrong-Way Disaster: playable flagship
+| ID | Priority | Task / implementation | Evidence of acceptance |
+|---|---|---|---|
+| GAME-012 | P0 | Link wrong-way scenario to real staged offender vehicle and congestion observation | Offender and queue visible; route legality intact |
+| GAME-013 | P0 | Safe authorized marshal response and offender reroute | NPC service clears actual obstruction without player vehicle force |
+| GAME-014 | P0 | Real recovery and idempotent mission reward | No completion before measurable sustained queue recovery |
+| GAME-015 | P1 | Mission dialogue, objective waypoints, failure/retry | 3D end-to-end walkthrough and repeatable fail/retry success |
+
+## Gate G3 — Additional missions
+| ID | Priority | Task / implementation | Evidence of acceptance |
+|---|---|---|---|
+| GAME-016 | P1 | Illegal parking and pedestrian obstruction | Parking volume checked; safe relocation repairs walkway |
+| GAME-017 | P1 | Littering, bins and sanitation assistance | Litter count drops in world; NPC cooperation reaction visible |
+| GAME-018 | P1 | Three-mission story order, end-of-district scorecard, free roam | Campaign can finish once, replay and save |
+
+## Gate G4 — Emergent chaos
+| ID | Priority | Task / implementation | Evidence of acceptance |
+|---|---|---|---|
+| GAME-019 | P1 | Wire `CivicEventDirector` to real incidents, budget/cooldown | Seeded replay, nonconflicting spawn positions, no event spam |
+| GAME-020 | P1 | NPC personality/social influence affects safe civic choices | Different traits cause distinct, deterministic reactions |
+| GAME-021 | P1 | Causal-chain propagation and priority | One illegal park can trigger queue + crosswalk issue; fixing root resolves symptoms |
+| GAME-022 | P1 | City feedback and fairness balance | Trust responds to false vs valid reporting; safety never rewards risk |
+
+## Gates G5–G7 — Polish and release
+| ID | Priority | Task / implementation | Evidence of acceptance |
+|---|---|---|---|
+| GAME-023 | P1 | Market district signage/storefronts/visual accessibility and LOD | Buildings remain visible; routes clear; budget measured |
+| GAME-024 | P1 | Movement animations, NPC reactions and camera polish | No clip/foot sliding at game speed; readable silhouettes |
+| GAME-025 | P1 | Bilingual-ready UI, tooltips, audio cues, touch parity | English complete; Hindi strings prepared; touch-accessible |
+| GAME-026 | P0 | PC + Android stability and profiling | Actual device logs, load/save/restart, mission flow and FPS measurement |
+| GAME-027 | P0 | Integrated gameplay, negative-path and seed replay suite | All P0/P1 tests PASS; no reward duplication or softlock |
+| GAME-028 | P0 | Release packaging, checklist and acceptance playtest | Installer/APK verified; 3 missions finish; known issues documented |
+
+## What already exists in code (reuse, don't rebuild)
+- **Foundations:** third-person player, camera, street district, roads, traffic/vehicle scripts, basic NPCs, touches and HUD.
+- **Logic-only systems (not full 3D gameplay):** `CivicMissionManager`, `CivicIncidentManager`, `CivicInteractionService`, `CivicCityMetrics`, `CivicEventDirector`, `CivicWrongWayMission`.
+- **Regression suite:** broad headless tests, but the live integrated game has not passed a mission walkthrough and the latest physics/render patch awaits local validation.
+- **Existing audit dependencies:** `docs/physics/NEXT_PHYSICS_AUDIT.md` and `docs/rendering/BUILDING_DISTANCE_LOD_FIX.md`.
+
+## Immediate first two work batches
+**Batch A — Stabilize and connect:** GAME-001, then GAME-002–005 in individual focused changes. Do not add more NPCs, cars or a larger map during this batch.
+
+**Batch B — Make it a real game:** GAME-006–011, followed by GAME-012–015. Deliver one fully playable Wrong-Way Disaster mission before writing more campaign content.
+
+## Local PowerShell validation (after pulling target branch)
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git switch fix/regression-nov05
+git pull --ff-only origin fix/regression-nov05
+$godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+& $godot --headless --path . --editor --import --quit
+& $godot --headless --path . --script res://tests/pedestrian_spawn_separation_test.gd
+& $godot --headless --path . --script res://tests/building_distance_lod_test.gd
+python tools/run_regression.py --godot $godot --timeout 60 --report build/game-design-baseline.json
+Write-Host "Exit code: $LASTEXITCODE"
+```
+
+Tests are not run by this planning commit. Keep every incomplete task PLANNED even if supporting classes already exist.

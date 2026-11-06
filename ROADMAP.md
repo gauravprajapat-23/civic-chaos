@@ -1,3 +1,5 @@
+> **Updated game direction (2026-11-06):** For the playable civic-sense experience and the current implementation priorities, use [Game Design Document](docs/game_design/CIVIC_CHAOS_GAME_DESIGN.md), [Phased Build Plan](docs/game_design/PHASED_BUILD_PLAN.md), and [First-Playable Backlog](docs/game_design/IMPLEMENTATION_BACKLOG.md). The milestone table below records the older foundation plan; it is not evidence that those milestones are fully playable.
+
 # Civic Chaos — Development Roadmap
 
 Godot 4.x · GDScript · PC + Android · Offline first
