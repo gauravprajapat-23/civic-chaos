@@ -155,10 +155,40 @@ func snapshot() -> Dictionary:
         "metrics": metrics.snapshot()
     }
 
-func can_restore(data: Variant) -> bool:
-    if not (data is Dictionary):
+## Godot JSON may decode whole-number values as floats. Convert only
+## documented integer fields after confirming they are finite whole numbers.
+## Never weaken the CivicCityMetrics.restore strict integer contract.
+static func _integer_value(value: Variant) -> bool:
+    if not (value is float or value is int):
         return false
-    var saved: Dictionary = data
+    var number: float = float(value)
+    return is_finite(number) and absf(number) <= 1000000000.0 and absf(number - roundf(number)) < 0.000001
+
+static func _normalized_saved_state(data: Variant) -> Dictionary:
+    if not (data is Dictionary):
+        return {}
+    var saved: Dictionary = (data as Dictionary).duplicate(true)
+    for key in ["schema_version", "tick", "incident_id", "reported_tick", "intervention_tick"]:
+        if not saved.has(key) or not _integer_value(saved[key]):
+            return {}
+        saved[key] = int(saved[key])
+    if not (saved.get("metrics") is Dictionary):
+        return {}
+    var civic: Dictionary = saved["metrics"]
+    if not _integer_value(civic.get("last_tick")) or not (civic.get("scores") is Dictionary):
+        return {}
+    civic["last_tick"] = int(civic["last_tick"])
+    var scores: Dictionary = civic["scores"]
+    for dimension in CivicCityMetrics.DIMENSIONS:
+        if not _integer_value(scores.get(dimension)):
+            return {}
+        scores[dimension] = int(scores[dimension])
+    return saved
+
+func can_restore(data: Variant) -> bool:
+    var saved: Dictionary = _normalized_saved_state(data)
+    if saved.is_empty():
+        return false
     if saved.get("schema_version") != 1:
         return false
     for field in ["tick", "incident_id", "reported_tick", "intervention_tick"]:
@@ -218,7 +248,7 @@ func can_restore(data: Variant) -> bool:
 func restore(data: Variant) -> bool:
     if not can_restore(data) or incident_id < 0:
         return false
-    var saved: Dictionary = data
+    var saved: Dictionary = _normalized_saved_state(data)
     var replacement: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(saved["incidents"]))
     if replacement == null:
         return false
