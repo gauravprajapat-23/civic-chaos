@@ -87,3 +87,10 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 | PHYS-019 | P2 | Test/performance gap | No long-duration integrated city physics-soak test |
 
 **First fix to implement next:** PHYS-010, preceded by focused red/green expanded-city signal regression. Do not close any issue based solely on this audit.
+
+## REND-001 / P1 — Building shells disappear when distant (2026-11-06)
+- Screenshot: distant buildings lose visible body/façade while some decorations remain.
+- Source root cause: `scripts/core/main.gd` registers every `lod_meshes` building shell **without** low-detail replacement. `scripts/rendering/graphics_lod.gd` previously set high mesh invisible after `far_distance * quality_scale` (45.5m mobile LOW, 70m BALANCED, 105m PC HIGH).
+- **Fix candidate committed; Godot verification pending:** `graphics_lod.gd` now retains the high mesh at all distances when no proxy is registered, and retains low proxy at far ranges when it exists. This avoids disappearing building bodies/ghost windows and preserves LOD swaps where a real proxy exists.
+- Added `tests/building_distance_lod_test.gd` (actual district shell/roof/window visibility at camera ranges up to 450m), updated `tests/graphics_lod_test.gd` and registered the integration test in the local regression runner.
+- **NOT RUN** by the assistant; user must rerun Godot 4.7.2 import, focused tests and full local regression. No GitHub Actions.

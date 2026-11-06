@@ -1,6 +1,7 @@
 class_name CivicGraphicsLOD
 extends Node
-## Distance-based mesh visibility and mobile lighting budgets.
+## Distance-based detail swaps and mobile lighting budgets.
+## Essential meshes stay visible when no lower-detail proxy exists.
 enum Quality { LOW, BALANCED, HIGH }
 @export var quality: Quality = Quality.BALANCED
 @export var near_distance: float = 28.0
@@ -42,14 +43,20 @@ func update_lod() -> void:
         var low: MeshInstance3D = entry["low"]
         if not is_instance_valid(high):
             continue
-        var distance := camera.global_position.distance_to(high.global_position)
-        var cutoff := far_distance * (0.65 if quality == Quality.LOW else 1.5 if quality == Quality.HIGH else 1.0)
-        var switch_distance := near_distance * (0.65 if quality == Quality.LOW else 1.5 if quality == Quality.HIGH else 1.0)
-        if low != null and is_instance_valid(low):
-            high.visible = distance <= switch_distance
-            low.visible = distance > switch_distance and distance <= cutoff
+        var distance: float = camera.global_position.distance_to(high.global_position)
+        var scale: float = 0.65 if quality == Quality.LOW else 1.5 if quality == Quality.HIGH else 1.0
+        var switch_distance: float = near_distance * scale
+        if low != null and is_instance_valid(low) and low != high:
+            # Beyond the near LOD range, a low-cost proxy stays visible at
+            # *any* distance. The far budget must not remove entire buildings.
+            var show_high: bool = distance <= switch_distance
+            high.visible = show_high
+            low.visible = not show_high
         else:
-            high.visible = distance <= cutoff
+            # A mesh without a real lower-detail replacement is essential.
+            # Hiding it at the far cutoff made building shells disappear while
+            # their untracked windows and trims remained in the scene.
+            high.visible = true
         kept.append(entry)
     tracked = kept
 
