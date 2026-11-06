@@ -21,10 +21,10 @@ func rebuild() -> void:
     var terrain_half: float = half + 24.0
     _block("TerrainGround", Vector3(0, -0.30, 0), Vector3(terrain_half * 2.0, 0.5, terrain_half * 2.0))
     _world_boundary(terrain_half)
-    _block("NorthRoad", Vector3(0, -0.04, -half * 0.5), Vector3(road_width, 0.08, half))
-    _block("SouthRoad", Vector3(0, -0.04, half * 0.5), Vector3(road_width, 0.08, half))
-    _block("EastRoad", Vector3(half * 0.5, -0.04, 0), Vector3(half, 0.08, road_width))
-    _block("WestRoad", Vector3(-half * 0.5, -0.04, 0), Vector3(half, 0.08, road_width))
+    _block("NorthRoad", Vector3(0, -0.005, -half * 0.5), Vector3(road_width, 0.08, half))
+    _block("SouthRoad", Vector3(0, -0.005, half * 0.5), Vector3(road_width, 0.08, half))
+    _block("EastRoad", Vector3(half * 0.5, -0.005, 0), Vector3(half, 0.08, road_width))
+    _block("WestRoad", Vector3(-half * 0.5, -0.005, 0), Vector3(half, 0.08, road_width))
     for side in [-1, 1]:
         var sign_value: float = float(side)
         _block("SidewalkX%d" % side, Vector3(sign_value * (road_half + sidewalk_width * 0.5), 0.1, 0), Vector3(sidewalk_width, 0.2, half * 2.0))
@@ -79,9 +79,9 @@ func _outer_blocks(half: float) -> void:
     for side in [-1, 1]:
         var offset: float = float(side) * secondary_offset
         _block("SecondaryRoad_NS_%d" % side,
-            Vector3(offset, -0.04, 0), Vector3(road_width, 0.08, half * 2.0))
+            Vector3(offset, -0.005, 0), Vector3(road_width, 0.08, half * 2.0))
         _block("SecondaryRoad_EW_%d" % side,
-            Vector3(0, -0.04, offset), Vector3(half * 2.0, 0.08, road_width))
+            Vector3(0, -0.005, offset), Vector3(half * 2.0, 0.08, road_width))
     var coordinates := [-72.0, -24.0, 24.0, 72.0]
     for row in range(coordinates.size()):
         for column in range(coordinates.size()):
@@ -143,7 +143,7 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
         mesh.material_override = _material(Color(0.25, 0.48, 0.25))
     elif block_name == "TerrainGround":
         mesh.material_override = _material(Color(0.30, 0.39, 0.28))
-    elif block_name.ends_with("Road"):
+    elif block_name.ends_with("Road") or block_name.begins_with("SecondaryRoad_"):
         mesh.material_override = _material(Color(0.15, 0.18, 0.21))
     elif block_name.begins_with("Sidewalk"):
         mesh.material_override = _material(Color(0.64, 0.65, 0.61))
