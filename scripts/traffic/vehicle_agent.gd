@@ -94,12 +94,64 @@ func advance_fixed(delta: float) -> void:
     if is_finite(lead_gap_m):
         travel = CivicFollowingController.permitted_travel(travel, lead_gap_m, minimum_gap_m)
         next_speed = minf(next_speed, travel / delta)
+    if travel > 0.0 and _path_has_vulnerable_obstacle(travel):
+        travel = 0.0
+        next_speed = 0.0
     speed_mps = next_speed
     _travel(travel)
     if active:
         _place_on_lane()
     if feedback != null:
         feedback.observe_vehicle(speed_mps, active, stop_requested)
+
+## Guard the physical vehicle scene against player/pedestrian penetration.
+## Abstract Node3D agents used in deterministic unit tests have no collider;
+## they keep the original lane-following behavior.
+func _path_has_vulnerable_obstacle(travel: float) -> bool:
+    if not is_inside_tree():
+        return false
+    var collision_body := get_node_or_null("CollisionBody") as StaticBody3D
+    if collision_body == null:
+        return false
+    var collision_shape := collision_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collision_shape == null or collision_shape.shape == null:
+        return false
+    var space := get_world_3d().direct_space_state
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collision_shape.shape
+    query.collision_mask = 2 | 8
+    query.exclude = [collision_body.get_rid()]
+    query.margin = 0.02
+    var original_index := current_route_index
+    var original_distance := lane_distance_m
+    var remaining := travel
+    # Sample the swept path at sub-metre intervals, including turns.
+    var samples: int = maxi(1, int(ceil(travel / 0.4)))
+    for sample_index in range(1, samples + 1):
+        remaining = travel * float(sample_index) / float(samples)
+        var index := original_index
+        var distance := original_distance
+        while index < route.size() - 1:
+            var lane: CivicLaneData = road_graph.get_lane(route[index])
+            if lane == null:
+                return true
+            var available := maxf(0.0, lane.length_m() - distance)
+            if remaining <= available:
+                break
+            remaining -= available
+            index += 1
+            distance = 0.0
+        var sampled_lane: CivicLaneData = road_graph.get_lane(route[index])
+        if sampled_lane == null:
+            return true
+        var location: Dictionary = sample_centerline(sampled_lane.centerline, distance + remaining)
+        var tangent: Vector3 = location["tangent"]
+        var heading := atan2(-tangent.x, -tangent.z)
+        var basis := Basis(Vector3.UP, heading)
+        query.transform = Transform3D(basis, location["position"] + basis * collision_shape.position)
+        if not space.intersect_shape(query, 1).is_empty():
+            return true
+    return false
 
 func _travel(distance: float) -> void:
     var remaining := distance
