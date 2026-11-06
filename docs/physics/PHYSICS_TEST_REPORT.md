@@ -48,3 +48,10 @@ Log engine version, platform, branch commit, exact command, all failed assertion
 - `tests/player_safe_restore_test.gd` now tests blocked save points inside a building, a parked vehicle (layer 4), a pedestrian (layer 8), and outside the map, in addition to a valid restore and fall recovery. Uses an isolated `user://` test save file and removes it after completion.
 - `scripts/core/game_lifecycle.gd` retains the production default path while supporting an optional test-only path.
 - **Verification: NOT RUN** (engine unavailable); a committed test is not a passing test.
+
+## Screenshot NPC-overlap regression (2026-11-06)
+- Input evidence: screenshot of multiple pedestrian models intersecting near a road crossing.
+- `f89584b` changed the movement candidate chooser, spawn clearance, sidestep and intermediate collision checks.
+- `tests/pedestrian_collision_test.gd` now watches separation for 360 physics frames with a 0.72m floor (previously 120 frames / 0.64m).
+- `tests/pedestrian_crowd_avoidance_test.gd` constructs a forced perpendicular approach and an opposing-direction approach, observing all pedestrian pairs each frame and asserting forward progress rather than permanent deadlock.
+- `tools/run_regression.py` explicitly registers the new test. **Godot outcome = NOT RUN**. No GitHub Actions executed.

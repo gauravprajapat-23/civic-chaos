@@ -16,8 +16,8 @@ Date: 2026-11-06 | Branch: `fix/regression-nov05` | No GitHub Actions.
 5. Run focused test, full regression and Windows gameplay. Record exact commit/log.
 
 ## Phase 3: Pedestrians
-- Replace stop-forever avoidance with bounded sidestep/yield/reroute and deterministic priority.
-- Validate spawn clearance, opposing paths, crossing queues, corners and 120+ physics frames.
+- [CODE ADDED, NOT RUN] Bounded deterministic sidestep/yield and alternate passing-side retry (`f89584b`). Full navigation reroute remains future work.
+- [TEST ADDED, NOT RUN] Safe spawn clearance, perpendicular approach, head-on movement, 360/420 physics-frame separation and progress assertions (`f4922dd`). Busy junction/30-NPC playtest remains outstanding.
 - Separate navigation goal choice from movement/collision resolution.
 
 ## Phase 4: Vehicles

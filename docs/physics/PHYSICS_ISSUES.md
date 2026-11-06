@@ -5,7 +5,7 @@ Status wording: OPEN = acceptance not proven; PARTIAL = code exists, real contac
 | ID | Priority | Status | Root cause and source | Exit criteria |
 |---|---|---|---|---|
 | PHYS-001 | P1 | PARTIAL — NOT RUN | Horizontal sweep added at `af04f32`, expanded to player vs NPC and vehicle (mask 12) at `b442124`; real run pending | Player stops/slides around NPC without treating head as floor; physics-frame tests pass |
-| PHYS-002 | P1 | PARTIAL | `scripts/npc/district_pedestrians.gd` direct Animatable position and proximity-only stall | Opposing, crossing and multi-NPC groups pass with no overlap or deadlock |
+| PHYS-002 | P1 | PARTIAL — NOT RUN | `f89584b` introduces safe spawn clearance, swept shape sampling, and deterministic side-step/yield recovery in `scripts/npc/district_pedestrians.gd`; source-patched, Godot unverified | Opposing, crossing and multi-NPC groups pass with no overlap or deadlock |
 | PHYS-003 | P1 | PARTIAL | `scripts/traffic/vehicle_agent.gd` sampled Node3D movement, static collider child | Vehicle collisions prevented at varied speeds/turns; no tunneling |
 | PHYS-004 | P1 | OPEN | `scripts/traffic/traffic_spawner.gd:_spawn_occupied` tests cars only by center distance | Reject full-volume overlapping cars, player, pedestrians and obstacles |
 | PHYS-005 | P2 | OPEN | `scripts/world/junction_builder.gd:make_city_graph` shares opposing lane centerlines | Directional left-driving offsets and non-clipping turns |
@@ -48,3 +48,10 @@ Never close bugs or check runtime boxes without actual passing evidence. Issue I
 ## Phase 2 expanded unsafe restore fixtures
 - Commit `1b7f908` broadens safe-load coverage to vehicle and pedestrian occupied volumes, not just static buildings and unsupported coordinates.
 - Current status remains **PARTIAL — NOT RUN** until Godot physics-frame verification passes.
+
+## Screenshot follow-up — two or more NPCs visually overlapping
+- Source observation: previous pedestrian movement only accepted/rejected a nominal route position; blocked agents did not sidestep, and spawn placement was not reserved against previously created pedestrians. NPCs can remain embedded or stacked if already spawned too close.
+- Fix commit `f89584b`: search unoccupied spawn points, add 1.2m personal buffer and 0.72m hard capsule separation, check path geometry plus physics shapes at intervals, and try bounded lateral movement to avoid indefinite blocking.
+- Regression commit `f4922dd`: strengthen the existing physics-frame NPC test to 360 frames and add `tests/pedestrian_crowd_avoidance_test.gd` for perpendicular crossing and opposing/head-on movement (420 frames each).
+- Follow-up `068a7ee`: avoid statically typing custom test walkers as bare Node3D when accessing script-specific members.
+- **Status: PARTIAL — NOT RUN.** GitHub code committed but no Godot 4.7.2 import, headless tests or visual screenshot comparison executed here. Do not close PHYS-002 until both automated tests and a busy crossing playtest pass.
