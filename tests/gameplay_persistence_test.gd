@@ -50,6 +50,9 @@ func _run() -> void:
     if resumed.reported_tick < 0 or resumed.incidents.incidents[resumed.incident_id]["state"] != CivicIncidentManager.ESCALATED:
         _fail("restored report state was lost")
         return
+    if resumed.metrics.history.size() != session.metrics.history.size():
+        _fail("restored civic metrics audit history did not match the saved history")
+        return
     if resumed.try_interact_at_marker(player):
         _fail("restored incident allowed duplicate reporting")
         return

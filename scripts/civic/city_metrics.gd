@@ -49,8 +49,25 @@ func restore(data: Dictionary) -> bool:
     for id in data["processed_events"].keys():
         if str(id).is_empty() or data["processed_events"][id] != true:
             return false
+    # JSON.parse_string produces a plain Array even when the original history
+    # was Array[Dictionary]. Build a typed array explicitly; assigning the
+    # untyped deep-copy directly produces a Godot runtime type error.
+    var restored_history: Array[Dictionary] = []
+    for raw_entry in data["history"]:
+        if not (raw_entry is Dictionary):
+            return false
+        var entry: Dictionary = (raw_entry as Dictionary).duplicate(true)
+        if not (entry.get("id") is String) or str(entry["id"]).is_empty():
+            return false
+        if not (entry.get("reason") is String) or str(entry["reason"]).is_empty():
+            return false
+        if not (entry.get("applied") is Dictionary):
+            return false
+        restored_history.append(entry)
+    # Do not mutate any live scores or audit records before all validation
+    # succeeds; malformed saves must leave the current manager unchanged.
     scores = candidate.duplicate(true)
     processed_events = data["processed_events"].duplicate(true)
-    history = data["history"].duplicate(true)
+    history = restored_history
     last_tick = int(data["last_tick"])
     return true

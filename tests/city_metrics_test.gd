@@ -22,6 +22,33 @@ func _run() -> void:
     assert(loaded.restore(snapshot))
     assert(loaded.snapshot() == snapshot)
     assert(not loaded.apply_outcome("incident:1:resolved", 9, {"safety": 20}, "duplicate_after_load"))
+    # JSON destroys Godot's typed-array metadata: restore must rebuild it.
+    var json_history: Variant = JSON.parse_string(JSON.stringify(snapshot["history"]))
+    var untyped_snapshot: Dictionary = snapshot.duplicate(true)
+    untyped_snapshot["history"] = json_history
+    var from_disk := Metrics.new()
+    if not from_disk.restore(untyped_snapshot):
+        push_error("JSON-decoded untyped civic history refused by restore")
+        quit(1)
+        return
+    if from_disk.history.size() != city.history.size():
+        push_error("Civic history entries lost after JSON round trip")
+        quit(1)
+        return
+    if from_disk.apply_outcome("incident:1:resolved", 9, {"safety": 20}, "duplicate_after_json"):
+        push_error("Duplicate civic outcome accepted after JSON round trip")
+        quit(1)
+        return
+    var bad_history: Dictionary = untyped_snapshot.duplicate(true)
+    bad_history["history"] = [{"id": "fake", "reason": "bad", "applied": {}}, 42]
+    if from_disk.restore(bad_history):
+        push_error("Malformed JSON audit history accepted")
+        quit(1)
+        return
+    if from_disk.history.size() != city.history.size():
+        push_error("Malformed history changed existing civic history")
+        quit(1)
+        return
     assert(not loaded.restore({"scores": {"safety": 9999}}))
     var missions := Missions.new()
     assert(missions.register_mission({"id": "help", "reward": 40, "objectives": [{"event": "assist", "target": 1}]}))

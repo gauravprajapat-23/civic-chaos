@@ -13,6 +13,10 @@ func _run() -> void:
     world.add_child(post)
     var player: CivicPlayerController = PlayerScene.instantiate() as CivicPlayerController
     world.add_child(player)
+    # This isolated test checks only an interaction ray, not player movement.
+    # The full main scene registers movement actions; the standalone fixture
+    # intentionally does not, so keep its player physics process disabled.
+    player.set_physics_process(false)
     player.global_position = Vector3(0, 0, -2.0)
     await physics_frame
     if post.collision_layer != 16 or post.collision_mask != 0:
