@@ -93,7 +93,7 @@ func _traffic_light(index: int, location: Vector3) -> void:
 
 func _streetlight(location: Vector3) -> void:
     var root := StaticBody3D.new()
-    root.name = "Streetlight"
+    root.name = "Streetlight_%d" % get_child_count()
     root.position = location
     root.collision_layer = 1
     root.collision_mask = 0
@@ -110,7 +110,7 @@ func _streetlight(location: Vector3) -> void:
 
 func _tree(location: Vector3) -> void:
     var root := StaticBody3D.new()
-    root.name = "Tree"
+    root.name = "Tree_%d" % get_child_count()
     root.position = location
     root.collision_layer = 1
     root.collision_mask = 0
@@ -122,7 +122,7 @@ func _tree(location: Vector3) -> void:
 
 func _trash_bin(location: Vector3) -> void:
     var root := StaticBody3D.new()
-    root.name = "TrashBin"
+    root.name = "TrashBin_%d" % get_child_count()
     root.position = location
     root.collision_layer = 1
     root.collision_mask = 0
@@ -133,7 +133,7 @@ func _trash_bin(location: Vector3) -> void:
 
 func _bench(location: Vector3) -> void:
     var root := StaticBody3D.new()
-    root.name = "SidewalkBench"
+    root.name = "SidewalkBench_%d" % get_child_count()
     root.position = location
     root.collision_layer = 1
     root.collision_mask = 0
