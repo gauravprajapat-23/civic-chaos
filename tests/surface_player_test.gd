@@ -14,8 +14,8 @@ func _run() -> void:
         return
     main.free()
     var player := PlayerScene.instantiate() as CharacterBody3D
-    if (player.collision_mask & 8) != 0 or (player.collision_mask & 5) != 5:
-        _fail("player must stand on world, not pedestrians")
+    if player.collision_mask != 1:
+        _fail("player must stand on world surfaces, not pedestrians or cars")
         return
     player.free()
     var district := DistrictScene.instantiate()

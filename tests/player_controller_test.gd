@@ -13,8 +13,8 @@ func _run() -> void:
         push_error("Player root must be CharacterBody3D")
         quit(1)
         return
-    if (player.collision_mask & 5) != 5 or (player.collision_mask & 8) != 0:
-        push_error("Player must collide with environment and cars, not use pedestrians as floors")
+    if player.collision_mask != 1:
+        push_error("Player must resolve vertical collision only against solid world surfaces")
         player.free()
         quit(1)
         return

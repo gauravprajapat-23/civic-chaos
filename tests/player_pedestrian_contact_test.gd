@@ -41,8 +41,8 @@ func _run() -> void:
     player.position = Vector3(0.0, 0.1, 2.6)
     stage.add_child(player)
     await physics_frame
-    if player.collision_mask != 5:
-        _fail("player mask must collide with world and cars, not pedestrian roofs")
+    if player.collision_mask != 1:
+        _fail("player mask must use world for grounding, not actor roofs")
         return
     Input.action_press("move_forward")
     for frame in range(70):
