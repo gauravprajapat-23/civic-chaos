@@ -6,6 +6,7 @@ extends Node
 ## valid reporting and authorized cleanup. No synthetic traffic queue claims.
 
 signal feedback_changed(message: String)
+signal incident_card_requested(data: Dictionary)
 
 const Marker = preload("res://scripts/civic/incident_marker.gd")
 const MISSION_ID: String = "market_footpath_intro"
@@ -59,40 +60,89 @@ func configure(world_root: Node3D, player_actor: Node3D, hud: CivicStatusHUD = n
     marker.position = Vector3(5.0, 0.21, -14.0)
     marker.incident_id = incident_id
     _world.add_child(marker)
-    marker.activated.connect(try_interact_at_marker)
+    marker.activated.connect(_on_marker_activated)
     _publish()
     return true
 
-## Called by the in-world collider when the player looks at it and presses E.
-## Tests also call this entry point directly to check distance/state contracts.
-func try_interact_at_marker(actor: Node) -> bool:
+## E / USE presents actual evidence and explicit safe actions.
+## The UI is optional so tests and non-visual clients can use the same rules.
+func _on_marker_activated(actor: Node) -> void:
+    if not _can_interact(actor):
+        _say("Move closer to the orange obstruction (within 3 metres).")
+        return
+    incident_card_requested.emit(incident_card_state())
+
+func _can_interact(actor: Node) -> bool:
     if actor == null or actor != _player or finished or not is_instance_valid(marker):
         return false
     var distance_m: float = _player.global_position.distance_to(marker.global_position)
-    var inspection: Dictionary = interactions.inspect(incident_id, distance_m)
-    if not bool(inspection.get("ok", false)):
-        _say("Move closer to the obstruction (within 3 metres).")
+    return bool(interactions.inspect(incident_id, distance_m).get("ok", false))
+
+func incident_card_state() -> Dictionary:
+    var mission: Dictionary = missions.missions.get(MISSION_ID, {})
+    var progress: Dictionary = mission.get("progress", {})
+    var observed: bool = int(progress.get("obstruction_observed", 0)) > 0
+    var reported: bool = reported_tick >= 0
+    var phase: String = "Path reopened" if finished else "Municipal response in progress" if intervention_tick >= 0 else "Report accepted" if reported else "Evidence collected" if observed else "New civic incident"
+    return {
+        "title": "Market Chowk | Footpath Blocked",
+        "location": "North footpath, near the junction",
+        "evidence": "An orange crate blocks the walking route. The sidewalk should remain clear for pedestrians.",
+        "phase": phase,
+        "hint": "Inspect the obstruction first, then submit an accurate report. Municipal staff handle removal safely.",
+        "can_inspect": not observed and not finished,
+        "can_report": observed and not reported and not finished,
+        "reported": reported,
+        "finished": finished
+    }
+
+## Explicit action API shared by mouse/touch UI and old direct tests.
+## Every action is validated again at the moment the player selects it.
+func perform_incident_action(actor: Node, action: String) -> bool:
+    if not _can_interact(actor):
+        _say("Action unavailable: approach the footpath obstruction.")
         return false
+    var distance_m: float = _player.global_position.distance_to(marker.global_position)
     var mission: Dictionary = missions.missions[MISSION_ID]
-    if int(mission["progress"]["obstruction_observed"]) == 0:
-        missions.record_event(MISSION_ID, "obstruction_observed")
-        _say("Footpath blocked! Evidence saved. Press E again to report.")
+    var observed: bool = int(mission["progress"]["obstruction_observed"]) > 0
+    if action == "inspect":
+        if observed:
+            _say("Evidence has already been collected.")
+            return false
+        if not missions.record_event(MISSION_ID, "obstruction_observed"):
+            _say("Evidence could not be recorded.")
+            return false
+        _say("Evidence collected: pedestrian path is obstructed. You may now report it.")
         return true
+    if action != "report":
+        _say("Unknown civic action.")
+        return false
+    if not observed:
+        _say("Inspect the obstruction before reporting it.")
+        return false
     if reported_tick >= 0:
-        _say("Report already sent. Municipal help is on the way.")
+        _say("Report already submitted. Please allow the service team to respond.")
         return false
     var permissions := PackedStringArray(["report"])
     if not interactions.begin_action(0, incident_id, "report", distance_m, permissions):
-        _say("Report unavailable.")
+        _say("Reporting is unavailable.")
         return false
     var result: Dictionary = interactions.confirm(0, tick, distance_m, permissions)
     if not bool(result.get("ok", false)):
-        _say("Report failed: location or incident is no longer valid.")
+        _say("Report failed: incident state or distance changed.")
         return false
     missions.record_event(MISSION_ID, "incident_reported")
     reported_tick = tick
-    _say("Report accepted. Keep the path clear for municipal cleanup.")
+    _say("Municipal report accepted. Watch the obstruction for a real response.")
     return true
+
+## Compatibility with existing direct gameplay regressions: the same rules,
+## with inspect first and report second, rather than bypassing validation.
+func try_interact_at_marker(actor: Node) -> bool:
+    var mission: Dictionary = missions.missions.get(MISSION_ID, {})
+    var progress: Dictionary = mission.get("progress", {})
+    var action: String = "inspect" if int(progress.get("obstruction_observed", 0)) == 0 else "report"
+    return perform_incident_action(actor, action)
 
 func _physics_process(_delta: float) -> void:
     if incident_id < 0 or finished:

@@ -11,11 +11,14 @@ const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
 const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
+const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
 var gameplay_session: CivicGameplaySession
+var incident_card: CivicIncidentDetailCard
+var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
 
 func _enter_tree() -> void:
@@ -57,7 +60,7 @@ func _ready() -> void:
     if touch_script == null:
         push_error("Touch controls script failed to load")
         return
-    var touch_layer: CanvasLayer = touch_script.new() as CanvasLayer
+    touch_layer = touch_script.new() as CanvasLayer
     touch_layer.name = "TouchControls"
     add_child(touch_layer)
     debug_overlay = DebugOverlay.new()
@@ -96,6 +99,12 @@ func _ready() -> void:
         push_error("Civic gameplay session could not start")
     else:
         gameplay_session.feedback_changed.connect(_on_interaction_message)
+        gameplay_session.incident_card_requested.connect(_on_incident_card_requested)
+    incident_card = IncidentCard.new() as CivicIncidentDetailCard
+    incident_card.name = "CivicIncidentCard"
+    add_child(incident_card)
+    incident_card.action_selected.connect(_on_incident_card_action)
+    incident_card.dismissed.connect(_on_incident_card_dismissed)
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -121,7 +130,33 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif event.is_action_pressed("return_to_menu"):
         lifecycle.return_to_menu()
 
+## The evidence card is a GUI interaction, not an automatic report.
+func _on_incident_card_requested(state: Dictionary) -> void:
+    if get_tree().paused or incident_card == null or incident_card.is_open():
+        return
+    incident_card.present(state)
+    player.set_physics_process(false)
+    player.set_process_unhandled_input(false)
+    if touch_layer != null:
+        touch_layer.visible = false
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _on_incident_card_action(action: String) -> void:
+    if incident_card == null or not incident_card.is_open():
+        return
+    gameplay_session.perform_incident_action(player, action)
+    incident_card.render_card(gameplay_session.incident_card_state())
+
+func _on_incident_card_dismissed() -> void:
+    player.set_physics_process(true)
+    player.set_process_unhandled_input(true)
+    if touch_layer != null:
+        touch_layer.visible = true
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
+
 func _toggle_pause() -> void:
+    if incident_card != null and incident_card.is_open():
+        incident_card.dismiss()
     lifecycle.set_paused(not get_tree().paused)
     pause_panel.visible = get_tree().paused
     if civic_hud != null:
