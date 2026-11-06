@@ -167,8 +167,31 @@ func _run() -> void:
         _fail("restored completed mission reward could be claimed again")
         return
     var completed_json: Variant = JSON.parse_string(JSON.stringify(next_live.snapshot()))
-    if not Live.checkpoint_valid(completed_json, graph, next_civic.snapshot()):
-        _fail("final restored mission checkpoint is inconsistent")
+    var validation_reasons: Array = []
+    if not Live.checkpoint_valid(completed_json, graph, next_civic.snapshot(), validation_reasons):
+        var summary: Dictionary = {
+            "finished": next_live.finished,
+            "tow_completed": next_live.tow_completed,
+            "tow_progress": next_live.tow_progress_m,
+            "incident_state": next_civic.incidents.incidents[next_live.incident_id]["state"],
+            "mission_state": next_civic.missions.missions[Live.MISSION_ID]["state"],
+            "reward_claimed": next_civic.missions.rewarded.has(Live.MISSION_ID),
+            "peak_stopped": next_live.peak_stopped,
+            "follower_states": completed_json.get("followers", [])
+        }
+        _fail("final restored checkpoint invalid: %s | %s" % [str(validation_reasons), JSON.stringify(summary)])
+        return
+    # Preserve strict terminal consistency: completed tow cannot be faked or
+    # rewarded twice by changing boolean checkpoint fields.
+    var forged: Dictionary = completed_json.duplicate(true)
+    forged["tow_completed"] = false
+    if Live.checkpoint_valid(forged, graph, next_civic.snapshot()):
+        _fail("checkpoint accepted completed mission with unfinished tow")
+        return
+    forged = completed_json.duplicate(true)
+    forged["finished"] = false
+    if Live.checkpoint_valid(forged, graph, next_civic.snapshot()):
+        _fail("checkpoint accepted completed mission with active gameplay flag")
         return
     second_stage.queue_free()
     DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))

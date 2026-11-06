@@ -23,6 +23,7 @@ const TOW_GAP_M: float = 6.5
 const TOW_SPEED_MPS: float = 7.0
 const TOW_SWEEP_STEP_M: float = 0.30
 const CHECKPOINT_VERSION: int = 1
+const CHECKPOINT_DISTANCE_EPS_M: float = 0.02
 const RECOVERY_STALL_TICKS: int = 1800 # Diagnostic prompt only; never auto-fail the mission.
 
 var city_graph: CivicRoadGraph
@@ -483,6 +484,10 @@ func _finish_tow_convoy() -> void:
         return
     if tow_progress_m < _tow_route_length() - 0.01:
         return
+    # Store the canonical route endpoint, not the last incremental floating
+    # point sample. Towing can end within 1 cm of that endpoint.
+    tow_progress_m = _tow_route_length()
+    offender_distance_m = tow_progress_m - TOW_GAP_M
     tow_completed = true
     blocker_removed = true
     if is_instance_valid(tow_vehicle):
@@ -676,133 +681,139 @@ func snapshot() -> Dictionary:
 
 ## Pure input preflight. Can be called before the gameplay session or any
 ## vehicle has been moved; a bad save cannot mutate live world state.
-static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant) -> bool:
+static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant, failures: Array = []) -> bool:
     if not (raw is Dictionary) or graph == null or not (civic is Dictionary):
-        return false
+        return _checkpoint_rejected("CKP-01: if not (raw is Dictionary) or graph == null or not (civic is Dictionary):", failures)
     var data: Dictionary = raw
     var session_data: Dictionary = civic
     if not _whole(data.get("schema_version"), CHECKPOINT_VERSION, CHECKPOINT_VERSION):
-        return false
+        return _checkpoint_rejected("CKP-02: if not _whole(data.get(\"schema_version\"), CHECKPOINT_VERSION, CHECKPOINT_VERSION):", failures)
     for key in ["incident_id", "approach_lane_id", "exit_lane_id", "tick", "reported_tick", "intervention_tick",
         "peak_stopped", "recovery_streak"]:
         if not _whole(data.get(key), -1, 1000000000):
-            return false
+            return _checkpoint_rejected("CKP-03: if not _whole(data.get(key), -1, 1000000000):", failures)
     var tick_value: int = int(data["tick"])
     if int(data["incident_id"]) < 1 or int(data["tick"]) < 0:
-        return false
+        return _checkpoint_rejected("CKP-04: if int(data[\"incident_id\"]) < 1 or int(data[\"tick\"]) < 0:", failures)
     for stamp in ["reported_tick", "intervention_tick"]:
         if int(data[stamp]) > tick_value:
-            return false
+            return _checkpoint_rejected("CKP-05: if int(data[stamp]) > tick_value:", failures)
     if int(data["intervention_tick"]) >= 0 and int(data["reported_tick"]) < 0:
-        return false
+        return _checkpoint_rejected("CKP-06: if int(data[\"intervention_tick\"]) >= 0 and int(data[\"reported_tick\"]) < 0:", failures)
     for flag in ["inspected", "marshal_present", "tow_started", "tow_completed", "blocker_removed", "finished"]:
         if not (data.get(flag) is bool):
-            return false
+            return _checkpoint_rejected("CKP-07: if not (data.get(flag) is bool):", failures)
     if not (data.get("feedback") is String):
-        return false
+        return _checkpoint_rejected("CKP-08: if not (data.get(\"feedback\") is String):", failures)
     if not _finite_range(data.get("marshal_progress"), 0.0, 1.0):
-        return false
+        return _checkpoint_rejected("CKP-09: if not _finite_range(data.get(\"marshal_progress\"), 0.0, 1.0):", failures)
     if not _finite_range(data.get("tow_progress"), 0.0, 500.0):
-        return false
+        return _checkpoint_rejected("CKP-10: if not _finite_range(data.get(\"tow_progress\"), 0.0, 500.0):", failures)
     if not _finite_range(data.get("offender_distance"), 0.0, 500.0):
-        return false
+        return _checkpoint_rejected("CKP-11: if not _finite_range(data.get(\"offender_distance\"), 0.0, 500.0):", failures)
     if not (data.get("followers") is Array) or data["followers"].size() != 4:
-        return false
+        return _checkpoint_rejected("CKP-12: if not (data.get(\"followers\") is Array) or data[\"followers\"].size() != 4:", failures)
     var inbound: CivicLaneData = graph.get_lane(int(data["approach_lane_id"]))
     var outbound: CivicLaneData = graph.get_lane(int(data["exit_lane_id"]))
     if inbound == null or outbound == null or not graph.outgoing_legal_lanes(inbound.lane_id, 1).has(outbound.lane_id):
-        return false
+        return _checkpoint_rejected("CKP-13: if inbound == null or outbound == null or not graph.outgoing_legal_lanes(inbound.lane_id, 1).has(outbound.lane_id):", failures)
     if inbound.centerline[0].distance_to(Vector3(-46, 0, 0)) > 0.1 or outbound.centerline[outbound.centerline.size() - 1].distance_to(Vector3(46, 0, 0)) > 0.1:
-        return false
+        return _checkpoint_rejected("CKP-14: if inbound.centerline[0].distance_to(Vector3(-46, 0, 0)) > 0.1 or outbound.centerline[outbound.centerline.size() - 1].distance_to(Vector3(46, 0, 0)) > 0.1:", failures)
     var total_length: float = inbound.length_m() + outbound.length_m()
-    if float(data["offender_distance"]) > total_length or float(data["tow_progress"]) > total_length:
-        return false
+    if float(data["offender_distance"]) > total_length + CHECKPOINT_DISTANCE_EPS_M or float(data["tow_progress"]) > total_length + CHECKPOINT_DISTANCE_EPS_M:
+        return _checkpoint_rejected("CKP-15: if float(data[\"offender_distance\"]) > total_length + CHECKPOINT_DISTANCE_EPS_M or float(data[\"tow_progress\"]) > total_length + CHECKPOINT_DISTANCE_EPS_M:", failures)
     if int(data["peak_stopped"]) > data["followers"].size() or int(data["recovery_streak"]) > RECOVERY_FRAMES:
-        return false
+        return _checkpoint_rejected("CKP-16: if int(data[\"peak_stopped\"]) > data[\"followers\"].size() or int(data[\"recovery_streak\"]) > RECOVERY_FRAMES:", failures)
     # Inspection without reporting is allowed; the inverse is not.
     if int(data["reported_tick"]) >= 0 and not bool(data["inspected"]):
-        return false
+        return _checkpoint_rejected("CKP-17: if int(data[\"reported_tick\"]) >= 0 and not bool(data[\"inspected\"]):", failures)
     if bool(data["marshal_present"]) and int(data["reported_tick"]) < 0:
-        return false
+        return _checkpoint_rejected("CKP-18: if bool(data[\"marshal_present\"]) and int(data[\"reported_tick\"]) < 0:", failures)
     if bool(data["tow_started"]) and (int(data["intervention_tick"]) < 0 or not bool(data["marshal_present"])):
-        return false
+        return _checkpoint_rejected("CKP-19: if bool(data[\"tow_started\"]) and (int(data[\"intervention_tick\"]) < 0 or not bool(data[\"marshal_present\"])):", failures)
     if bool(data["tow_completed"]) and not bool(data["tow_started"]):
-        return false
+        return _checkpoint_rejected("CKP-20: if bool(data[\"tow_completed\"]) and not bool(data[\"tow_started\"]):", failures)
     if bool(data["blocker_removed"]) != bool(data["tow_completed"]):
-        return false
+        return _checkpoint_rejected("CKP-21: if bool(data[\"blocker_removed\"]) != bool(data[\"tow_completed\"]):", failures)
     if bool(data["finished"]) and not bool(data["tow_completed"]):
-        return false
+        return _checkpoint_rejected("CKP-22: if bool(data[\"finished\"]) and not bool(data[\"tow_completed\"]):", failures)
     if bool(data["tow_started"]):
         if float(data["tow_progress"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data["tow_progress"]) > total_length:
-            return false
-        if bool(data["tow_completed"]) and float(data["tow_progress"]) < total_length - 0.01:
-            return false
+            return _checkpoint_rejected("CKP-23: if float(data[\"tow_progress\"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data[\"tow_progress\"]) > total_length:", failures)
+        if bool(data["tow_completed"]) and float(data["tow_progress"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:
+            return _checkpoint_rejected("CKP-24: if bool(data[\"tow_completed\"]) and float(data[\"tow_progress\"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:", failures)
     elif float(data["tow_progress"]) != 0.0:
-        return false
+        return _checkpoint_rejected("CKP-25: elif float(data[\"tow_progress\"]) != 0.0:", failures)
     if not (session_data.get("incidents") is Dictionary) or not (session_data.get("missions") is Dictionary):
-        return false
+        return _checkpoint_rejected("CKP-26: if not (session_data.get(\"incidents\") is Dictionary) or not (session_data.get(\"missions\") is Dictionary):", failures)
     var incident_state: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(session_data["incidents"]))
     var mission_state := CivicMissionManager.new()
     if incident_state == null or not mission_state.restore(session_data["missions"]):
-        return false
+        return _checkpoint_rejected("CKP-27: if incident_state == null or not mission_state.restore(session_data[\"missions\"]):", failures)
     if not incident_state.incidents.has(int(data["incident_id"])) or not mission_state.missions.has(MISSION_ID):
-        return false
+        return _checkpoint_rejected("CKP-28: if not incident_state.incidents.has(int(data[\"incident_id\"])) or not mission_state.missions.has(MISSION_ID):", failures)
     var saved_incident: Dictionary = incident_state.incidents[int(data["incident_id"])]
     if saved_incident.get("kind") != "wrong_way_driving" or saved_incident.get("location_key") != "market_west_approach":
-        return false
+        return _checkpoint_rejected("CKP-29: if saved_incident.get(\"kind\") != \"wrong_way_driving\" or saved_incident.get(\"location_key\") != \"market_west_approach\":", failures)
     if tick_value < incident_state.current_tick:
-        return false
+        return _checkpoint_rejected("CKP-30: if tick_value < incident_state.current_tick:", failures)
     var mission: Dictionary = mission_state.missions[MISSION_ID]
     var progress: Dictionary = mission["progress"]
     for objective in ["congestion_observed", "incident_reported", "marshal_intervened", "sustained_recovery"]:
         if not progress.has(objective) or not _whole(progress[objective], 0, 1):
-            return false
+            return _checkpoint_rejected("CKP-31: if not progress.has(objective) or not _whole(progress[objective], 0, 1):", failures)
     if bool(data["inspected"]) != (int(progress["congestion_observed"]) == 1):
-        return false
+        return _checkpoint_rejected("CKP-32: if bool(data[\"inspected\"]) != (int(progress[\"congestion_observed\"]) == 1):", failures)
     if (int(data["reported_tick"]) >= 0) != (int(progress["incident_reported"]) == 1):
-        return false
+        return _checkpoint_rejected("CKP-33: if (int(data[\"reported_tick\"]) >= 0) != (int(progress[\"incident_reported\"]) == 1):", failures)
     if (int(data["intervention_tick"]) >= 0) != (int(progress["marshal_intervened"]) == 1):
-        return false
+        return _checkpoint_rejected("CKP-34: if (int(data[\"intervention_tick\"]) >= 0) != (int(progress[\"marshal_intervened\"]) == 1):", failures)
     if bool(data["finished"]) != (int(progress["sustained_recovery"]) == 1):
-        return false
+        return _checkpoint_rejected("CKP-35: if bool(data[\"finished\"]) != (int(progress[\"sustained_recovery\"]) == 1):", failures)
     var current_state: String = str(saved_incident.get("state", ""))
     if bool(data["finished"]):
         if current_state != CivicIncidentManager.RESOLVED or mission["state"] != CivicMissionManager.COMPLETED or not mission_state.rewarded.has(MISSION_ID):
-            return false
+            return _checkpoint_rejected("CKP-36: if current_state != CivicIncidentManager.RESOLVED or mission[\"state\"] != CivicMissionManager.COMPLETED or not mission_state.rewarded.has(MISSION_ID):", failures)
     elif int(data["intervention_tick"]) >= 0:
         if current_state != CivicIncidentManager.INTERVENTION:
-            return false
+            return _checkpoint_rejected("CKP-37: if current_state != CivicIncidentManager.INTERVENTION:", failures)
     elif int(data["reported_tick"]) >= 0:
         if current_state != CivicIncidentManager.ESCALATED:
-            return false
+            return _checkpoint_rejected("CKP-38: if current_state != CivicIncidentManager.ESCALATED:", failures)
     elif current_state != CivicIncidentManager.ACTIVE:
-        return false
+        return _checkpoint_rejected("CKP-39: elif current_state != CivicIncidentManager.ACTIVE:", failures)
     var calculated_stops: int = 0
     for item in data["followers"]:
         if not (item is Dictionary):
-            return false
+            return _checkpoint_rejected("CKP-40: if not (item is Dictionary):", failures)
         for flag in ["active", "moved", "released"]:
             if not (item.get(flag) is bool):
-                return false
+                return _checkpoint_rejected("CKP-41: if not (item.get(flag) is bool):", failures)
         if not _whole(item.get("route_index"), 0, 1):
-            return false
+            return _checkpoint_rejected("CKP-42: if not _whole(item.get(\"route_index\"), 0, 1):", failures)
         var segment: CivicLaneData = inbound if int(item["route_index"]) == 0 else outbound
-        if not _finite_range(item.get("distance"), 0.0, segment.length_m()):
-            return false
+        if not _finite_range(item.get("distance"), 0.0, segment.length_m() + CHECKPOINT_DISTANCE_EPS_M):
+            return _checkpoint_rejected("CKP-43: if not _finite_range(item.get(\"distance\"), 0.0, segment.length_m() + CHECKPOINT_DISTANCE_EPS_M):", failures)
         for speed_key in ["speed", "target_speed"]:
             if not _finite_range(item.get(speed_key), 0.0, 45.0):
-                return false
+                return _checkpoint_rejected("CKP-44: if not _finite_range(item.get(speed_key), 0.0, 45.0):", failures)
         if not _finite_range(item.get("starting_distance"), 0.0, inbound.length_m()):
-            return false
+            return _checkpoint_rejected("CKP-45: if not _finite_range(item.get(\"starting_distance\"), 0.0, inbound.length_m()):", failures)
         if bool(item["released"]) and not bool(item["moved"]):
-            return false
+            return _checkpoint_rejected("CKP-46: if bool(item[\"released\"]) and not bool(item[\"moved\"]):", failures)
         if not bool(item["active"]) and float(item["speed"]) != 0.0:
-            return false
+            return _checkpoint_rejected("CKP-47: if not bool(item[\"active\"]) and float(item[\"speed\"]) != 0.0:", failures)
         if bool(item["active"]) and bool(item["moved"]) and int(item["route_index"]) == 0 and float(item["speed"]) < 0.35:
             calculated_stops += 1
     if calculated_stops > int(data["peak_stopped"]):
-        return false
+        return _checkpoint_rejected("CKP-48: if calculated_stops > int(data[\"peak_stopped\"]):", failures)
     return true
+
+## Optional reason collector for regression reports. Expected invalid saves
+## remain quiet; only callers requesting diagnostics receive the exact gate.
+static func _checkpoint_rejected(reason: String, failures: Array) -> bool:
+    failures.append(reason)
+    return false
 
 static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
     if not (value is int or value is float):
