@@ -39,16 +39,6 @@ shadow_enabled = false
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("DistrictEnvironment")
 
-[node name="Ground" type="StaticBody3D" parent="."]
-position = Vector3(0, -0.5, 0)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
-shape = SubResource("BoxShape3D_ground")
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
-mesh = SubResource("BoxMesh_ground")
-material_override = SubResource("GroundMaterial")
-
 [node name="FourWayJunction" parent="." instance=ExtResource("5_junction")]
 position = Vector3(0, 0.07, 0)
 
