@@ -141,6 +141,7 @@ func try_spawn() -> bool:
 		vehicle.queue_free()
 		rejected_total += 1
 		return false
+	vehicle.physics_obstacle_checks_enabled = city_mode
 	if _spawn_occupied(vehicle):
 		vehicle.queue_free()
 		rejected_total += 1
