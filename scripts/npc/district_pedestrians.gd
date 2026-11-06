@@ -163,15 +163,18 @@ func _walker_path_occupied(index: int, start: Vector3, destination: Vector3) -> 
         if other_index == index:
             continue
         var other: Node3D = _walkers[other_index]["root"]
-        var relative: Vector3 = other.position - start
-        relative.y = 0.0
-        var fraction: float = clampf(relative.dot(travel) / maxf(travel.length_squared(), 0.000001), 0.0, 1.0)
-        var closest: Vector3 = start + travel * fraction
-        var gap: Vector3 = other.position - closest
-        gap.y = 0.0
-        if gap.length_squared() < CROSSING_CLEARANCE * CROSSING_CLEARANCE:
+        if _segment_near_point(start, destination, other.position, CROSSING_CLEARANCE):
             return true
     return false
+
+static func _segment_near_point(start: Vector3, destination: Vector3, point: Vector3, clearance: float) -> bool:
+    var travel: Vector3 = destination - start
+    travel.y = 0.0
+    var relative: Vector3 = point - start
+    relative.y = 0.0
+    var fraction: float = clampf(relative.dot(travel) / maxf(travel.length_squared(), 0.000001), 0.0, 1.0)
+    var gap: Vector3 = relative - travel * fraction
+    return gap.length_squared() < clearance * clearance
 
 func _pedestrian_blocked(index: int, next_position: Vector3) -> bool:
     # Evaluate current and proposed positions so a walker cannot step into
