@@ -36,6 +36,7 @@ func rebuild() -> void:
             var width: float = [10.0, 9.0, 11.0, 9.5][variation]
             var center := Vector3(float(x) * (road_half + 9.0), height * 0.5, float(z) * (road_half + 9.0))
             _block("Building_%d_%d" % [x, z], center, Vector3(width, height, width))
+    _outer_blocks(half)
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
@@ -71,6 +72,38 @@ func rebuild() -> void:
         info.position = Vector3(road_half + sidewalk_width + 1.0, 0.2, -12)
         add_child(info)
 
+func _outer_blocks(half: float) -> void:
+    # Secondary cross streets form walkable city blocks beyond the junction.
+    # Traffic simulation still uses the original central road graph.
+    var secondary_offset: float = 46.0
+    for side in [-1, 1]:
+        var offset: float = float(side) * secondary_offset
+        _block("SecondaryRoad_NS_%d" % side,
+            Vector3(offset, -0.04, 0), Vector3(road_width, 0.08, half * 2.0))
+        _block("SecondaryRoad_EW_%d" % side,
+            Vector3(0, -0.04, offset), Vector3(half * 2.0, 0.08, road_width))
+    var coordinates := [-72.0, -24.0, 24.0, 72.0]
+    for row in range(coordinates.size()):
+        for column in range(coordinates.size()):
+            var x: float = coordinates[column]
+            var z: float = coordinates[row]
+            if absf(x) > half - 15.0 or absf(z) > half - 15.0:
+                continue
+            var variant: int = (row * 3 + column) % 4
+            var height: float = building_height * [0.9, 1.2, 1.5, 1.05][variant]
+            var width: float = [10.0, 12.0, 9.0, 11.0][variant]
+            if row == 1 and column == 2:
+                _park_block(Vector3(x, 0, z))
+            else:
+                _block("OuterBuilding_%d_%d" % [row, column],
+                    Vector3(x, height * 0.5, z), Vector3(width, height, width))
+
+func _park_block(center: Vector3) -> void:
+    _block("CommunityPark", center + Vector3(0, -0.06, 0), Vector3(24.0, 0.12, 24.0))
+    var path_material := _material(Color(0.73, 0.68, 0.57))
+    _facade_panel(self, "ParkFootpath", center + Vector3(0, 0.014, 0),
+        Vector3(2.4, 0.025, 22.0), path_material)
+
 func _world_boundary(terrain_half: float) -> void:
     var wall_height: float = 9.0
     for side in [-1, 1]:
@@ -105,17 +138,19 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     cube.size = size
     mesh.mesh = cube
     body.add_child(mesh)
-    if block_name == "TerrainGround":
+    if block_name == "CommunityPark":
+        mesh.material_override = _material(Color(0.25, 0.48, 0.25))
+    elif block_name == "TerrainGround":
         mesh.material_override = _material(Color(0.30, 0.39, 0.28))
     elif block_name.ends_with("Road"):
         mesh.material_override = _material(Color(0.15, 0.18, 0.21))
     elif block_name.begins_with("Sidewalk"):
         mesh.material_override = _material(Color(0.64, 0.65, 0.61))
-    elif block_name.begins_with("Building_"):
+    elif block_name.begins_with("Building_") or block_name.begins_with("OuterBuilding_"):
         var building_colors := [Color(0.83, 0.59, 0.42), Color(0.58, 0.69, 0.72), Color(0.78, 0.74, 0.61), Color(0.71, 0.64, 0.76)]
         var color_index: int = (int(center.x > 0.0) + 2 * int(center.z > 0.0)) % building_colors.size()
         mesh.material_override = _material(building_colors[color_index])
-    if block_name.begins_with("Building_"):
+    if block_name.begins_with("Building_") or block_name.begins_with("OuterBuilding_"):
         mesh.add_to_group("lod_meshes")
         _decorate_building(body, size)
 
