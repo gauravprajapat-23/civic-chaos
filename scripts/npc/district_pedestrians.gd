@@ -10,6 +10,9 @@ var _traffic_spawner: CivicTrafficSpawner
 var _walker_progress: Array[float] = []
 var _reservations: CivicIntersectionReservations
 var _crossing: Array[bool] = []
+var _crossing_start_tick: Array[int] = []
+const CROSSING_WAIT_TIMEOUT_TICKS: int = 80
+const CROSSING_BLOCKED_FRAMES: int = 60
 const BODY_RADIUS: float = 0.32
 const PLAYER_CLEARANCE: float = 1.4
 const PLAYER_YIELD_RADIUS: float = 2.3
@@ -78,6 +81,7 @@ func _ready() -> void:
         _sidestep_offsets.append(0.0)
         _blocked_frames.append(0)
         _crossing.append(false)
+        _crossing_start_tick.append(-1)
         walker.position = _walk_position(index % 4, fposmod(spawn_progress, loop_length) - loop_length * 0.5)
         _walkers.append({
             "root": walker, "arms": [left_arm, right_arm], "legs": [left_leg, right_leg],
@@ -141,7 +145,9 @@ func _physics_process(delta: float) -> void:
         else:
             _blocked_frames[index] += 1
         var progress: float = fposmod(_walker_progress[index], length) - length * 0.5
-        if _crossing[index] and progress >= 6.0:
+        _retire_stalled_crossing(index, side)
+        # Release a completed crossing only after the body is actually clear.
+        if _crossing[index] and progress >= 6.0 and not _walker_in_crossing_conflict(index, side):
             _release_crossing(index, side)
             _crossing[index] = false
         # Position was accepted by _advance_clear_walker; when blocked, the
@@ -531,7 +537,28 @@ func _reserve_crossing(index: int, side: int) -> bool:
     if not _reservations.occupy(pedestrian_id, zone):
         _reservations.cancel(pedestrian_id)
         return false
+    _crossing_start_tick[index] = start_tick
     return true
+
+## Release only a reservation stuck at the *entrance* while the person is
+## still outside the actual crosswalk. Never clear occupied road space on a timer.
+func _retire_stalled_crossing(index: int, side: int) -> bool:
+    if _reservations == null or not _crossing[index]:
+        return false
+    var reserved_at: int = _crossing_start_tick[index]
+    if reserved_at < 0 or _reservations.current_tick - reserved_at < CROSSING_WAIT_TIMEOUT_TICKS:
+        return false
+    if _blocked_frames[index] < CROSSING_BLOCKED_FRAMES or _walker_in_crossing_conflict(index, side):
+        return false
+    _release_crossing(index, side)
+    _crossing[index] = false
+    return true
+
+func _walker_in_crossing_conflict(index: int, side: int) -> bool:
+    var position: Vector3 = _walkers[index]["root"].position
+    var longitudinal: float = position.z if side == 0 else -position.z if side == 1 else position.x if side == 2 else -position.x
+    var lateral: float = position.x if side < 2 else position.z
+    return longitudinal >= -5.5 and longitudinal <= 5.5 and absf(lateral) <= 7.0
 
 func _release_crossing(index: int, side: int) -> void:
     if _reservations == null:
@@ -539,6 +566,7 @@ func _release_crossing(index: int, side: int) -> void:
     var pedestrian_id: int = 100000 + index
     _reservations.release(pedestrian_id, _crossing_zone(side))
     _reservations.cancel(pedestrian_id)
+    _crossing_start_tick[index] = -1
 
 func _exit_tree() -> void:
     for index in range(_crossing.size()):
