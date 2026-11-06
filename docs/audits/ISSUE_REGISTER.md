@@ -57,3 +57,9 @@ User's Godot 4.7.2 run: 35 PASS, 2 FAIL (`neighborhood_test.gd`, `world_collisio
 - Change: pedestrian-to-pedestrian movement-path clearance, conservative spacing, occupied route-reset checks, and no position changes when blocked; pedestrian mask now includes other pedestrian bodies.
 - Regression expanded to assert short-term pedestrian separation and occupied-path detection.
 - **Verification pending:** User must run Godot regression and inspect busy crossings; no engine run in agent environment. Pedestrian rerouting and full deadlock recovery remain future work.
+
+## Regression failures reported 2026-11-06 (38/41 passed)
+- `traffic_spawner_test.gd`: isolated 8-lane throughput failed after vehicle-vs-vehicle physical obstruction was introduced. Keep physics collision checks enabled for expanded city gameplay; bypass only in isolated graph simulation mode. Pending user rerun.
+- `pedestrian_collision_test.gd`: test moved an `AnimatableBody3D` manually despite physics synchronization, making the test setup unreliable. Extracted deterministic segment geometry and asserted near/far cases directly; retained 120-frame pedestrian separation test. Pending rerun.
+- `surface_player_test.gd`: generated road mesh lacked explicit name; now assigned `MeshInstance3D`. Pending rerun.
+- **All three are unverified after changes.** Do not close collision issues without passing suite and visual inspection.
