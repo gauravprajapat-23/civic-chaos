@@ -27,25 +27,30 @@ func set_paused(value: bool) -> void:
     get_tree().paused = value
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if value else Input.MOUSE_MODE_CAPTURED
 
-func save_player(player: Node3D) -> bool:
+func save_player(player: Node3D, path: String = SaveRepo.DEFAULT_PATH) -> bool:
     var pos := player.global_position
     var data := {"player": {"x": pos.x, "y": pos.y, "z": pos.z, "yaw": player.rotation.y}}
-    var ok: bool = SaveRepo.write_save(data)
+    var ok: bool = SaveRepo.write_save(data, path)
     lifecycle_message.emit("Game saved" if ok else "Save failed")
     return ok
 
-func load_player(player: Node3D) -> bool:
-    var data: Dictionary = SaveRepo.read_save()
+func load_player(player: Node3D, path: String = SaveRepo.DEFAULT_PATH) -> bool:
+    var data: Dictionary = SaveRepo.read_save(path)
     if data.is_empty():
         lifecycle_message.emit("No valid save found")
         return false
+    if not player is CivicPlayerController:
+        lifecycle_message.emit("Player cannot validate save position")
+        return false
     var state: Dictionary = data["player"]
-    player.global_position = Vector3(float(state["x"]), float(state["y"]), float(state["z"]))
-    player.rotation.y = float(state["yaw"])
-    if player is CharacterBody3D:
-        (player as CharacterBody3D).velocity = Vector3.ZERO
-    lifecycle_message.emit("Save loaded")
-    return true
+    var requested := Vector3(float(state["x"]), float(state["y"]), float(state["z"]))
+    # Do not move an active physics body from an input event. The controller
+    # checks floor normals, actor overlap and world clearance next physics tick.
+    var accepted: bool = (player as CivicPlayerController).request_safe_restore(
+        requested, float(state["yaw"])
+    )
+    lifecycle_message.emit("Checking saved position" if accepted else "Invalid saved position")
+    return accepted
 
 func _switch_scene(path: String) -> void:
     get_tree().paused = false
