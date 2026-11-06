@@ -14,6 +14,8 @@ signal interaction_message(message: String)
 @export var interaction_distance: float = 3.0
 @export var fall_recovery_height: float = -8.0
 
+const INTERACTION_COLLISION_MASK: int = 1 | 16 # Static world targets + nonblocking civic report posts.
+
 var _safe_spawn: Vector3 = Vector3.ZERO
 var _restore_pending: bool = false
 var _restore_position: Vector3 = Vector3.ZERO
@@ -227,7 +229,7 @@ func try_interact() -> void:
     var destination := origin + camera.project_ray_normal(center) * (spring_arm.spring_length + interaction_distance + 1.0)
     var query := PhysicsRayQueryParameters3D.create(origin, destination)
     query.exclude = [get_rid()]
-    query.collision_mask = 1 | 16 # World interactables and non-blocking civic report posts.
+    query.collision_mask = INTERACTION_COLLISION_MASK
     var hit := get_world_3d().direct_space_state.intersect_ray(query)
     if hit.is_empty():
         interaction_message.emit("Nothing to interact with")

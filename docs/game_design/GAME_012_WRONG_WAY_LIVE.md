@@ -53,3 +53,10 @@ python tools/run_regression.py --godot $godot --timeout 60 --report build/game-0
 Write-Host "Exit code: $LASTEXITCODE"
 ```
 This report path avoids overwriting `build/regression-report.json` if it is modified locally.
+
+## Compilation blocker reported by player — targeted fix
+User-provided Godot 4.7.2 run at `a8814eb` failed to compile `scripts/civic/wrong_way_live_mission.gd` because `_physics_process` called a removed `_publish()` method. Dependent test load failed, followed by the derived `Live.new()` error. **This is the confirmed runtime failure; the scenario's physical queue was not reached.**
+
+Follow-up code removes the stale method call and emits the existing `feedback_changed` signal for periodic HUD text refresh. The main scene still polls live stop counts. It also adds layer 16 to the player's interaction ray mask so the nonblocking yellow report post can actually be targeted with E. A new physics test `tests/wrong_way_report_post_test.gd` asserts post collision layers and ray hit behavior.
+
+**Fix pushed, engine rerun pending.** Do not claim GAME-012 passes until `wrong_way_live_mission_test.gd` and `wrong_way_report_post_test.gd` pass on the new head. If staging, actual queue or road geometry fails next, preserve full Godot output and fix the actual cause.
