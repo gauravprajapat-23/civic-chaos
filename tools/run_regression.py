@@ -12,6 +12,12 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/godot-validation.yml"
 REPLAY = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd")
+ENGINE_ERROR = re.compile(r"(?m)^\\s*(?:SCRIPT ERROR:|ERROR:)")
+
+
+def has_engine_error(output):
+    """A Godot ERROR is a failed test even when exit code and marker succeed."""
+    return bool(ENGINE_ERROR.search(output))
 
 
 def run(godot, args, timeout):
@@ -52,7 +58,7 @@ def main():
     import_result = run(args.godot, ["--editor", "--import", "--quit"], args.timeout)
     report["import"] = {k: v for k, v in import_result.items() if k != "output"}
     report["import"]["output_tail"] = import_result["output"][-4000:]
-    failed = import_result["returncode"] != 0
+    failed = import_result["returncode"] != 0 or has_engine_error(import_result["output"])
     if failed:
         print("FAIL Godot import (exit code %s)" % import_result["returncode"], file=sys.stderr)
         print(import_result["output"][-4000:], file=sys.stderr)
@@ -63,14 +69,17 @@ def main():
             marker = "CIVIC_CHAOS_" + name.removesuffix("_test.gd").upper() + "_PASS"
             # Existing tests sometimes use different marker names; require a PASS line.
             markers = re.findall(r"CIVIC_CHAOS_[A-Z0-9_]+_PASS", first["output"])
-            engine_error = bool(re.search(r"(?m)^(?:SCRIPT ERROR:|ERROR: Failed to load script|ERROR: Parse Error:)", first["output"]))
+            engine_error = has_engine_error(first["output"])
             ok = first["returncode"] == 0 and bool(markers) and not engine_error
             entry = {"test": name, "passed": ok, "exit_code": first["returncode"],
+                     "engine_error_detected": engine_error,
                      "markers": markers, "duration_seconds": first["elapsed_seconds"]}
             if name in REPLAY and ok:
                 second = run(args.godot, command, args.timeout)
                 second_markers = re.findall(r"CIVIC_CHAOS_[A-Z0-9_]+_PASS", second["output"])
-                entry["replay_passed"] = second["returncode"] == 0 and second_markers == markers
+                entry["replay_passed"] = (second["returncode"] == 0 and
+                                          second_markers == markers and
+                                          not has_engine_error(second["output"]))
                 ok = ok and entry["replay_passed"]
                 entry["passed"] = ok
             report["tests"].append(entry)

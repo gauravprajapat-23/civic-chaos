@@ -60,3 +60,19 @@ User-provided Godot 4.7.2 run at `a8814eb` failed to compile `scripts/civic/wron
 Follow-up code removes the stale method call and emits the existing `feedback_changed` signal for periodic HUD text refresh. The main scene still polls live stop counts. It also adds layer 16 to the player's interaction ray mask so the nonblocking yellow report post can actually be targeted with E. A new physics test `tests/wrong_way_report_post_test.gd` asserts post collision layers and ray hit behavior.
 
 **Fix pushed, engine rerun pending.** Do not claim GAME-012 passes until `wrong_way_live_mission_test.gd` and `wrong_way_report_post_test.gd` pass on the new head. If staging, actual queue or road geometry fails next, preserve full Godot output and fix the actual cause.
+
+## 2026-11-06 — User's latest Godot 4.7.2 logs and save/load fix
+Actual user-supplied run at `5885135`:
+- Headless editor import completed.
+- Focused `wrong_way_report_post_test.gd` and `wrong_way_live_mission_test.gd` printed PASS markers.
+- The isolated report-post test also logged **17 missing InputMap errors** because it instantiated a player that ran normal movement physics without the main scene registering input actions.
+- Full regression: **56 PASS / 1 FAIL**. Failure: `gameplay_persistence_test.gd`; `CivicCityMetrics.restore` attempted direct assignment of a JSON-decoded `Array` into `history: Array[Dictionary]`. This was a real runtime type error.
+
+Follow-up candidate code:
+- `scripts/civic/city_metrics.gd` now validates each history record and rebuilds a typed `Array[Dictionary]`, preserving existing civic event/reward state. Invalid history is rejected without partially changing live scores. Integer-like values in JSON history are checked and normalized.
+- `tests/gameplay_persistence_test.gd` now exercises completed **on-disk JSON save/reload** with a nonempty score history and checks no duplicate reward is possible after restore.
+- `tests/city_metrics_test.gd` exercises plain JSON-decoded untyped history and malformed audit entries.
+- `tests/wrong_way_report_post_test.gd` disables unrelated player movement physics in its isolated ray fixture; the full game continues using the actual main scene's registered inputs.
+- `tools/run_regression.py` now treats **any Godot ERROR or SCRIPT ERROR** (including missing InputMap errors) as failure, not just a few specific parse errors. Replay and editor-import checks also use this strict rule.
+
+**Source changes committed, new Godot run NOT PERFORMED by assistant.** No GitHub Actions manually dispatched. Do not mark GAME-012's full regression verified until latest branch head is tested on Godot 4.7.2.
