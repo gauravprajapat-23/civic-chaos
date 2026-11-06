@@ -338,3 +338,31 @@ func restore(data: Variant) -> bool:
         marker.queue_free()
     _publish()
     return true
+
+## GAME-015: presentation only; this state is derived from the real tutorial
+## and its physical obstruction, never from a fabricated mission objective.
+func guidance_state() -> Dictionary:
+    var mission: Dictionary = missions.missions.get(MISSION_ID, {})
+    var progress: Dictionary = mission.get("progress", {})
+    var observed: bool = int(progress.get("obstruction_observed", 0)) > 0
+    var objective: String = "Find the orange crate on Market Chowk's north footpath."
+    var has_target: bool = true
+    if finished:
+        objective = "Footpath open. Watch for the next civic incident."
+        has_target = false
+    elif reported_tick >= 0:
+        objective = "Stand clear while municipal workers reopen the footpath."
+        has_target = false
+    elif observed:
+        objective = "Return to the orange crate and submit your accurate report."
+    else:
+        objective = "Approach the crate and choose Inspect Evidence."
+    return {
+        "title": "Footpath for People - Tutorial",
+        "objective": objective,
+        "target": marker.global_position if is_instance_valid(marker) else Vector3.ZERO,
+        "has_target": has_target and is_instance_valid(marker),
+        "speaker": "Neighborhood Radio",
+        "dialogue": feedback,
+        "recovery_available": false
+    }

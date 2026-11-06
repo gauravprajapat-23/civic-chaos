@@ -23,6 +23,7 @@ const TOW_GAP_M: float = 6.5
 const TOW_SPEED_MPS: float = 7.0
 const TOW_SWEEP_STEP_M: float = 0.30
 const CHECKPOINT_VERSION: int = 1
+const RECOVERY_STALL_TICKS: int = 1800 # Diagnostic prompt only; never auto-fail the mission.
 
 var city_graph: CivicRoadGraph
 var traffic_system: CivicTrafficSpawner
@@ -55,6 +56,9 @@ var released_ids: Dictionary = {}
 var moved_ids: Dictionary = {}
 var starting_distances: Dictionary = {}
 var feedback: String = "Spot the wrong-way car and the actual queue."
+var _last_progress_tick: int = -1
+var _last_progress_signature: String = ""
+var _stalled: bool = false
 
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -191,6 +195,7 @@ func _physics_process(delta: float) -> void:
         _advance_tow_convoy(delta)
     if blocker_removed:
         _measure_recovery()
+    _update_recovery_watchdog()
     # Periodic text updates use the existing feedback signal.
     # The main city HUD independently polls the live stopped-car counts.
     if tick % 45 == 0:
@@ -299,6 +304,9 @@ func perform_incident_action(actor: Node, action: String) -> bool:
     if not session.missions.record_event(MISSION_ID, "incident_reported"):
         return false
     reported_tick = tick
+    _last_progress_tick = tick
+    _last_progress_signature = ""
+    _stalled = false
     _announce("Report received. Marshal dispatched to remove the obstruction safely.")
     return true
 
@@ -529,6 +537,72 @@ func _measure_recovery() -> void:
 func _announce(message: String) -> void:
     feedback = message
     feedback_changed.emit(message)
+
+
+## GAME-015: a non-destructive stalled-service warning. Red lights or real
+## obstacles may delay towing, but they must never silently fail the mission.
+## Only a deliberate player choice reloads a save or restarts the level.
+func _update_recovery_watchdog() -> void:
+    if reported_tick < 0 or finished:
+        _last_progress_tick = tick
+        _last_progress_signature = ""
+        _stalled = false
+        return
+    # Only real service stages and measurable tow/release progress reset
+    # the clock; stopped-queue fluctuations alone do not hide a deadlock.
+    var signature: String = "%d:%d:%d:%d:%d:%d" % [
+        int(is_instance_valid(marshal)), int(intervention_tick >= 0),
+        int(tow_started), int(tow_completed), int(roundf(tow_progress_m * 2.0)),
+        released_ids.size()
+    ]
+    if _last_progress_tick < 0 or signature != _last_progress_signature:
+        _last_progress_signature = signature
+        _last_progress_tick = tick
+        _stalled = false
+    elif not _stalled and tick - _last_progress_tick >= RECOVERY_STALL_TICKS:
+        _stalled = true
+        feedback_changed.emit("Service delayed: real traffic or an obstacle is preventing progress. Use checkpoint recovery or restart the level.")
+
+func recovery_help_needed() -> bool:
+    return _stalled and not finished and reported_tick >= 0
+
+func guidance_state() -> Dictionary:
+    var objective: String = "Watch the wrong-way car until two real vehicles queue."
+    var has_target: bool = true
+    var speaker: String = "Neighborhood Radio"
+    if finished:
+        objective = "Civic mission complete. The west approach is moving again."
+        has_target = false
+        speaker = "Traffic Marshal"
+    elif blocker_removed:
+        objective = "Watch for actual cars to resume; recovery is not confirmed yet."
+        has_target = false
+        speaker = "Traffic Marshal"
+    elif tow_started:
+        objective = "Keep the road clear as the municipal tow convoy reaches the legal exit."
+        has_target = false
+        speaker = "Traffic Marshal"
+    elif intervention_tick >= 0:
+        objective = "Wait on the sidewalk while the marshal arranges vehicle removal."
+        has_target = false
+        speaker = "Traffic Marshal"
+    elif reported_tick >= 0:
+        objective = "Report received. Wait safely for the marshal to arrive."
+        has_target = false
+    elif inspected:
+        objective = "At the yellow post, choose Report to Municipal Service."
+    elif stopped_count >= REQUIRED_STOPPED:
+        objective = "At the yellow post, inspect the real queue and wrong-way driver."
+    return {
+        "title": "Wrong Way, Wrong Day",
+        "objective": objective,
+        "target": marker.global_position if is_instance_valid(marker) else Vector3.ZERO,
+        "has_target": has_target and is_instance_valid(marker),
+        "speaker": speaker,
+        "dialogue": feedback,
+        "recovery_available": recovery_help_needed(),
+        "recovery_reason": "No service/traffic progress for about 30 seconds. Retry from a saved checkpoint or restart the entire level."
+    }
 
 func hud_state() -> Dictionary:
     if session == null:
