@@ -342,9 +342,8 @@ func _candidate_is_clear(index: int, previous: Vector3, destination: Vector3, wr
         return false
     if not wraps and _walker_path_occupied(index, previous, destination):
         return false
-    # Actual physics-space shape queries include world, player, vehicles and
-    # pedestrians. Shape checks are sampled along the movement, not only at
-    # the endpoint, to guard against clipping through thin obstacles.
+    # Probe solid buildings/props and vehicles only. Agent personal space
+    # and yielding are handled separately from the physics query.
     if _swept_path_blocked(index, previous, destination, wraps):
         return false
     return true
@@ -448,7 +447,21 @@ func _swept_path_blocked(index: int, from_position: Vector3, to_position: Vector
             walker.global_transform.basis,
             to_global(trial) + Vector3.UP * collider.position.y
         )
-        if not get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
+        var contacts: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 16)
+        for hit in contacts:
+            var obstacle := hit.get("collider") as CollisionObject3D
+            if obstacle == null:
+                continue
+            if (obstacle.collision_layer & 4) != 0:
+                return true # Solid vehicle.
+            # Roads, terrain and sidewalks are floor surfaces, not obstacles.
+            # A capsule grazing their top surface must not freeze the NPC.
+            var obstacle_shape := obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
+            if obstacle_shape != null and obstacle_shape.shape is BoxShape3D:
+                var box: BoxShape3D = obstacle_shape.shape as BoxShape3D
+                var floor_top: float = obstacle_shape.global_position.y + box.size.y * 0.5
+                if floor_top <= to_global(trial).y + 0.04:
+                    continue
             return true
     return false
 

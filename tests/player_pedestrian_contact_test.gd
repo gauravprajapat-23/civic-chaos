@@ -25,7 +25,7 @@ func _run() -> void:
     var pedestrian := AnimatableBody3D.new()
     pedestrian.name = "StationaryPedestrian"
     pedestrian.collision_layer = 8
-    pedestrian.collision_mask = 1 | 2 | 8
+    pedestrian.collision_mask = 0 # Same sensor-only contract as live NPCs.
     var npc_shape := CollisionShape3D.new()
     var npc_capsule := CapsuleShape3D.new()
     npc_capsule.radius = 0.32
@@ -48,14 +48,11 @@ func _run() -> void:
     for frame in range(70):
         await physics_frame
     Input.action_release("move_forward")
-    var delta := player.global_position - pedestrian.global_position
-    delta.y = 0.0
     if player.global_position.z > -1.5:
         _fail("player was physically blocked by a sensing-only pedestrian")
         return
     if absf(player.global_position.x) > 0.5:
         _fail("pedestrian contact unexpectedly pushed player sideways")
-        return
         return
     # Clear the walker and confirm that the obstacle guard releases.
     pedestrian.global_position = Vector3(10.0, 0.0, 0.0)
