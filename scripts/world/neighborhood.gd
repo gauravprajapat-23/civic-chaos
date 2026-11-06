@@ -135,6 +135,7 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     shape.shape = box
     body.add_child(shape)
     var mesh := MeshInstance3D.new()
+    mesh.name = "MeshInstance3D"
     var cube := BoxMesh.new()
     cube.size = size
     mesh.mesh = cube
