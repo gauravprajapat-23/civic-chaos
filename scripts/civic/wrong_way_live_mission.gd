@@ -631,9 +631,7 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
         return false
     if int(data["peak_stopped"]) > data["followers"].size() or int(data["recovery_streak"]) > RECOVERY_FRAMES:
         return false
-    if bool(data["inspected"]) and int(data["reported_tick"]) < 0:
-        # Inspection without reporting is valid; reporting without inspection is not.
-        pass
+    # Inspection without reporting is allowed; the inverse is not.
     if int(data["reported_tick"]) >= 0 and not bool(data["inspected"]):
         return false
     if bool(data["marshal_present"]) and int(data["reported_tick"]) < 0:
@@ -691,6 +689,7 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
             return false
     elif current_state != CivicIncidentManager.ACTIVE:
         return false
+    var calculated_stops: int = 0
     for item in data["followers"]:
         if not (item is Dictionary):
             return false
@@ -711,6 +710,10 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
             return false
         if not bool(item["active"]) and float(item["speed"]) != 0.0:
             return false
+        if bool(item["active"]) and bool(item["moved"]) and int(item["route_index"]) == 0 and float(item["speed"]) < 0.35:
+            calculated_stops += 1
+    if calculated_stops > int(data["peak_stopped"]):
+        return false
     return true
 
 static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
@@ -756,7 +759,9 @@ func restore(raw: Variant) -> bool:
         return false
     if followers.size() != data["followers"].size():
         return false
-    if bool(data["tow_started"]) and not bool(data["tow_completed"]) and not tow_started and not is_instance_valid(offender):
+    if not bool(data["tow_completed"]) and not is_instance_valid(offender):
+        # A completed scene cannot be rewound in place after its collider
+        # was deleted. Reject before mutating missions or actor positions.
         return false
     tick = int(data["tick"])
     incident_id = int(data["incident_id"])
@@ -786,8 +791,6 @@ func restore(raw: Variant) -> bool:
         if bool(record["released"]):
             released_ids[id] = true
     stopped_count = _actual_stopped_count()
-    if stopped_count > peak_stopped:
-        return false # Corrupted telemetry must not be accepted.
     if bool(data["marshal_present"]):
         if not is_instance_valid(marshal):
             _create_marshal()

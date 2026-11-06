@@ -142,7 +142,9 @@ func _save_gameplay_checkpoint() -> bool:
     if is_instance_valid(wrong_way_world):
         var live_state: Dictionary = wrong_way_world.snapshot()
         var junction: Node = get_node_or_null("FourWayJunction")
-        var graph: CivicRoadGraph = null if junction == null else junction.get("road_graph") as CivicRoadGraph
+        var graph: CivicRoadGraph = null
+        if junction != null:
+            graph = junction.get("road_graph") as CivicRoadGraph
         if not CivicWrongWayLiveMission.checkpoint_valid(live_state, graph, civic):
             _on_interaction_message("Checkpoint rejected: incomplete wrong-way mission state")
             return false
@@ -168,8 +170,11 @@ func _load_gameplay_checkpoint() -> bool:
         _on_interaction_message("Checkpoint has no active wrong-way mission; restart the level to load it")
         return false
     var junction: Node = get_node_or_null("FourWayJunction")
-    var graph: CivicRoadGraph = null if junction == null else junction.get("road_graph") as CivicRoadGraph
-    var spawner: CivicTrafficSpawner = null if junction == null else junction.get("traffic_spawner") as CivicTrafficSpawner
+    var graph: CivicRoadGraph = null
+    var spawner: CivicTrafficSpawner = null
+    if junction != null:
+        graph = junction.get("road_graph") as CivicRoadGraph
+        spawner = junction.get("traffic_spawner") as CivicTrafficSpawner
     if has_live and not CivicWrongWayLiveMission.checkpoint_valid(saved["wrong_way_checkpoint"], graph, civic):
         _on_interaction_message("Checkpoint rejected: wrong-way incident data is inconsistent")
         return false
