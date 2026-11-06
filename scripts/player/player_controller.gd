@@ -87,10 +87,51 @@ func _physics_process(delta: float) -> void:
             velocity.y = -0.1
     else:
         velocity.y -= _gravity * delta
+    # NPCs are not player floors. Sweep only horizontal movement against
+    # pedestrian bodies before normal world/vehicle move_and_slide().
+    _limit_horizontal_pedestrian_motion(delta)
     move_and_slide()
     _animate_walk(delta)
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
+
+## Collision-safe horizontal NPC contact without treating NPC heads as floors.
+## The player's solid mask intentionally stays world | vehicles (1 | 4).
+func _limit_horizontal_pedestrian_motion(delta: float) -> void:
+    var horizontal_motion := Vector3(velocity.x * delta, 0.0, velocity.z * delta)
+    if horizontal_motion.length_squared() <= 0.0000001:
+        return
+    var collider := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collider == null or collider.shape == null:
+        return
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.transform = collider.global_transform
+    query.motion = horizontal_motion
+    query.collision_mask = 8 # Pedestrian bodies only.
+    query.exclude = [get_rid()]
+    query.margin = 0.02
+    var space := get_world_3d().direct_space_state
+    # cast_motion intentionally ignores bodies we already overlap. On a bad
+    # spawn, allow a player to walk out but not deeper into a pedestrian.
+    for overlap in space.intersect_shape(query, 8):
+        var pedestrian := overlap.get("collider") as Node3D
+        if pedestrian == null:
+            continue
+        var away := global_position - pedestrian.global_position
+        away.y = 0.0
+        if away.length_squared() > 0.0001 and horizontal_motion.dot(away) <= 0.0:
+            velocity.x = 0.0
+            velocity.z = 0.0
+            return
+    var fractions: PackedFloat32Array = space.cast_motion(query)
+    if fractions.size() < 1:
+        return
+    var safe_fraction: float = clampf(fractions[0], 0.0, 1.0)
+    if safe_fraction < 1.0:
+        var allowance: float = maxf(0.0, safe_fraction - 0.01)
+        velocity.x *= allowance
+        velocity.z *= allowance
 
 func rotate_camera(yaw_delta: float, pitch_delta: float) -> void:
     camera_pivot.rotation.y += yaw_delta
