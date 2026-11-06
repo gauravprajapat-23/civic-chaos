@@ -2,7 +2,7 @@
 class_name CivicNeighborhood
 extends Node3D
 ## Reusable deterministic district around the existing four-way junction.
-@export var district_extent: float = 38.0
+@export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
 @export var building_height: float = 8.0
@@ -18,6 +18,9 @@ func rebuild() -> void:
         return
     var half := district_extent
     var road_half := road_width * 0.5
+    var terrain_half: float = half + 24.0
+    _block("TerrainGround", Vector3(0, -0.30, 0), Vector3(terrain_half * 2.0, 0.5, terrain_half * 2.0))
+    _world_boundary(terrain_half)
     _block("NorthRoad", Vector3(0, -0.04, -half * 0.5), Vector3(road_width, 0.08, half))
     _block("SouthRoad", Vector3(0, -0.04, half * 0.5), Vector3(road_width, 0.08, half))
     _block("EastRoad", Vector3(half * 0.5, -0.04, 0), Vector3(half, 0.08, road_width))
@@ -68,6 +71,24 @@ func rebuild() -> void:
         info.position = Vector3(road_half + sidewalk_width + 1.0, 0.2, -12)
         add_child(info)
 
+func _world_boundary(terrain_half: float) -> void:
+    var wall_height: float = 9.0
+    for side in [-1, 1]:
+        var sign_value: float = float(side)
+        _boundary_wall("BoundaryEW_%d" % side, Vector3(0, wall_height * 0.5, sign_value * terrain_half), Vector3(terrain_half * 2.0, wall_height, 2.0))
+        _boundary_wall("BoundaryNS_%d" % side, Vector3(sign_value * terrain_half, wall_height * 0.5, 0), Vector3(2.0, wall_height, terrain_half * 2.0))
+
+func _boundary_wall(wall_name: String, center: Vector3, dimensions: Vector3) -> void:
+    var body := StaticBody3D.new()
+    body.name = wall_name
+    body.position = center
+    add_child(body)
+    var collider := CollisionShape3D.new()
+    var shape := BoxShape3D.new()
+    shape.size = dimensions
+    collider.shape = shape
+    body.add_child(collider)
+
 func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     var body := StaticBody3D.new()
     body.name = block_name
@@ -84,7 +105,9 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     cube.size = size
     mesh.mesh = cube
     body.add_child(mesh)
-    if block_name.ends_with("Road"):
+    if block_name == "TerrainGround":
+        mesh.material_override = _material(Color(0.30, 0.39, 0.28))
+    elif block_name.ends_with("Road"):
         mesh.material_override = _material(Color(0.15, 0.18, 0.21))
     elif block_name.begins_with("Sidewalk"):
         mesh.material_override = _material(Color(0.64, 0.65, 0.61))
