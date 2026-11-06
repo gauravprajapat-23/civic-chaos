@@ -12,12 +12,12 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/godot-validation.yml"
 REPLAY = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd")
-ENGINE_ERROR = re.compile(r"(?m)^\\s*(?:SCRIPT ERROR:|ERROR:)")
-
-
 def has_engine_error(output):
-    """A Godot ERROR is a failed test even when exit code and marker succeed."""
-    return bool(ENGINE_ERROR.search(output))
+    """Godot errors fail a test even if it printed PASS or exited with zero."""
+    return any(
+        line.lstrip().startswith(("SCRIPT ERROR:", "ERROR:"))
+        for line in output.splitlines()
+    )
 
 
 def run(godot, args, timeout):
