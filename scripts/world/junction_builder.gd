@@ -53,8 +53,9 @@ static func make_city_graph() -> CivicRoadGraph:
         for z_index in range(coordinates.size()):
             var here := Vector3(coordinates[x_index], 0.0, coordinates[z_index])
             var key := "%d:%d" % [x_index, z_index]
-            arrivals[key] = []
-            departures[key] = []
+            if not arrivals.has(key):
+                arrivals[key] = []
+                departures[key] = []
             for neighbor in [Vector2i(x_index + 1, z_index), Vector2i(x_index, z_index + 1)]:
                 if neighbor.x >= coordinates.size() or neighbor.y >= coordinates.size():
                     continue
