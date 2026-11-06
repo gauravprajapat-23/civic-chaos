@@ -334,13 +334,6 @@ func _measure_recovery() -> void:
 func _announce(message: String) -> void:
     feedback = message
     feedback_changed.emit(message)
-    _publish()
-
-func _publish() -> void:
-    if session == null:
-        return
-    # Main HUD owns presentation; the mission supplies live measurements only.
-    session._publish()
 
 func hud_state() -> Dictionary:
     if session == null:

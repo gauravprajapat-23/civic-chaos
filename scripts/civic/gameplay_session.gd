@@ -7,6 +7,7 @@ extends Node
 
 signal feedback_changed(message: String)
 signal incident_card_requested(data: Dictionary)
+signal tutorial_completed
 
 const Marker = preload("res://scripts/civic/incident_marker.gd")
 const MISSION_ID: String = "market_footpath_intro"
@@ -174,6 +175,7 @@ func _physics_process(_delta: float) -> void:
             var reward_points: int = missions.claim_reward(MISSION_ID)
             finished = true
             _say("Footpath open again! Civic reward +%d." % reward_points)
+            tutorial_completed.emit()
 
 func _say(message: String) -> void:
     feedback = message

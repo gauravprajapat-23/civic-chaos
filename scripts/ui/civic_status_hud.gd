@@ -68,6 +68,11 @@ func render_state(state: Dictionary) -> void:
         dimensions_label.text = "CITY | No civic metrics yet"
     var traffic: Dictionary = state.get("traffic", {})
     traffic_label.text = "TRAFFIC | No live data" if traffic.is_empty() else "TRAFFIC | Active %d  Queued %d  Completed %d" % [maxi(0, int(traffic.get("active", 0))), maxi(0, int(traffic.get("queue", 0))), maxi(0, int(traffic.get("completed", 0)))]
+    if traffic.has("wrong_way_queue"):
+        traffic_label.text += "\nWRONG WAY | Stopped %d  Peak %d" % [
+            maxi(0, int(traffic["wrong_way_queue"])),
+            maxi(0, int(traffic.get("wrong_way_peak", 0)))
+        ]
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
 
 func current_state() -> Dictionary:

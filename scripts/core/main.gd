@@ -11,12 +11,15 @@ const GraphicsLOD = preload("res://scripts/rendering/graphics_lod.gd")
 const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
+const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
 var gameplay_session: CivicGameplaySession
+var wrong_way_world: CivicWrongWayLiveMission
+var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
@@ -100,6 +103,7 @@ func _ready() -> void:
     else:
         gameplay_session.feedback_changed.connect(_on_interaction_message)
         gameplay_session.incident_card_requested.connect(_on_incident_card_requested)
+        gameplay_session.tutorial_completed.connect(_on_footpath_tutorial_completed)
     incident_card = IncidentCard.new() as CivicIncidentDetailCard
     incident_card.name = "CivicIncidentCard"
     add_child(incident_card)
@@ -117,8 +121,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif event.is_action_pressed("pause_game"):
         _toggle_pause()
     elif event.is_action_pressed("save_game"):
-        lifecycle.save_player(player, "", {"civic_session": gameplay_session.snapshot()})
+        if is_instance_valid(wrong_way_world):
+            _on_interaction_message("Wrong-way mission checkpoint save is planned for GAME-014.")
+        else:
+            lifecycle.save_player(player, "", {"civic_session": gameplay_session.snapshot()})
     elif event.is_action_pressed("load_game"):
+        if is_instance_valid(wrong_way_world):
+            _on_interaction_message("Finish or restart the wrong-way event before loading checkpoints.")
+            return
         if incident_card != null and incident_card.is_open():
             incident_card.dismiss()
         var saved: Dictionary = SaveRepo.read_save()
@@ -126,16 +136,51 @@ func _unhandled_key_input(event: InputEvent) -> void:
             _on_interaction_message("Save rejected: invalid civic progress")
         elif lifecycle.load_player(player):
             if saved.has("civic_session"):
-                gameplay_session.restore(saved["civic_session"])
+                if gameplay_session.restore(saved["civic_session"]) and gameplay_session.finished:
+                    call_deferred("_start_wrong_way_mission")
     elif event.is_action_pressed("restart_game"):
         lifecycle.restart_game()
     elif event.is_action_pressed("return_to_menu"):
         lifecycle.return_to_menu()
 
-## The evidence card is a GUI interaction, not an automatic report.
-func _on_incident_card_requested(state: Dictionary) -> void:
-    if get_tree().paused or incident_card == null or incident_card.is_open():
+## Once the first playable tutorial is complete, stage a second physical
+## mission on the same west approach of the existing city road graph.
+func _on_footpath_tutorial_completed() -> void:
+    call_deferred("_start_wrong_way_mission")
+
+func _start_wrong_way_mission() -> void:
+    if is_instance_valid(wrong_way_world) or gameplay_session == null:
         return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        push_warning("Wrong-way mission not started: junction missing")
+        return
+    var graph: CivicRoadGraph = junction.get("road_graph") as CivicRoadGraph
+    if graph == null:
+        push_warning("Wrong-way mission not started: city lane graph unavailable")
+        return
+    var live: CivicWrongWayLiveMission = WrongWayLiveMission.new() as CivicWrongWayLiveMission
+    live.name = "WrongWayLiveMission"
+    add_child(live)
+    if not live.configure(self, player, graph, gameplay_session):
+        live.queue_free()
+        push_warning("Wrong-way mission could not stage a clear, safe road scenario")
+        return
+    wrong_way_world = live
+    live.incident_card_requested.connect(_on_wrong_way_card_requested)
+    live.feedback_changed.connect(_on_interaction_message)
+    _on_interaction_message("NEW MISSION: Wrong Way, Wrong Day. Follow the west road to the yellow report post.")
+
+func _on_incident_card_requested(state: Dictionary) -> void:
+    _show_incident_card(state, gameplay_session)
+
+func _on_wrong_way_card_requested(state: Dictionary) -> void:
+    _show_incident_card(state, wrong_way_world)
+
+func _show_incident_card(state: Dictionary, source: Node) -> void:
+    if get_tree().paused or incident_card == null or incident_card.is_open() or source == null:
+        return
+    _card_source = source
     incident_card.present(state)
     player.set_physics_process(false)
     player.set_process_unhandled_input(false)
@@ -144,16 +189,18 @@ func _on_incident_card_requested(state: Dictionary) -> void:
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _on_incident_card_action(action: String) -> void:
-    if incident_card == null or not incident_card.is_open():
+    if incident_card == null or not incident_card.is_open() or not is_instance_valid(_card_source):
         return
-    var accepted: bool = gameplay_session.perform_incident_action(player, action)
-    incident_card.render_card(gameplay_session.incident_card_state())
+    var accepted: bool = bool(_card_source.call("perform_incident_action", player, action))
+    var state: Dictionary = _card_source.call("incident_card_state")
+    incident_card.render_card(state)
     if accepted and action == "inspect" and not incident_card.report_button.disabled:
         incident_card.report_button.grab_focus()
     elif accepted and action == "report":
         incident_card.close_button.grab_focus()
 
 func _on_incident_card_dismissed() -> void:
+    _card_source = null
     player.set_physics_process(true)
     player.set_process_unhandled_input(true)
     if touch_layer != null:
@@ -195,5 +242,9 @@ func _process(delta: float) -> void:
         return
     var metrics: Dictionary = spawner.metrics()
     var state: Dictionary = civic_hud.current_state()
+    if is_instance_valid(wrong_way_world):
+        metrics["wrong_way_queue"] = wrong_way_world.stopped_count
+        metrics["wrong_way_peak"] = wrong_way_world.peak_stopped
+        state.merge(wrong_way_world.hud_state(), true)
     state["traffic"] = metrics
     civic_hud.render_state(state)
