@@ -55,11 +55,22 @@ func _sphere(parent: Node3D, label: String, location: Vector3, radius: float, co
     parent.add_child(part)
     return part
 
+func _collider(parent: StaticBody3D, location: Vector3, dimensions: Vector3) -> void:
+    var shape := CollisionShape3D.new()
+    var box := BoxShape3D.new()
+    box.size = dimensions
+    shape.shape = box
+    shape.position = location
+    parent.add_child(shape)
+
 func _traffic_light(index: int, location: Vector3) -> void:
-    var root := Node3D.new()
+    var root := StaticBody3D.new()
     root.name = "TrafficSignal_%d" % index
     root.position = location
+    root.collision_layer = 1
+    root.collision_mask = 0
     add_child(root)
+    _collider(root, Vector3(0, 2.1, 0), Vector3(0.22, 4.2, 0.22))
     _box(root, "Pole", Vector3(0, 2.1, 0), Vector3(0.15, 4.2, 0.15), Color(0.27, 0.29, 0.32))
     _box(root, "SignalCase", Vector3(0, 4.0, 0), Vector3(0.65, 1.6, 0.46), Color(0.12, 0.14, 0.16))
     var lights: Array[MeshInstance3D] = []
@@ -85,6 +96,7 @@ func _streetlight(location: Vector3) -> void:
     root.name = "Streetlight"
     root.position = location
     add_child(root)
+    _collider(root, Vector3(0, 2.6, 0), Vector3(0.22, 5.2, 0.22))
     _box(root, "Pole", Vector3(0, 2.6, 0), Vector3(0.13, 5.2, 0.13), Color(0.31, 0.35, 0.39))
     _box(root, "Arm", Vector3(0.55, 5.1, 0), Vector3(1.2, 0.12, 0.12), Color(0.31, 0.35, 0.39))
     var lamp := _box(root, "Lamp", Vector3(1.1, 5.02, 0), Vector3(0.45, 0.12, 0.32), Color(0.95, 0.90, 0.65))
@@ -99,6 +111,7 @@ func _tree(location: Vector3) -> void:
     root.name = "Tree"
     root.position = location
     add_child(root)
+    _collider(root, Vector3(0, 1.15, 0), Vector3(0.45, 2.3, 0.45))
     _box(root, "Trunk", Vector3(0, 1.15, 0), Vector3(0.4, 2.3, 0.4), Color(0.40, 0.25, 0.14))
     _sphere(root, "LowerCanopy", Vector3(0, 2.85, 0), 1.15, Color(0.18, 0.39, 0.23))
     _sphere(root, "UpperCanopy", Vector3(0.25, 3.65, 0.1), 1.05, Color(0.27, 0.55, 0.30))
@@ -108,6 +121,7 @@ func _trash_bin(location: Vector3) -> void:
     root.name = "TrashBin"
     root.position = location
     add_child(root)
+    _collider(root, Vector3(0, 0.5, 0), Vector3(0.65, 1.0, 0.65))
     _box(root, "Bin", Vector3(0, 0.48, 0), Vector3(0.55, 0.9, 0.55), Color(0.18, 0.43, 0.41))
     _box(root, "Lid", Vector3(0, 0.96, 0), Vector3(0.65, 0.12, 0.65), Color(0.12, 0.24, 0.26))
 
@@ -116,6 +130,7 @@ func _bench(location: Vector3) -> void:
     root.name = "SidewalkBench"
     root.position = location
     add_child(root)
+    _collider(root, Vector3(0, 0.6, 0.1), Vector3(1.8, 1.2, 0.75))
     var wood := Color(0.48, 0.28, 0.14)
     var metal := Color(0.20, 0.23, 0.26)
     _box(root, "Seat", Vector3(0, 0.55, 0), Vector3(1.7, 0.13, 0.55), wood)
