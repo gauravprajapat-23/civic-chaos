@@ -13,6 +13,7 @@ const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
+const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
@@ -21,6 +22,7 @@ var gameplay_session: CivicGameplaySession
 var wrong_way_world: CivicWrongWayLiveMission
 var _card_source: Node
 var incident_card: CivicIncidentDetailCard
+var mission_guide: CivicMissionGuide
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
 var _wrong_way_retry_elapsed: float = 0.0
@@ -110,6 +112,11 @@ func _ready() -> void:
     add_child(incident_card)
     incident_card.action_selected.connect(_on_incident_card_action)
     incident_card.dismissed.connect(_on_incident_card_dismissed)
+    mission_guide = MissionGuide.new() as CivicMissionGuide
+    mission_guide.name = "CivicMissionGuide"
+    add_child(mission_guide)
+    mission_guide.recovery_action_requested.connect(_on_mission_recovery_action)
+    _refresh_mission_guide()
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -226,6 +233,7 @@ func _load_gameplay_checkpoint() -> bool:
         state.merge(wrong_way_world.hud_state(), true)
         civic_hud.render_state(state)
     _on_interaction_message("Checkpoint restored. Mission, vehicles and civic progress resumed.")
+    _refresh_mission_guide()
     return true
 
 func _connect_wrong_way_signals(live: CivicWrongWayLiveMission) -> void:
@@ -261,6 +269,7 @@ func _start_wrong_way_mission() -> void:
     wrong_way_world = live
     _connect_wrong_way_signals(live)
     _on_interaction_message("NEW MISSION: Wrong Way, Wrong Day. Follow the west road to the yellow report post.")
+    _refresh_mission_guide()
 
 func _on_incident_card_requested(state: Dictionary) -> void:
     _show_incident_card(state, gameplay_session)
@@ -298,6 +307,43 @@ func _on_incident_card_dismissed() -> void:
         touch_layer.visible = true
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
 
+## GAME-015: mission directions are based on physical marker positions.
+## No live queue values are guessed or modified by the UI.
+func _refresh_mission_guide() -> void:
+    if mission_guide == null or gameplay_session == null:
+        return
+    var state: Dictionary = {}
+    if is_instance_valid(wrong_way_world):
+        state = wrong_way_world.guidance_state()
+    elif gameplay_session.finished:
+        state = {
+            "title": "Wrong Way, Wrong Day",
+            "objective": "Traffic is clearing. Municipal staff are preparing the next incident.",
+            "speaker": "Neighborhood Radio",
+            "dialogue": "Stay on the sidewalk while city vehicles enter.",
+            "has_target": false,
+            "recovery_available": false
+        }
+    else:
+        state = gameplay_session.guidance_state()
+    var forward: Vector3 = -player.global_transform.basis.z
+    if player.camera != null:
+        forward = -player.camera.global_transform.basis.z
+    mission_guide.update_guide(state, player.global_position, forward)
+
+func _on_mission_recovery_action(action: String) -> void:
+    if not is_instance_valid(wrong_way_world) or not wrong_way_world.recovery_help_needed():
+        return
+    match action:
+        "reload_checkpoint":
+            if incident_card != null and incident_card.is_open():
+                incident_card.dismiss()
+            if not _load_gameplay_checkpoint():
+                _on_interaction_message("Checkpoint unavailable or unsafe. You can restart the level instead.")
+        "restart_level":
+            # Confirmation is handled by the guide's ConfirmationDialog.
+            lifecycle.restart_game()
+
 func _toggle_pause() -> void:
     if incident_card != null and incident_card.is_open():
         incident_card.dismiss()
@@ -330,6 +376,7 @@ func _process(delta: float) -> void:
     if _traffic_display_elapsed < 0.5 or civic_hud == null:
         return
     _traffic_display_elapsed = 0.0
+    _refresh_mission_guide()
     var junction := get_node_or_null("FourWayJunction")
     if junction == null:
         return
