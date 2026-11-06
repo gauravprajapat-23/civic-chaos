@@ -13,6 +13,8 @@ var work_budget: CivicTrafficBudget = Budget.new()
 @export var seed: int = 12345
 
 var road_graph: CivicRoadGraph
+var city_mode: bool = false
+var city_entry_lanes: PackedInt32Array = PackedInt32Array()
 var traffic_signals: CivicTrafficSignalController
 var crossing_reservations: CivicIntersectionReservations
 
@@ -28,7 +30,7 @@ var total_delay_seconds: float = 0.0
 var current_tick: int = 0
 var _vehicle_delay: Dictionary = {}
 
-func configure(graph: CivicRoadGraph, random_seed: int = 12345) -> bool:
+func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: bool = false) -> bool:
 	if graph == null or not graph.validate().is_empty():
 		return false
 	for vehicle in active_vehicles:
@@ -38,6 +40,16 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345) -> bool:
 	_vehicle_delay.clear()
 	work_budget.configure(maximum_active, 8)
 	road_graph = graph
+	city_mode = expanded_city
+	city_entry_lanes = PackedInt32Array()
+	if city_mode:
+		for lane_id in road_graph.sorted_lane_ids():
+			var lane: CivicLaneData = road_graph.get_lane(lane_id)
+			var origin: Vector3 = lane.centerline[0]
+			if absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0:
+				city_entry_lanes.append(lane_id)
+		if city_entry_lanes.is_empty():
+			return false
 	seed = random_seed
 	rng.seed = seed
 	spawned_total = 0
@@ -101,7 +113,7 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 func try_spawn() -> bool:
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
 		return false
-	var entry_lanes := PackedInt32Array([1, 3, 5, 7])
+	var entry_lanes := city_entry_lanes if city_mode else PackedInt32Array([1, 3, 5, 7])
 	var entry: int = entry_lanes[rng.randi_range(0, entry_lanes.size() - 1)]
 	var exits: Array[int] = road_graph.outgoing_legal_lanes(entry, 1)
 	if exits.is_empty():
@@ -112,13 +124,20 @@ func try_spawn() -> bool:
 			rejected_total += 1
 			return false
 	var destination: int = exits[rng.randi_range(0, exits.size() - 1)]
+	var path := PackedInt32Array([entry, destination])
+	if city_mode:
+		for step in range(rng.randi_range(2, 5)):
+			var choices: Array[int] = road_graph.outgoing_legal_lanes(path[path.size() - 1], 1)
+			if choices.is_empty():
+				break
+			path.append(choices[rng.randi_range(0, choices.size() - 1)])
 	var vehicle := VehicleScene.instantiate() as CivicVehicleAgent
 	if vehicle == null:
 		push_error("Vehicle scene did not instantiate as CivicVehicleAgent")
 		rejected_total += 1
 		return false
 	add_child(vehicle)
-	if not vehicle.configure(road_graph, PackedInt32Array([entry, destination]), Profile.new()):
+	if not vehicle.configure(road_graph, path, Profile.new()):
 		vehicle.queue_free()
 		rejected_total += 1
 		return false
