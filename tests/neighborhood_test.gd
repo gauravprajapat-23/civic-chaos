@@ -20,6 +20,13 @@ func _run() -> void:
     assert(district.get_node_or_null("Crossing_0") != null)
     assert(district.get_node_or_null("Crossing_3") != null)
     assert(district.get_node_or_null("DistrictInfoPoint") != null)
+    assert(district.get_node_or_null("CommunityPark") is StaticBody3D)
+    assert(district.get_node_or_null("ParkFootpath") is MeshInstance3D)
+    for road_name in ["SecondaryRoad_NS_-1", "SecondaryRoad_NS_1", "SecondaryRoad_EW_-1", "SecondaryRoad_EW_1"]:
+        var road := district.get_node_or_null(road_name) as StaticBody3D
+        assert(road != null)
+        assert(road.get_node("CollisionShape3D").shape != null)
+    assert(district.get_node_or_null("OuterBuilding_0_0") is StaticBody3D)
     for name in ["NorthRoad", "SouthRoad", "EastRoad", "WestRoad", "TerrainGround", "Building_1_1"]:
         var body := district.get_node(name) as StaticBody3D
         assert(body.get_node("CollisionShape3D").shape != null)
