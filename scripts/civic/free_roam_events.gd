@@ -5,13 +5,16 @@ extends Node3D
 signal incident_card_requested(state: Dictionary)
 signal feedback_changed(message: String)
 signal incident_resolved(kind: String)
+signal npc_reaction_requested(position: Vector3, kind: String, phase: String, instance_id: int)
 
 const Target = preload("res://scripts/civic/cleanup_target.gd")
-const CHECKPOINT_VERSION: int = 1
+const Challenges = preload("res://scripts/civic/free_roam_challenges.gd")
+const CHECKPOINT_VERSION: int = 2
 const SEED: int = 23077
 const COOLDOWN_TICKS: int = 20
 const LITTER: String = "civic_litter"
 const SIGN: String = "fallen_public_sign"
+const CONE: String = "misplaced_safety_cone"
 const LITTER_GROUND: Vector3 = Vector3(18.5, 0.12, -26.0)
 const LITTER_BIN: Vector3 = Vector3(21.0, 0.10, -28.0)
 const SIGN_GROUND: Vector3 = Vector3(-15.0, 0.12, -25.5)
@@ -27,6 +30,7 @@ var next_spawn_tick: int = 0
 var resolved_total: int = 0
 var expired_total: int = 0
 var active_event: Dictionary = {}
+var last_location_id: String = ""
 var _current_target: String = ""
 var primary: CivicCleanupTarget
 var receiver: CivicCleanupTarget
@@ -43,6 +47,8 @@ static func new_director() -> CivicEventDirector:
         {"id": LITTER, "cost": 1, "duration": 180, "cooldown": COOLDOWN_TICKS,
             "tags": ["public_space"], "conditions": {"reputation": 0}},
         {"id": SIGN, "cost": 1, "duration": 180, "cooldown": COOLDOWN_TICKS,
+            "tags": ["public_space"], "conditions": {"reputation": 0}},
+        {"id": CONE, "cost": 1, "duration": 180, "cooldown": COOLDOWN_TICKS,
             "tags": ["public_space"], "conditions": {"reputation": 0}}
     ]:
         if not value.register_event(entry):
@@ -71,6 +77,14 @@ func _physics_process(delta: float) -> void:
     tick += 1
     if active_event.is_empty() and tick < next_spawn_tick:
         return
+    # Priority events have a shorter real deadline than the scheduler's
+    # maximum lifetime. Closing them early still releases budget exactly once.
+    if not active_event.is_empty() and tick >= int(active_event.get("deadline_tick", 1000000000)):
+        var deadline_instance: int = int(active_event["instance"])
+        if director.active.has(deadline_instance):
+            director.resolve_instance(deadline_instance, tick)
+        _expire_event()
+        return
     var previous_instance: int = int(active_event.get("instance", -1))
     var result: Dictionary = director.advance_to(tick, {"reputation": session.metrics.reputation()})
     if not bool(result.get("ok", false)):
@@ -89,39 +103,84 @@ func _physics_process(delta: float) -> void:
             next_spawn_tick = tick + COOLDOWN_TICKS
 
 func _start_event(kind: String, instance_id: int) -> bool:
-    if not active_event.is_empty() or not [LITTER, SIGN].has(kind):
+    if not active_event.is_empty() or not Challenges.all_kinds().has(kind) or not director.active.has(instance_id):
         return false
-    if not _stage_targets(kind):
+    var site_id: String = Challenges.choose_site(instance_id, last_location_id, Callable(self, "_site_is_safe"))
+    if site_id.is_empty() or not _stage_targets(kind, site_id):
         return false
     var created: Dictionary = session.incidents.create_incident(
         "free_roam_" + kind, 50000 + instance_id, tick, "market_free_roam")
     if not bool(created.get("ok", false)) or bool(created.get("duplicate", false)):
         _clear_targets()
         return false
+    last_location_id = site_id
     active_event = {"kind": kind, "instance": instance_id,
-        "incident_id": int(created["id"]), "stage": 0}
-    _say("NEW FREE ROAM EVENT | %s. Follow the guide and inspect the physical evidence." %
-        ("Litter near the market" if kind == LITTER else "Fallen public sign"))
+        "incident_id": int(created["id"]), "stage": 0, "site_id": site_id,
+        "tier": Challenges.tier(instance_id),
+        "deadline_tick": Challenges.deadline(instance_id, int(director.active[instance_id]["end_tick"]))}
+    var info: Dictionary = Challenges.details(kind)
+    var place: Dictionary = Challenges.site(site_id, kind)
+    _say("NEW %s FREE ROAM EVENT | %s at %s. Inspect the evidence." % [
+        str(active_event["tier"]).to_upper(), str(info["title"]), str(place["label"])])
+    _notify_witness("spawned")
     return true
 
-func _stage_targets(kind: String) -> bool:
+func _site_is_safe(site_id: String, ignore_player_distance: bool = false) -> bool:
+    var site: Dictionary = Challenges.site(site_id)
+    if site.is_empty() or not is_inside_tree():
+        return false
+    for key in ["source", "destination"]:
+        var location: Vector3 = to_global(site[key])
+        if not ignore_player_distance and is_instance_valid(player):
+            var horizontal: Vector3 = player.global_position - location
+            horizontal.y = 0.0
+            if horizontal.length_squared() < 16.0:
+                return false
+        # Probe above the floor to ignore terrain/sidewalk slabs, while
+        # refusing buildings, parked cars, props and nearby pedestrians.
+        var shape := BoxShape3D.new()
+        shape.size = Vector3(1.35, 1.35, 1.35)
+        var probe := PhysicsShapeQueryParameters3D.new()
+        probe.shape = shape
+        probe.transform = Transform3D(Basis.IDENTITY, location + Vector3(0.0, 1.05, 0.0))
+        probe.collision_mask = 1 | 4 | 8 | 16
+        if player is CollisionObject3D:
+            probe.exclude.append((player as CollisionObject3D).get_rid())
+        for old_target in [primary, receiver]:
+            if is_instance_valid(old_target):
+                probe.exclude.append(old_target.get_rid())
+        if not get_world_3d().direct_space_state.intersect_shape(probe, 16).is_empty():
+            return false
+    return true
+
+func _stage_targets(kind: String, site_id: String) -> bool:
     if primary != null or receiver != null or not is_inside_tree():
+        return false
+    var site: Dictionary = Challenges.site(site_id, kind)
+    var info: Dictionary = Challenges.details(kind)
+    if site.is_empty() or info.is_empty():
         return false
     primary = Target.new() as CivicCleanupTarget
     primary.name = "FreeRoamEvidence"
-    primary.configure("litter" if kind == LITTER else "sign", 0,
-        "LITTER  |  E / USE" if kind == LITTER else "FALLEN SIGN  |  E / USE")
-    primary.position = LITTER_GROUND if kind == LITTER else SIGN_GROUND
+    primary.configure(str(info["primary_kind"]), 0, str(info["primary_label"]))
+    primary.position = site["source"]
     primary.activated.connect(_on_target_activated)
     add_child(primary)
     receiver = Target.new() as CivicCleanupTarget
     receiver.name = "FreeRoamDestination"
-    receiver.configure("bin" if kind == LITTER else "stand", 1,
-        "RECYCLING BIN  |  E / USE" if kind == LITTER else "SAFE SIGN STAND  |  E / USE")
-    receiver.position = LITTER_BIN if kind == LITTER else SIGN_STAND
+    receiver.configure(str(info["receiver_kind"]), 1, str(info["receiver_label"]))
+    receiver.position = site["destination"]
     receiver.activated.connect(_on_target_activated)
     add_child(receiver)
     return true
+
+func _notify_witness(phase: String) -> void:
+    if active_event.is_empty():
+        return
+    var site: Dictionary = Challenges.site(str(active_event["site_id"]), str(active_event["kind"]))
+    if not site.is_empty():
+        npc_reaction_requested.emit(to_global(site["source"]),
+            str(active_event["kind"]), phase, int(active_event["instance"]))
 
 func _clear_targets() -> void:
     if is_instance_valid(primary):
@@ -164,21 +223,19 @@ func incident_card_state() -> Dictionary:
     if active_event.is_empty():
         return {"title": "Free Roam | Public space protected", "phase": "Resolved",
             "hint": feedback, "can_inspect": false, "can_report": false}
-    var kind: String = str(active_event["kind"])
+    var info: Dictionary = Challenges.details(str(active_event["kind"]))
+    var site: Dictionary = Challenges.site(str(active_event["site_id"]), str(active_event["kind"]))
     var stage: int = int(active_event["stage"])
     var is_primary: bool = _current_target == "primary"
-    var action: String = "collect_litter" if kind == LITTER else "collect_sign"
-    var label: String = "Collect wrapper" if kind == LITTER else "Lift fallen sign"
-    if not is_primary:
-        action = "deposit_litter" if kind == LITTER else "place_sign"
-        label = "Use recycling bin" if kind == LITTER else "Place sign on safe stand"
-    return {"title": "Free Roam | %s" % ("Litter" if kind == LITTER else "Fallen sign"),
-        "location": "Market Chowk walking area",
-        "phase": "Evidence" if stage == 0 else "Carrying" if stage == 2 else "Ready",
-        "evidence": "A real wrapper needs disposal." if kind == LITTER else "A fallen public sign needs to be returned to its stand.",
+    return {"title": "Free Roam | %s" % str(info["title"]),
+        "location": str(site["label"]),
+        "phase": "%s | %ds remaining" % [str(active_event["tier"]).capitalize(),
+            maxi(0, int(active_event["deadline_tick"]) - tick)],
+        "evidence": str(info["evidence"]),
         "hint": feedback, "can_inspect": is_primary and stage == 0,
         "can_report": is_primary and stage == 1 or not is_primary and stage == 2,
-        "report_action": action, "report_label": label,
+        "report_action": str(info["collect"]) if is_primary else str(info["deposit"]),
+        "report_label": str(info["collect_label"]) if is_primary else str(info["deposit_label"]),
         "reported": stage == 2, "finished": false}
 
 func perform_incident_action(actor: Node, action: String) -> bool:
@@ -192,13 +249,16 @@ func perform_incident_action(actor: Node, action: String) -> bool:
     if action == "inspect" and _current_target == "primary" and stage == 0:
         active_event["stage"] = 1
         _say("Evidence inspected. Move it safely to the marked destination.")
+        _notify_witness("inspected")
         return true
-    var collect_action: String = "collect_litter" if kind == LITTER else "collect_sign"
-    var drop_action: String = "deposit_litter" if kind == LITTER else "place_sign"
+    var info: Dictionary = Challenges.details(kind)
+    var collect_action: String = str(info["collect"])
+    var drop_action: String = str(info["deposit"])
     if action == collect_action and _current_target == "primary" and stage == 1:
         active_event["stage"] = 2
         _set_carried(true)
-        _say("Collected. Carry it to the %s." % ("green bin" if kind == LITTER else "blue sign stand"))
+        _say("Collected. Carry it to the %s." % str(info["carry_target"]))
+        _notify_witness("carried")
         return true
     if action == drop_action and _current_target == "receiver" and stage == 2:
         return _resolve_event()
@@ -217,12 +277,15 @@ func _resolve_event() -> bool:
     if not session.incidents.transition(id, CivicIncidentManager.RESOLVED, tick, "object_placed_in_safe_destination"):
         return false
     var kind: String = str(active_event["kind"])
-    var changes: Dictionary = {"cooperation": 2, "trust": 1} if kind == LITTER else {"safety": 2, "efficiency": 1}
+    var changes: Dictionary = Challenges.details(kind)["scores"].duplicate(true)
+    if str(active_event["tier"]) == "priority":
+        changes["trust"] = int(changes.get("trust", 0)) + 1
     if not session.metrics.apply_outcome(outcome_id, tick,
             changes, "physical_civic_intervention"):
         push_error("Free Roam civic metrics rejected a prevalidated physical outcome")
         return false
     director.resolve_instance(instance, tick)
+    _notify_witness("resolved")
     resolved_total += 1
     active_event = {}
     next_spawn_tick = tick + COOLDOWN_TICKS
@@ -237,6 +300,7 @@ func _expire_event() -> void:
     var id: int = int(active_event["incident_id"])
     session.incidents.transition(id, CivicIncidentManager.INTERVENTION, tick, "unaddressed_event_expired")
     session.incidents.transition(id, CivicIncidentManager.RESOLVED, tick, "incident_cleared_without_player_reward")
+    _notify_witness("expired")
     expired_total += 1
     active_event = {}
     _clear_targets()
@@ -247,27 +311,33 @@ func guidance_state() -> Dictionary:
     var objective: String = "Explore Market Chowk. New public-space tasks appear periodically."
     var target: Vector3 = Vector3.ZERO
     var available: bool = not active_event.is_empty()
+    var label: String = "Market Chowk"
     if available:
-        var kind: String = str(active_event["kind"])
         var stage: int = int(active_event["stage"])
-        target = (LITTER_GROUND if kind == LITTER else SIGN_GROUND) if stage < 2 else (LITTER_BIN if kind == LITTER else SIGN_STAND)
-        objective = ("Inspect the litter" if kind == LITTER else "Inspect the fallen sign") if stage == 0 else (
-            "Collect the wrapper" if kind == LITTER else "Lift the sign") if stage == 1 else (
-            "Place wrapper in green bin" if kind == LITTER else "Return sign to safe stand")
-    return {"title": "Free Roam | Market Chowk",
+        var info: Dictionary = Challenges.details(str(active_event["kind"]))
+        var site: Dictionary = Challenges.site(str(active_event["site_id"]), str(active_event["kind"]))
+        label = str(site["label"])
+        target = site["source"] if stage < 2 else site["destination"]
+        objective = str(info["inspect_goal"]) if stage == 0 else (
+            str(info["collect_goal"]) if stage == 1 else str(info["deposit_goal"]))
+        objective += " | %ds left" % maxi(0, int(active_event["deadline_tick"]) - tick)
+    return {"title": "Free Roam | %s" % label,
         "objective": objective, "speaker": "Neighborhood Radio",
         "dialogue": feedback, "target": target, "has_target": available,
         "recovery_available": false}
 
 func hud_state() -> Dictionary:
     return {"free_roam_resolved": resolved_total, "free_roam_expired": expired_total,
-        "free_roam_event": str(active_event.get("kind", ""))}
+        "free_roam_event": str(active_event.get("kind", "")),
+        "free_roam_location": str(active_event.get("site_id", "")),
+        "free_roam_priority": str(active_event.get("tier", "")) == "priority"}
 
 func checkpoint_state() -> Dictionary:
     return {"schema_version": CHECKPOINT_VERSION,
         "tick": tick, "seconds": _seconds,
         "next_spawn_tick": next_spawn_tick,
         "resolved_total": resolved_total, "expired_total": expired_total,
+        "last_location_id": last_location_id,
         "active_event": active_event.duplicate(true),
         "director": director.checkpoint_state() if director != null else {}}
 
@@ -281,7 +351,7 @@ static func checkpoint_valid(raw: Variant, civic: Variant) -> bool:
     if not (raw is Dictionary) or not (civic is Dictionary):
         return false
     var data: Dictionary = raw
-    if not _whole(data.get("schema_version"), 1, 1):
+    if not _whole(data.get("schema_version"), 1, CHECKPOINT_VERSION):
         return false
     if not _whole(data.get("tick"), 0, 1000000000):
         return false
@@ -294,6 +364,13 @@ static func checkpoint_valid(raw: Variant, civic: Variant) -> bool:
             return false
     if not (data.get("active_event") is Dictionary):
         return false
+    var version: int = int(data["schema_version"])
+    if version == CHECKPOINT_VERSION:
+        if not (data.get("last_location_id") is String):
+            return false
+        var last: String = str(data["last_location_id"])
+        if not last.is_empty() and not Challenges.SITES.has(last) and not ["legacy_litter", "legacy_sign"].has(last):
+            return false
     var scheduler: CivicEventDirector = new_director()
     if scheduler == null or not scheduler.checkpoint_valid(data.get("director")):
         return false
@@ -311,10 +388,21 @@ static func checkpoint_valid(raw: Variant, civic: Variant) -> bool:
         if not _whole(live.get("incident_id"), 1, 1000000000) or not _whole(live.get("stage"), 0, 2):
             return false
         var kind: String = str(live.get("kind", ""))
-        if not [LITTER, SIGN].has(kind) or str(current[0].get("id", "")) != kind:
+        if not Challenges.all_kinds().has(kind) or (version == 1 and kind == CONE) or str(current[0].get("id", "")) != kind:
             return false
         if int(current[0].get("instance", -1)) != int(live["instance"]):
             return false
+        if version == CHECKPOINT_VERSION:
+            var location_id: String = str(live.get("site_id", ""))
+            if not Challenges.site_valid(location_id, kind) or location_id != str(data["last_location_id"]):
+                return false
+            var expected_tier: String = "routine" if location_id.begins_with("legacy_") else Challenges.tier(int(live["instance"]))
+            var scheduled_end: int = int(current[0]["end_tick"])
+            var expected_deadline: int = scheduled_end if location_id.begins_with("legacy_") else Challenges.deadline(int(live["instance"]), scheduled_end)
+            if str(live.get("tier", "")) != expected_tier or not _whole(live.get("deadline_tick"), int(data["tick"]) + 1, 1000000200):
+                return false
+            if int(live["deadline_tick"]) != expected_deadline:
+                return false
     if not (civic.get("incidents") is Dictionary) or not (civic.get("metrics") is Dictionary):
         return false
     var manager: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(civic["incidents"]))
@@ -347,11 +435,20 @@ func restore_checkpoint(raw: Variant) -> bool:
     if director == null or session == null or not checkpoint_valid(raw, session.snapshot()):
         return false
     var data: Dictionary = raw
-    var proposed: Dictionary = data["active_event"]
-    # Stage any props before changing the event director. No new incidents
-    # or metric mutations are created during a restore.
+    var proposed: Dictionary = data["active_event"].duplicate(true)
+    var new_last: String = str(data.get("last_location_id", ""))
+    if int(data["schema_version"]) == 1 and not proposed.is_empty():
+        var kind: String = str(proposed["kind"])
+        proposed["site_id"] = "legacy_litter" if kind == LITTER else "legacy_sign"
+        proposed["tier"] = "routine"
+        proposed["deadline_tick"] = int(data["director"]["active_instances"][0]["end_tick"])
+        new_last = str(proposed["site_id"])
+    # Preflight before modifying the currently staged props or event director.
+    if not proposed.is_empty() and not str(proposed["site_id"]).begins_with("legacy_"):
+        if not _site_is_safe(str(proposed["site_id"]), true):
+            return false
     _clear_targets()
-    if not proposed.is_empty() and not _stage_targets(str(proposed["kind"])):
+    if not proposed.is_empty() and not _stage_targets(str(proposed["kind"]), str(proposed["site_id"])):
         return false
     if not director.restore_checkpoint(data["director"]):
         _clear_targets()
@@ -361,13 +458,15 @@ func restore_checkpoint(raw: Variant) -> bool:
     next_spawn_tick = int(data["next_spawn_tick"])
     resolved_total = int(data["resolved_total"])
     expired_total = int(data["expired_total"])
-    active_event = proposed.duplicate(true)
+    active_event = proposed
+    last_location_id = new_last
     if not active_event.is_empty() and int(active_event["stage"]) >= 2:
         _set_carried(true)
     if active_event.is_empty():
         feedback = "Free Roam | Explore the district; another civic activity may appear."
     else:
         feedback = "Restored a live public-space event. Continue from the physical evidence."
+        _notify_witness("spawned")
     return true
 
 func _say(message: String) -> void:
