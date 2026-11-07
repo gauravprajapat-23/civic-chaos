@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 9 focused tests to pass with their exact markers.
+- Requires 12 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -111,6 +111,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 ```
 
+## AUD-001-R10 — Isolated vehicle scene and NPC preload regressions
+
+The November 5 regression ticket (#48) names two unresolved startup blockers: a vehicle `.tscn` load/parse failure and an NPC personality preload failure. Without the actual Godot log, neither root cause is confirmed. This batch **does not invent a diagnosis or change vehicle behavior**; it adds independently reproducible tests with explicit failure reasons.
+
+- `tests/vehicle_scene_contract_test.gd` dynamically loads the real `vehicle_agent.tscn` and checks it is a `PackedScene`, its instantiated root is `CivicVehicleAgent`, the expected four wheel and body children exist, the vehicle is on collision layer 4 with a valid box, and a legal lane route can configure. If loading fails, the assertion identifies the scene contract rather than crashing the test with a null child.
+- `tests/npc_personality_contract_test.gd` explicitly loads `npc_personality.gd`, checks the preloaded class factory, seeded replay, serialized roundtrip, distinct mutable resource instances, and trait-bounds validation.
+- `tests/npc_utility_test.gd` no longer relies on `assert()` calls, which may be disabled in some Godot builds; every failed behavioral check now pushes an engine error and exits nonzero.
+- `tests/vehicle_obstacle_test.gd` and `tests/vehicle_world_obstacle_test.gd` now fail with targeted diagnostics when the packed vehicle scene cannot instantiate.
+- Both new tests are **mandatory** in the local full regression inventory and run early as focused acceptance checks, raising the required minimum from **90 to 92 Godot fixtures**.
+
+The engine test is still **NOT RUN** in this environment. Once Godot 4.7.2 is available on the Windows checkout, examine `build/game-024-verification-logs/vehicle_scene_contract_test.gd.log`, `npc_personality_contract_test.gd.log`, and the script import log, then fix the first proven engine root cause. No Actions are to be used.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -123,7 +135,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_regression_runner.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 9 focused fixtures + 90+ full regressions.
+# Godot 4.7.2: import + 9 focused fixtures + 92+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
