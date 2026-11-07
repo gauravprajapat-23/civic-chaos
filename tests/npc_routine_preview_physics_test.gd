@@ -47,8 +47,10 @@ func _run() -> void:
     walkers._walker_progress[0] = half_length + initial
     actor.position = walkers._walk_position(0, initial)
     var before: Vector3 = actor.position
-    for step in range(14):
-        walkers._physics_process(0.1)
+    walkers.set_physics_process(true)
+    for frame in range(80):
+        await physics_frame
+    walkers.set_physics_process(false)
     if actor.position.distance_to(before) < 0.15:
         _fail("NPC never travelled along the original sidewalk")
         return
@@ -57,8 +59,10 @@ func _run() -> void:
         _fail("shopkeeper missed a clear activity stop")
         return
     var at_rest: Vector3 = actor.position
-    for step in range(10):
-        walkers._physics_process(0.1)
+    walkers.set_physics_process(true)
+    for frame in range(15):
+        await physics_frame
+    walkers.set_physics_process(false)
     if actor.position.distance_to(at_rest) > 0.001 or walkers._blocked_frames[0] != 0:
         _fail("scheduled rest moved actor or counted as stuck")
         return
@@ -85,8 +89,10 @@ func _run() -> void:
     if not walkers.advance_daily_routine_tick(Routines.PHASE_TICKS * 2):
         _fail("new day phase failed to advance")
         return
-    for step in range(5):
-        walkers._physics_process(0.1)
+    walkers.set_physics_process(true)
+    for frame in range(30):
+        await physics_frame
+    walkers.set_physics_process(false)
     if walkers._walker_progress[0] <= old_progress + 0.1:
         _fail("shopkeeper stayed stuck after shift ended")
         return
