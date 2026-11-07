@@ -21,6 +21,8 @@ const OWNER_SPEED: float = 1.35
 const CAR_SPEED: float = 1.5
 const BLOCKED_FRAMES_REQUIRED: int = 10
 const MAX_INTERACTION_DISTANCE: float = 3.0
+const CHECKPOINT_VERSION: int = 1
+const CHECKPOINT_EPSILON_M: float = 0.025
 
 var session: CivicGameplaySession
 var player: Node3D
@@ -44,6 +46,7 @@ var _parking_route: PackedVector3Array = PackedVector3Array([
     VEHICLE_START, Vector3(24.0, 0.0, -8.5), PARKING_BAY
 ])
 var _parking_segment: int = 0
+var _car_route_progress_m: float = 0.0
 var _walking_distance: float = 0.0
 var _walking_before_block: bool = false
 var _clearance_frames: int = 0
@@ -52,6 +55,30 @@ func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
 
 func configure(world: Node3D, actor: Node3D, civic_session: CivicGameplaySession) -> bool:
+    if not _stage_actors(world, actor, civic_session):
+        return false
+    var incident: Dictionary = session.incidents.create_incident("illegal_parking", 1601, tick, "market_east_north_footpath")
+    if not bool(incident.get("ok", false)):
+        queue_free()
+        return false
+    incident_id = int(incident["id"])
+    var registered: bool = session.missions.register_mission({
+        "id": MISSION_ID, "reward": 75, "objectives": [
+            {"event": "pedestrian_block_observed", "target": 1},
+            {"event": "owner_contacted", "target": 1},
+            {"event": "vehicle_relocated", "target": 1},
+            {"event": "pedestrian_route_recovered", "target": 1}
+        ]
+    })
+    if not registered or not session.missions.start(MISSION_ID):
+        push_error("Parking civic objective registration failed")
+        return false
+    _say("New incident: a driver has parked over the footpath. Watch the pedestrian and speak with the owner.")
+    return true
+
+## Physically stage actors without mutating civic incident/mission history.
+## This is shared by fresh missions and post-restart GAME-017 recovery.
+func _stage_actors(world: Node3D, actor: Node3D, civic_session: CivicGameplaySession) -> bool:
     if world == null or actor == null or civic_session == null or incident_id >= 0 or not is_inside_tree():
         return false
     session = civic_session
@@ -130,24 +157,10 @@ func configure(world: Node3D, actor: Node3D, civic_session: CivicGameplaySession
     if not _relocation_clear(parked_vehicle.global_transform, parked_vehicle.global_transform):
         queue_free()
         return false
-    var incident: Dictionary = session.incidents.create_incident("illegal_parking", 1601, tick, "market_east_north_footpath")
-    if not bool(incident.get("ok", false)):
-        queue_free()
-        return false
-    incident_id = int(incident["id"])
-    var registered: bool = session.missions.register_mission({
-        "id": MISSION_ID, "reward": 75, "objectives": [
-            {"event": "pedestrian_block_observed", "target": 1},
-            {"event": "owner_contacted", "target": 1},
-            {"event": "vehicle_relocated", "target": 1},
-            {"event": "pedestrian_route_recovered", "target": 1}
-        ]
-    })
-    if not registered or not session.missions.start(MISSION_ID):
-        push_error("Parking civic objective registration failed")
-        return false
-    _say("New incident: a driver has parked over the footpath. Watch the pedestrian and speak with the owner.")
     return true
+
+func prepare_restore(world: Node3D, actor: Node3D, civic_session: CivicGameplaySession) -> bool:
+    return _stage_actors(world, actor, civic_session)
 
 func _physics_process(delta: float) -> void:
     if incident_id < 0 or finished or delta <= 0.0:
@@ -321,10 +334,12 @@ func _advance_owner_and_car(delta: float) -> void:
         if not _relocation_clear(parked_vehicle.global_transform, candidate_pose):
             return
         parked_vehicle.global_transform = candidate_pose
+        _car_route_progress_m += distance
         remaining -= distance
         if parked_vehicle.position.distance_to(target) <= 0.001:
             _parking_segment += 1
     if _parking_segment >= _parking_route.size() - 1:
+        _car_route_progress_m = _route_total_length()
         relocation_complete = true
         if session.missions.record_event(MISSION_ID, "vehicle_relocated"):
             _say("Owner parked in the marked bay. Waiting for the pedestrian route to reopen.")
@@ -369,6 +384,248 @@ func _complete_recovery() -> void:
     finished = true
     _say("Path reopened: witness passed the old parking spot. Civic reward +%d." % reward)
     mission_completed.emit()
+
+
+## GAME-017 checkpoints save distance *along the fixed route*, not raw
+## World/Node3D IDs. Recovered actors are placed from these trusted segments.
+func _route_total_length() -> float:
+    var total: float = 0.0
+    for index in range(_parking_route.size() - 1):
+        total += _parking_route[index].distance_to(_parking_route[index + 1])
+    return total
+
+func _car_pose(progress: float) -> Transform3D:
+    if progress <= 0.000001:
+        return Transform3D(Basis(Vector3.UP, -PI * 0.5), VEHICLE_START)
+    var left: float = clampf(progress, 0.0, _route_total_length())
+    for index in range(_parking_route.size() - 1):
+        var delta: Vector3 = _parking_route[index + 1] - _parking_route[index]
+        var length: float = delta.length()
+        if left <= length or index == _parking_route.size() - 2:
+            var forward: Vector3 = delta.normalized()
+            return Transform3D(Basis(Vector3.UP, atan2(-forward.x, -forward.z)),
+                _parking_route[index] + forward * minf(left, length))
+        left -= length
+    return Transform3D(Basis.IDENTITY, PARKING_BAY)
+
+func _segment_at(progress: float) -> int:
+    if progress >= _route_total_length() - CHECKPOINT_EPSILON_M:
+        return _parking_route.size() - 1
+    var passed: float = 0.0
+    for index in range(_parking_route.size() - 1):
+        passed += _parking_route[index].distance_to(_parking_route[index + 1])
+        if progress < passed - CHECKPOINT_EPSILON_M:
+            return index
+    return _parking_route.size() - 2
+
+func snapshot() -> Dictionary:
+    var owner_fraction: float = 0.0
+    if is_instance_valid(owner):
+        var distance: float = OWNER_START.distance_to(OWNER_DESTINATION)
+        if distance > 0.00001:
+            owner_fraction = clampf(OWNER_START.distance_to(owner.position) / distance, 0.0, 1.0)
+    return {
+        "schema_version": CHECKPOINT_VERSION,
+        "incident_id": incident_id,
+        "tick": tick,
+        "blocking_frames": blocking_frames,
+        "observed_blockage": observed_blockage,
+        "inspected": inspected,
+        "requested_tick": requested_tick,
+        "intervention_tick": intervention_tick,
+        "owner_agreed": owner_agreed,
+        "owner_progress": owner_fraction,
+        "relocation_started": relocation_started,
+        "relocation_complete": relocation_complete,
+        "car_route_progress": _car_route_progress_m,
+        "witness_progress": _walking_distance,
+        "walking_before_block": _walking_before_block,
+        "clearance_frames": _clearance_frames,
+        "pedestrian_recovered": pedestrian_recovered,
+        "finished": finished,
+        "feedback": feedback
+    }
+
+static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= float(minimum) and number <= float(maximum) and number == floorf(number)
+
+static func _range(value: Variant, minimum: float, maximum: float) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= minimum and number <= maximum
+
+## Validate against the same authoritative managers saved with GAME-014.
+## No live actor or reward state is changed by this check.
+static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = []) -> bool:
+    if not (raw is Dictionary) or not (civic is Dictionary):
+        failures.append("document_shape")
+        return false
+    var data: Dictionary = raw
+    var state: Dictionary = civic
+    if not _whole(data.get("schema_version"), CHECKPOINT_VERSION, CHECKPOINT_VERSION):
+        failures.append("schema")
+        return false
+    for key in ["incident_id", "tick", "blocking_frames", "requested_tick",
+        "intervention_tick", "clearance_frames"]:
+        if not _whole(data.get(key), -1, 1000000000):
+            failures.append("integer_" + key)
+            return false
+    if int(data["incident_id"]) < 1 or int(data["tick"]) < 0 or int(data["blocking_frames"]) < 0 or int(data["clearance_frames"]) < 0:
+        failures.append("numeric_bounds")
+        return false
+    var current_tick: int = int(data["tick"])
+    var reported_at: int = int(data["requested_tick"])
+    var intervention_at: int = int(data["intervention_tick"])
+    if reported_at < -1 or reported_at > current_tick or intervention_at < -1 or intervention_at > current_tick:
+        failures.append("time_bounds")
+        return false
+    for flag in ["observed_blockage", "inspected", "owner_agreed", "relocation_started",
+        "relocation_complete", "walking_before_block", "pedestrian_recovered", "finished"]:
+        if not (data.get(flag) is bool):
+            failures.append("flag_" + flag)
+            return false
+    if not (data.get("feedback") is String):
+        failures.append("feedback")
+        return false
+    if not _range(data.get("owner_progress"), 0.0, 1.0) or not _range(data.get("witness_progress"), 0.0, WALK_END_X - WALK_START.x + CHECKPOINT_EPSILON_M):
+        failures.append("actor_progress")
+        return false
+    var full_car_route: float = VEHICLE_START.distance_to(Vector3(24.0, 0.0, -8.5)) + Vector3(24.0, 0.0, -8.5).distance_to(PARKING_BAY)
+    if not _range(data.get("car_route_progress"), 0.0, full_car_route + CHECKPOINT_EPSILON_M):
+        failures.append("car_route_progress")
+        return false
+    if reported_at >= 0 and (not bool(data["observed_blockage"]) or not bool(data["inspected"]) or not bool(data["owner_agreed"])):
+        failures.append("report_requires_evidence")
+        return false
+    if reported_at < 0 and (bool(data["owner_agreed"]) or bool(data["relocation_started"]) or float(data["owner_progress"]) > CHECKPOINT_EPSILON_M):
+        failures.append("owner_without_report")
+        return false
+    if bool(data["inspected"]) and not bool(data["observed_blockage"]):
+        failures.append("inspection_evidence")
+        return false
+    if bool(data["observed_blockage"]) and (int(data["blocking_frames"]) < BLOCKED_FRAMES_REQUIRED or not bool(data["walking_before_block"])):
+        failures.append("pedestrian_block_not_measured")
+        return false
+    if (float(data["witness_progress"]) >= 0.5) != bool(data["walking_before_block"]):
+        failures.append("witness_motion_history")
+        return false
+    if intervention_at >= 0 and (reported_at < 0 or not bool(data["relocation_started"])):
+        failures.append("intervention_without_report")
+        return false
+    if bool(data["relocation_started"]) != (intervention_at >= 0):
+        failures.append("relocation_intervention")
+        return false
+    if not bool(data["relocation_started"]) and float(data["car_route_progress"]) > CHECKPOINT_EPSILON_M:
+        failures.append("car_moved_without_intervention")
+        return false
+    if bool(data["relocation_started"]) and float(data["owner_progress"]) < 1.0 - CHECKPOINT_EPSILON_M:
+        failures.append("owner_not_arrived")
+        return false
+    if bool(data["relocation_complete"]) != (float(data["car_route_progress"]) >= full_car_route - CHECKPOINT_EPSILON_M):
+        failures.append("bay_not_reached")
+        return false
+    if bool(data["pedestrian_recovered"]) != bool(data["finished"]):
+        failures.append("finished_witness_mismatch")
+        return false
+    if bool(data["finished"]) and (not bool(data["relocation_complete"]) or float(data["witness_progress"]) < CLEARANCE_X - WALK_START.x):
+        failures.append("claimed_recovery_without_witness")
+        return false
+    if float(data["witness_progress"]) > WALK_END_X - WALK_START.x + CHECKPOINT_EPSILON_M:
+        failures.append("witness_overshoot")
+        return false
+    if not (state.get("incidents") is Dictionary) or not (state.get("missions") is Dictionary):
+        failures.append("missing_civic_managers")
+        return false
+    var incidents: CivicIncidentManager = CivicIncidentManager.from_json(JSON.stringify(state["incidents"]))
+    var missions := CivicMissionManager.new()
+    if incidents == null or not missions.restore(state["missions"]):
+        failures.append("invalid_civic_managers")
+        return false
+    var id: int = int(data["incident_id"])
+    if not incidents.incidents.has(id) or not missions.missions.has(MISSION_ID):
+        failures.append("missing_mission_or_incident")
+        return false
+    var incident: Dictionary = incidents.incidents[id]
+    if incident.get("kind") != "illegal_parking" or incident.get("location_key") != "market_east_north_footpath" or int(incident.get("source_id", -1)) != 1601:
+        failures.append("wrong_incident_identity")
+        return false
+    if current_tick < incidents.current_tick:
+        failures.append("stale_parking_tick")
+        return false
+    var mission: Dictionary = missions.missions[MISSION_ID]
+    var progress: Dictionary = mission.get("progress", {})
+    var observed_progress: Dictionary = {
+        "pedestrian_block_observed": int(bool(data["inspected"])),
+        "owner_contacted": int(reported_at >= 0),
+        "vehicle_relocated": int(bool(data["relocation_complete"])),
+        "pedestrian_route_recovered": int(bool(data["finished"]))
+    }
+    for key in observed_progress.keys():
+        if not progress.has(key) or not _whole(progress[key], 0, 1) or int(progress[key]) != int(observed_progress[key]):
+            failures.append("objective_" + key)
+            return false
+    if bool(data["finished"]):
+        if incident["state"] != CivicIncidentManager.RESOLVED or mission["state"] != CivicMissionManager.COMPLETED or not missions.rewarded.has(MISSION_ID):
+            failures.append("forged_completion")
+            return false
+    elif intervention_at >= 0:
+        if incident["state"] != CivicIncidentManager.INTERVENTION or mission["state"] != CivicMissionManager.ACTIVE:
+            failures.append("wrong_intervention_state")
+            return false
+    elif reported_at >= 0:
+        if incident["state"] != CivicIncidentManager.ESCALATED or mission["state"] != CivicMissionManager.ACTIVE:
+            failures.append("wrong_report_state")
+            return false
+    elif incident["state"] != CivicIncidentManager.ACTIVE or mission["state"] != CivicMissionManager.ACTIVE:
+        failures.append("wrong_unreported_state")
+        return false
+    if not bool(data["finished"]) and missions.rewarded.has(MISSION_ID):
+        failures.append("unearned_reward")
+        return false
+    return true
+
+## Reposition the same actors or freshly reconstructed nodes after complete
+## civic-session preflight. Actor positions are derived from validated progress,
+## never from executable JSON or unstable ObjectDB identifiers.
+func restore(raw: Variant) -> bool:
+    if session == null or not checkpoint_valid(raw, session.snapshot()):
+        return false
+    if not is_instance_valid(owner) or not is_instance_valid(parked_vehicle) or not is_instance_valid(witness):
+        return false
+    var data: Dictionary = raw
+    if incident_id >= 0 and incident_id != int(data["incident_id"]):
+        return false
+    var pose: Transform3D = _car_pose(float(data["car_route_progress"]))
+    # Reject unsafe car placement before modifying any scene state. It may
+    # move through the validated progress path only during actual gameplay.
+    if not _relocation_clear(pose, pose):
+        return false
+    incident_id = int(data["incident_id"])
+    tick = int(data["tick"])
+    blocking_frames = int(data["blocking_frames"])
+    observed_blockage = bool(data["observed_blockage"])
+    inspected = bool(data["inspected"])
+    requested_tick = int(data["requested_tick"])
+    intervention_tick = int(data["intervention_tick"])
+    owner_agreed = bool(data["owner_agreed"])
+    relocation_started = bool(data["relocation_started"])
+    relocation_complete = bool(data["relocation_complete"])
+    pedestrian_recovered = bool(data["pedestrian_recovered"])
+    finished = bool(data["finished"])
+    feedback = data["feedback"]
+    _car_route_progress_m = clampf(float(data["car_route_progress"]), 0.0, _route_total_length())
+    _parking_segment = _segment_at(_car_route_progress_m)
+    parked_vehicle.global_transform = pose
+    owner.position = OWNER_START.lerp(OWNER_DESTINATION, float(data["owner_progress"]))
+    _walking_distance = clampf(float(data["witness_progress"]), 0.0, WALK_END_X - WALK_START.x)
+    witness.position = WALK_START + Vector3(_walking_distance, 0, 0)
+    _walking_before_block = bool(data["walking_before_block"])
+    _clearance_frames = int(data["clearance_frames"])
+    return true
 
 func guidance_state() -> Dictionary:
     var objective: String = "Watch the pedestrian stop behind the parked orange car."
