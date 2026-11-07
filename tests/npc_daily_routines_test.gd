@@ -24,7 +24,9 @@ func _run() -> void:
     if all_roles.size() != 4:
         _fail("role assignment did not provide commuter, shopkeeper, sanitation and resident")
         return
-    for value in [1, 299, 300, 599, 600, 899, 900, 1199, 1200, 2400]:
+    var period: int = Routines.PHASE_TICKS
+    for value in [1, period - 1, period, period * 2 - 1, period * 2,
+            period * 3 - 1, period * 3, period * 4 - 1, period * 4, period * 8]:
         if not a.advance_to(value) or not b.advance_to(value):
             _fail("could not advance deterministic simulated district clock")
             return
@@ -35,7 +37,7 @@ func _run() -> void:
         if phase != Routines.phase_for_tick(value):
             _fail("phase changed at an incorrect simulated district tick")
             return
-    if Routines.phase_for_tick(300) != "workday" or Routines.phase_for_tick(600) != "evening" or Routines.phase_for_tick(900) != "night" or Routines.phase_for_tick(1200) != "morning":
+    if Routines.phase_for_tick(period) != "workday" or Routines.phase_for_tick(period * 2) != "evening" or Routines.phase_for_tick(period * 3) != "night" or Routines.phase_for_tick(period * 4) != "morning":
         _fail("daily cycle missed a boundary")
         return
     var saved: Variant = JSON.parse_string(JSON.stringify(a.checkpoint_state()))
@@ -49,7 +51,7 @@ func _run() -> void:
     if restored.checkpoint_state() != a.checkpoint_state():
         _fail("restored agenda changed roles, times or destinations")
         return
-    if restored.advance_to(2399):
+    if restored.advance_to(period * 8 - 1):
         _fail("stale simulated day tick was accepted")
         return
     var baseline: Dictionary = restored.checkpoint_state()
