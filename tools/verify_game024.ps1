@@ -3,7 +3,10 @@
 param(
     [string]$Godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe",
     [string]$Python = "python",
-    [int]$Timeout = 120
+    [int]$Timeout = 120,
+    # For a reviewed regression-fix branch, explicitly supply its name.
+    [string]$ExpectedBranch = "feat/game-024-dynamic-free-roam",
+    [int]$MinimumTestCount = 90
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,13 +19,16 @@ $gate = [ordered]@{
     milestone = "GAME-024"
     status = "blocked"
     verified_at_utc = (Get-Date).ToUniversalTime().ToString("o")
-    expected_branch = "feat/game-024-dynamic-free-roam"
+    expected_branch = $ExpectedBranch
     branch = ""
     commit = ""
     godot_version = ""
     import_passed = $false
     focused_tests = @()
     full_regression_passed = $false
+    regression_tests_run = 0
+    regression_expected_tests = 0
+    source_unchanged = $false
     regression_report = "build/game-024-regression.json"
     reason = ""
 }
@@ -35,21 +41,50 @@ function Write-Gate {
 
 function Run-Local {
     param([string[]]$Arguments, [string]$LogName)
+    # Start-Process with file redirection avoids both console pipe deadlocks
+    # and infinite waits on a hung Godot fixture.
+    $stdoutPath = Join-Path $logs ($LogName + ".stdout.log")
+    $stderrPath = Join-Path $logs ($LogName + ".stderr.log")
     $exitCode = -1
+    $timedOut = $false
     $output = ""
     try {
-        $output = (& $Godot @Arguments 2>&1 | Out-String)
-        $exitCode = $LASTEXITCODE
+        $quoted = @($Arguments | ForEach-Object {
+            if ($_ -match '[\\s"]') {
+                '"' + ($_ -replace '"', '\\"') + '"'
+            } else {
+                $_
+            }
+        })
+        $process = Start-Process -FilePath $Godot -ArgumentList $quoted -PassThru -NoNewWindow `
+            -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        if (-not $process.WaitForExit($Timeout * 1000)) {
+            $timedOut = $true
+            try { $process.Kill() } catch { }
+            $process.WaitForExit()
+        } else {
+            $exitCode = $process.ExitCode
+        }
     } catch {
-        $output = ($_ | Out-String)
+        $output = $_ | Out-String
+    }
+    if (Test-Path -LiteralPath $stdoutPath) {
+        $output += Get-Content -LiteralPath $stdoutPath -Raw
+    }
+    if (Test-Path -LiteralPath $stderrPath) {
+        $output += Get-Content -LiteralPath $stderrPath -Raw
+    }
+    if ($timedOut) {
+        $output += "`nGAME-024 TEST TIMEOUT after $Timeout seconds"
     }
     $output | Set-Content -Path (Join-Path $logs $LogName) -Encoding UTF8
-    $hasEngineError = $output -match '(?m)^\s*(SCRIPT ERROR:|ERROR:)'
+    $hasEngineError = $output -match '(?m)^\\s*(SCRIPT ERROR:|ERROR:)'
     return @{
         exit_code = $exitCode
+        timed_out = $timedOut
         engine_error = [bool]$hasEngineError
         output = $output
-        passed = ($exitCode -eq 0 -and -not $hasEngineError)
+        passed = ($exitCode -eq 0 -and -not $hasEngineError -and -not $timedOut)
     }
 }
 
@@ -57,6 +92,126 @@ Push-Location $root
 try {
     $gate.branch = (& git branch --show-current | Out-String).Trim()
     $gate.commit = (& git rev-parse HEAD | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $gate.commit -notmatch '^[0-9a-f]{40} {
+        $gate.reason = "Switch to the GAME-024 branch before verification."
+        Write-Gate
+        exit 1
+    }
+    if (-not (Test-Path -LiteralPath $Godot -PathType Leaf)) {
+        $gate.reason = "Godot executable not found: " + $Godot
+        Write-Gate
+        exit 1
+    }
+    $versionResult = Run-Local -Arguments @("--version") -LogName "godot-version.log"
+    $gate.godot_version = ($versionResult.output.Trim() -split "\r?\n")[0]
+    if (-not $versionResult.passed -or $gate.godot_version -notmatch '^4\.7\.2([\.-]|$)') {
+        $gate.reason = "GAME-024 requires Godot 4.7.2; found " + $gate.godot_version
+        Write-Gate
+        exit 1
+    }
+
+    $import = Run-Local -Arguments @("--headless", "--path", $root, "--editor", "--import", "--quit") -LogName "godot-import.log"
+    $gate.import_passed = $import.passed
+    if (-not $import.passed) {
+        $gate.reason = "Godot import failed. Review build/game-024-verification-logs/godot-import.log"
+        Write-Gate
+        exit 1
+    }
+
+    $tests = @(
+        "free_roam_director_checkpoint_test.gd",
+        "free_roam_dynamic_locations_test.gd",
+        "free_roam_npc_reactions_test.gd",
+        "free_roam_legacy_migration_test.gd",
+        "free_roam_card_test.gd",
+        "free_roam_live_events_test.gd",
+        "free_roam_event_restart_test.gd",
+        "free_roam_expiry_test.gd",
+        "district_finale_checkpoint_test.gd"
+    )
+    foreach ($name in $tests) {
+        $result = Run-Local -Arguments @("--headless", "--path", $root, "--script", ("res://tests/" + $name)) -LogName ($name + ".log")
+        $marker = "CIVIC_CHAOS_" + $name.Replace("_test.gd", "").ToUpperInvariant() + "_PASS"
+        $markerPresent = $result.output.Contains($marker)
+        $pass = $result.passed -and $markerPresent
+        $gate.focused_tests += [ordered]@{
+            name = $name
+            passed = $pass
+            exit_code = $result.exit_code
+            engine_error = $result.engine_error
+            timed_out = $result.timed_out
+            pass_marker = $markerPresent
+        }
+        Write-Host ("{0} {1}" -f $(if ($pass) { "PASS" } else { "FAIL" }), $name)
+        if (-not $pass) {
+            $gate.reason = "Focused test failed: " + $name + ". See build/game-024-verification-logs/"
+            Write-Gate
+            exit 1
+        }
+    }
+
+    # The strict Python suite owns replay and negative-path verification.
+    $pythonOutput = (& $Python "tools/run_regression.py" "--godot" $Godot "--timeout" "$Timeout" "--report" "build/game-024-regression.json" 2>&1 | Out-String)
+    $pythonExit = $LASTEXITCODE
+    $pythonOutput | Set-Content -Path (Join-Path $logs "full-regression.log") -Encoding UTF8
+    $fullPath = Join-Path $root "build\game-024-regression.json"
+    if ($pythonExit -eq 0 -and (Test-Path -LiteralPath $fullPath)) {
+        $regression = Get-Content -LiteralPath $fullPath -Raw | ConvertFrom-Json
+        $gate.regression_tests_run = @($regression.tests).Count
+        $gate.regression_expected_tests = [int]$regression.expected_test_count
+        $all_tests_passed = @($regression.tests | Where-Object { -not $_.passed }).Count -eq 0
+        $gate.full_regression_passed = [bool]$regression.passed -and
+            $regression.negative_path_passed -and
+            ($regression.import.returncode -eq 0) -and
+            (@($regression.missing_tests).Count -eq 0) -and
+            $all_tests_passed -and
+            ($gate.regression_tests_run -ge $MinimumTestCount) -and
+            ($gate.regression_tests_run -eq $gate.regression_expected_tests)
+    }
+    if (-not $gate.full_regression_passed) {
+        $gate.reason = "Full local regression failed. Inspect build/game-024-regression.json and full-regression.log"
+        Write-Gate
+        exit 1
+    }
+    $currentCommit = (& git rev-parse HEAD | Out-String).Trim()
+    $trackedChanges = (& git status --porcelain --untracked-files=no | Out-String).Trim()
+    $gate.source_unchanged = ($LASTEXITCODE -eq 0 -and $currentCommit -eq $gate.commit -and
+        [string]::IsNullOrWhiteSpace($trackedChanges))
+    if (-not $gate.source_unchanged) {
+        $gate.reason = "Commit or tracked source changed while verification was running."
+        Write-Gate
+        exit 1
+    }
+    $gate.status = "passed"
+    $gate.reason = "Exact source commit passed Godot 4.7.2 import, focused tests, full regression and negative-path checks."
+    Write-Gate
+    exit 0
+} catch {
+    $gate.status = "blocked"
+    $gate.reason = $_.Exception.Message
+    Write-Gate
+    exit 1
+} finally {
+    Pop-Location
+}
+) {
+        $gate.reason = "Cannot resolve a Git commit for the local project."
+        Write-Gate
+        exit 1
+    }
+    if ($MinimumTestCount -lt 90 -or $Timeout -lt 1) {
+        $gate.reason = "Unsafe acceptance configuration: require >=90 tests and a positive timeout."
+        Write-Gate
+        exit 1
+    }
+    # A commit SHA cannot identify uncommitted source differences. Never
+    # bless a modified worktree as a reproducible acceptance baseline.
+    $trackedChanges = (& git status --porcelain --untracked-files=no | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($trackedChanges)) {
+        $gate.reason = "Tracked worktree changes detected. Commit or stash source changes before acceptance."
+        Write-Gate
+        exit 1
+    }
     if ($gate.branch -ne $gate.expected_branch) {
         $gate.reason = "Switch to the GAME-024 branch before verification."
         Write-Gate
