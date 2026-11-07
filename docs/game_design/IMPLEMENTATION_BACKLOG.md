@@ -184,3 +184,11 @@ See [GAME_017_CAMPAIGN_CHECKPOINTS.md](GAME_017_CAMPAIGN_CHECKPOINTS.md). Code i
 - [ ] Full-world atomic checkpointing and background traffic/signal snapshot, future schema migrations.
 
 See [GAME_018_SAVE_INTEGRITY.md](GAME_018_SAVE_INTEGRITY.md). **Source committed, runtime unverified.**
+
+
+## GAME-019 — Background world checkpoint (2026-11-07)
+- [x] Source: F5/F9 saves real city traffic lights, fixed clock, seeded vehicle routes/positions, pedestrian crossings and reservation ownership.
+- [x] Source: guarded physical restage and shared world tick preflight in existing checkpoint transaction.
+- [x] Regression source: `world_traffic_checkpoint_test.gd`, `world_junction_checkpoint_test.gd`, `world_pedestrian_checkpoint_test.gd`.
+- [ ] Godot import/focused/full strict regression, PC/Android collision playtests and stronger city-wide rollback.
+See [GAME_019_WORLD_CHECKPOINTS.md](GAME_019_WORLD_CHECKPOINTS.md). Source only; runtime unverified.
