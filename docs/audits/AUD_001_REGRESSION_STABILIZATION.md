@@ -144,7 +144,7 @@ The following **test-only** fixes now wait for `physics_frame` before stepping t
 - `tests/traffic_transaction_stress_test.gd`: preflight traffic spawning and repeated PREPARE/ABORT/COMMIT snapshots execute after physics-frame boundaries, so `footprint_blocked_at()` cannot be called from the original deferred test loop.
 - `tests/traffic_budget_test.gd`: replaces all bare `assert()` calls with descriptive `push_error()` and nonzero exits, guarding against disabled runtime assertions.
 
-This keeps live traffic, checkpoint schema, spawn policies and vehicle collision settings unchanged. The purpose is to remove test-harness artifacts and expose genuine traffic failures. The 94-fixture GAME-024 regression baseline is unchanged by these edits.
+This keeps live traffic, checkpoint schema, spawn policies and vehicle collision settings unchanged. The purpose is to remove test-harness artifacts and expose genuine traffic failures. The then-current 93-fixture GAME-024 regression baseline was unchanged by the fixture-only edits.
 
 **Important:** These fixes have not been run in Godot 4.7.2 here. They should be followed by targeted `traffic_spawner_test.gd`, `city_traffic_test.gd`, `traffic_transaction_stress_test.gd`, and `traffic_budget_test.gd` executions as well as the full local acceptance script. Any real physics lock error or throughput failure in that run must be investigated from its log, not presumed fixed.
 
@@ -175,7 +175,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_regression_runner.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 9 focused fixtures + 94+ full regressions.
+# Godot 4.7.2: import + 14 focused fixtures + 94+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
@@ -204,4 +204,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 9 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 14 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
