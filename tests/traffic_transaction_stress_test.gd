@@ -42,6 +42,14 @@ func _run() -> void:
         if spawner.active_vehicles.size() != originals.size():
             _fail("preflight changed running traffic generation")
             return
+        # A rogue direct tick must not move cars or advance the spawner
+        # while their live collision layers are temporarily disabled.
+        var tick_before: int = spawner.current_tick
+        var car_position: Vector3 = originals[0].global_position
+        spawner.advance_fixed(tick_before + 1, 0.05)
+        if spawner.current_tick != tick_before or originals[0].global_position.distance_to(car_position) > 0.001:
+            _fail("simulation advanced while transaction was prepared")
+            return
         spawner.abort_restore()
         if spawner.restore_prepared():
             _fail("abort left a pending traffic transaction")
