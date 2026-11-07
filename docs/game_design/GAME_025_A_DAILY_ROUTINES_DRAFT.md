@@ -1,0 +1,67 @@
+# GAME-025-A — Daily Routines Foundation (gated draft)
+
+**Branch:** `feat/game-025-daily-routines-draft` (based on `feat/game-024-dynamic-free-roam`)  
+**Status:** Source and regression authored. Not connected to live pedestrian simulation. Not engine-tested.  
+**Gate:** GAME-024 import and full regression must pass in Godot 4.7.2 before the routine system is enabled or this branch is merged.
+
+## Implemented in draft
+
+`scripts/npc/npc_daily_routines.gd` implements `CivicNPCRoutines`, a pure-data deterministic daily agenda model for stable zero-based NPC IDs.
+
+- Four roles: commuter, shopkeeper, sanitation worker, resident.
+- Four simulated day phases: morning, workday, evening and night.
+- Role-specific activity + semantic destination (e.g., shop, transit stop, neighborhood lane, home).
+- Simulated 1,200-tick days, with 300 ticks per phase; no wall-clock or unseeded randomness.
+- Stable role allocation using configured seed and actor ID, not spawn order or dictionary iteration.
+- Idempotent monotonic `advance_to(tick)`; no time travel.
+- Canonical v1 checkpoint with seed, agent count, tick and derived role/agenda records.
+- JSON-safe validator rejects altered IDs, fabricated roles/destinations, wrong seeds, stale/negative ticks and population changes. Rejected state does not mutate the live scheduler.
+
+The module is not instantiated by `district_pedestrians.gd` or `main.gd` yet. It does not move, stop, collide or teleport any NPC; crossing reservations, player interactions and the civic metrics ledger are untouched.
+
+`tests/npc_daily_routines_test.gd` covers four-role coverage, boundaries, seeded replay, forged saves, JSON round-trip, monotonic ticks and non-mutating rejection. It is listed in the draft branch's local `tools/run_regression.py` suite.
+
+## Verify GAME-024 first (on Windows)
+
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git fetch origin
+git switch feat/game-024-dynamic-free-roam
+git pull --ff-only origin feat/game-024-dynamic-free-roam
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1
+```
+
+**Do not claim the gate passed until** `build/game-024-verification.json` reports `status: passed`, its report is tied to the tested commit and the full strict suite is green.
+
+## Preview the draft routine test separately
+
+```powershell
+git switch feat/game-025-daily-routines-draft
+git pull --ff-only origin feat/game-025-daily-routines-draft
+$godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+& $godot --headless --path . --editor --import --quit
+if ($LASTEXITCODE -ne 0) { throw "Godot import failed" }
+& $godot --headless --path . --script res://tests/npc_daily_routines_test.gd
+if ($LASTEXITCODE -ne 0) { throw "NPC routine test failed" }
+```
+
+This test can prove the *model* works, but does **not** authorize enabling routines in the existing city before the GAME-024 acceptance gate.
+
+## Follow-on implementation after acceptance
+
+1. Assign one routine model to the current `_walkers` population and drive it from the same deterministic simulation tick.
+2. Map semantic destinations to the existing collision-safe pedestrian routes. Avoid route changes in pedestrian crossing conflict zones or while reservations are held.
+3. Represent stationary routines at validated resting points only; waiting must not occur on crossings and must not trap or overlap other walkers.
+4. Upgrade the pedestrian checkpoint schema *transactionally*, preserving old v1 walker snapshots and authoritative world rollbacks.
+5. Add two physical-scene tests: safe routine transitions under loaded crossings, and deterministic saved/restored movement including role/phase.
+6. Then proceed to GAME-025-B contextual conversations and 025-C crowds.
+
+## Verification log
+
+- GitHub source commit(s): recorded in branch history.
+- Godot 4.7.2 import: **not executed here**.
+- Local focused tests: **not executed here**.
+- Full regression: **not executed here**.
+- GitHub Actions: **not triggered**.
+
+No new backend, release workflow, networking or analytics was introduced.
