@@ -37,8 +37,9 @@ func _run() -> void:
     var kind: String = str(roam.active_event["kind"])
     var first: CivicCleanupTarget = roam.primary
     var destination: CivicCleanupTarget = roam.receiver
-    var collect: String = "collect_litter" if kind == FreeRoam.LITTER else "collect_sign"
-    var place: String = "deposit_litter" if kind == FreeRoam.LITTER else "place_sign"
+    var info: Dictionary = CivicFreeRoamChallenges.details(kind)
+    var collect: String = str(info["collect"])
+    var place: String = str(info["deposit"])
     if not is_instance_valid(first) or not is_instance_valid(destination):
         _fail("real incident props were not staged")
         return
