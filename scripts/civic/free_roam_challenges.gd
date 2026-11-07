@@ -75,7 +75,7 @@ static func site(site_id: String, kind: String = "") -> Dictionary:
         return {"label": "Market Chowk walking area", "source": Vector3(-15.0, 0.12, -25.5), "destination": Vector3(-18.0, 0.12, -26.0)}
     return {}
 
-static func choose_site(instance_id: int, previous_site: String, usable: Callable = Callable()) -> String:
+static func choose_site(instance_id: int, previous_site: String, usable: Variant = null) -> String:
     var names: Array[String] = site_names()
     if names.is_empty() or instance_id <= 0:
         return ""
@@ -85,7 +85,7 @@ static func choose_site(instance_id: int, previous_site: String, usable: Callabl
         var candidate: String = names[(offset + step) % names.size()]
         if candidate == previous_site:
             continue
-        if not usable.is_valid() or bool(usable.call(candidate)):
+        if usable == null or usable is Callable and (usable as Callable).is_valid() and bool((usable as Callable).call(candidate)):
             return candidate
     # A busy district can legitimately defer an incident instead of clipping.
     return ""
