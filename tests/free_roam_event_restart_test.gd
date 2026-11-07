@@ -55,8 +55,9 @@ func _run() -> void:
         _fail("no physical civic event available to checkpoint")
         return
     var kind: String = str(roam.active_event["kind"])
-    var collect: String = "collect_litter" if kind == FreeRoam.LITTER else "collect_sign"
-    var place: String = "deposit_litter" if kind == FreeRoam.LITTER else "place_sign"
+    var info: Dictionary = CivicFreeRoamChallenges.details(kind)
+    var collect: String = str(info["collect"])
+    var place: String = str(info["deposit"])
     if not _act(roam, player, roam.primary, "inspect") or not _act(roam, player, roam.primary, collect):
         _fail("could not acquire real item to save")
         return
