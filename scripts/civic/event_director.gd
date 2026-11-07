@@ -8,6 +8,7 @@ var last_started: Dictionary = {}
 var history: Array[Dictionary] = []
 var current_tick: int = -1
 var budget: int = 10
+var max_budget: int = 10
 var max_concurrent: int = 2
 var next_instance: int = 1
 
@@ -16,6 +17,7 @@ func configure(seed_value: int, available_budget: int = 10, concurrency: int = 2
         return false
     rng.seed = seed_value
     budget = available_budget
+    max_budget = available_budget
     max_concurrent = concurrency
     return true
 
@@ -91,3 +93,125 @@ func advance_to(tick: int, metrics: Dictionary) -> Dictionary:
 
 func snapshot() -> Dictionary:
     return {"budget": budget, "current_tick": current_tick, "active": active.duplicate(true), "last_started": last_started.duplicate(true), "history": history.duplicate(true), "next_instance": next_instance, "rng_state": rng.state}
+
+## GAME-023 — manual resolution and JSON-stable deterministic scheduler state.
+## Keep snapshot() unchanged for existing seeded determinism tests.
+func resolve_instance(instance_id: int, tick: int) -> bool:
+    if tick < current_tick or not active.has(instance_id):
+        return false
+    current_tick = tick
+    var entry: Dictionary = active[instance_id]
+    budget += int(entry["cost"])
+    history.append({"action": "resolved", "instance": instance_id,
+        "id": entry["id"], "tick": tick})
+    active.erase(instance_id)
+    return true
+
+func checkpoint_state() -> Dictionary:
+    var instances: Array[Dictionary] = []
+    var ids: Array = active.keys()
+    ids.sort()
+    for id in ids:
+        var entry: Dictionary = active[id]
+        instances.append({
+            "instance": int(id), "id": str(entry["id"]),
+            "cost": int(entry["cost"]), "end_tick": int(entry["end_tick"]),
+            "tags": entry["tags"].duplicate(true)
+        })
+    return {"schema_version": 1, "current_tick": current_tick,
+        "budget": budget, "max_budget": max_budget,
+        "max_concurrent": max_concurrent, "next_instance": next_instance,
+        "last_started": last_started.duplicate(true), "active_instances": instances,
+        "history": history.duplicate(true), "rng_state": str(rng.state)}
+
+static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
+    if not (value is int or value is float):
+        return false
+    var n: float = float(value)
+    return is_finite(n) and n == floorf(n) and n >= float(minimum) and n <= float(maximum)
+
+func checkpoint_valid(raw: Variant) -> bool:
+    if not (raw is Dictionary) or definitions.is_empty():
+        return false
+    var data: Dictionary = raw
+    if not _whole(data.get("schema_version"), 1, 1):
+        return false
+    if not _whole(data.get("current_tick"), -1, 1000000000):
+        return false
+    if not _whole(data.get("budget"), 0, max_budget):
+        return false
+    if not _whole(data.get("max_budget"), max_budget, max_budget):
+        return false
+    if not _whole(data.get("max_concurrent"), max_concurrent, max_concurrent):
+        return false
+    if not _whole(data.get("next_instance"), 1, 1000000000):
+        return false
+    if not (data.get("rng_state") is String):
+        return false
+    var state_text: String = data["rng_state"]
+    if not state_text.is_valid_int() or str(int(state_text)) != state_text:
+        return false
+    if not (data.get("last_started") is Dictionary) or not (data.get("active_instances") is Array) or not (data.get("history") is Array):
+        return false
+    if data["history"].size() > 10000 or data["active_instances"].size() > max_concurrent:
+        return false
+    for id in data["last_started"].keys():
+        if not definitions.has(id) or not _whole(data["last_started"][id], 0, int(data["current_tick"])):
+            return false
+    var seen_instances: Dictionary = {}
+    var active_cost: int = 0
+    for item in data["active_instances"]:
+        if not (item is Dictionary):
+            return false
+        if not _whole(item.get("instance"), 1, int(data["next_instance"]) - 1):
+            return false
+        var id: String = str(item.get("id", ""))
+        var instance: int = int(item["instance"])
+        if not definitions.has(id) or seen_instances.has(instance) or not data["last_started"].has(id):
+            return false
+        seen_instances[instance] = true
+        var def: Dictionary = definitions[id]
+        if not _whole(item.get("cost"), int(def["cost"]), int(def["cost"])):
+            return false
+        if not _whole(item.get("end_tick"), maxi(0, int(data["current_tick"]) + 1), 1000000100):
+            return false
+        if not (item.get("tags") is Array) or item["tags"] != def["tags"]:
+            return false
+        active_cost += int(item["cost"])
+    # An event owns the cost it borrowed until resolved or expired.
+    # A corrupt save must never silently mint additional scheduler budget.
+    if int(data["budget"]) + active_cost != max_budget:
+        return false
+    for event in data["history"]:
+        if not (event is Dictionary):
+            return false
+        if not ["started", "ended", "resolved"].has(str(event.get("action", ""))):
+            return false
+        if not _whole(event.get("instance"), 1, int(data["next_instance"]) - 1):
+            return false
+        if not _whole(event.get("tick"), 0, maxi(0, int(data["current_tick"]))):
+            return false
+    return true
+
+func restore_checkpoint(raw: Variant) -> bool:
+    if not checkpoint_valid(raw):
+        return false
+    var data: Dictionary = raw
+    var restored_active: Dictionary = {}
+    for item in data["active_instances"]:
+        var entry: Dictionary = item
+        restored_active[int(entry["instance"])] = {
+            "id": str(entry["id"]), "cost": int(entry["cost"]),
+            "tags": entry["tags"].duplicate(true), "end_tick": int(entry["end_tick"])
+        }
+    var restored_history: Array[Dictionary] = []
+    for entry in data["history"]:
+        restored_history.append((entry as Dictionary).duplicate(true))
+    active = restored_active
+    history = restored_history
+    last_started = data["last_started"].duplicate(true)
+    current_tick = int(data["current_tick"])
+    next_instance = int(data["next_instance"])
+    budget = int(data["budget"])
+    rng.state = int(data["rng_state"])
+    return true

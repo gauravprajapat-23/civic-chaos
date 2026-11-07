@@ -23,6 +23,7 @@ func _run() -> void:
         assert(parking.advance_to(tick, {1: 0, 2: 0}))
     assert(parking.lane_metrics(1)["queue"] == 0)
     assert(parking.resolve(1, 12))
+    assert(parking.advance_to(12, {}))
     assert(not parking.advance_to(12, {}))
     print("CIVIC_CHAOS_PARKING_PASS")
     quit(0)

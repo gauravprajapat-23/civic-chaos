@@ -10,29 +10,35 @@ extends Resource
 
 func validate() -> PackedStringArray:
     var errors := PackedStringArray()
-    for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
-        var value: float = get(trait)
+    for trait_name in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
+        var value: float = get(trait_name)
         if not is_finite(value) or value < 0.0 or value > 1.0:
-            errors.append("%s_out_of_bounds" % trait)
+            errors.append("%s_out_of_bounds" % trait_name)
     return errors
 
 func to_data() -> Dictionary:
     return {"patience": patience, "rule_compliance": rule_compliance, "aggression": aggression, "empathy": empathy, "attentiveness": attentiveness}
 
-static func from_data(data: Dictionary) -> CivicNpcPersonality:
-    var personality := CivicNpcPersonality.new()
-    for trait in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
-        if data.has(trait):
-            personality.set(trait, float(data[trait]))
+static func from_data(data: Dictionary) -> Resource:
+    var personality_script: GDScript = load("res://scripts/npc/npc_personality.gd") as GDScript
+    if personality_script == null:
+        return null
+    var personality: Resource = personality_script.new() as Resource
+    for trait_name in ["patience", "rule_compliance", "aggression", "empathy", "attentiveness"]:
+        if data.has(trait_name):
+            personality.set(trait_name, float(data[trait_name]))
     return personality
 
-static func seeded(seed: int) -> CivicNpcPersonality:
+static func seeded(seed: int) -> Resource:
     var rng := RandomNumberGenerator.new()
     rng.seed = seed
-    var personality := CivicNpcPersonality.new()
-    personality.patience = rng.randf()
-    personality.rule_compliance = rng.randf()
-    personality.aggression = rng.randf()
-    personality.empathy = rng.randf()
-    personality.attentiveness = rng.randf()
+    var personality_script: GDScript = load("res://scripts/npc/npc_personality.gd") as GDScript
+    if personality_script == null:
+        return null
+    var personality: Resource = personality_script.new() as Resource
+    personality.set("patience", rng.randf())
+    personality.set("rule_compliance", rng.randf())
+    personality.set("aggression", rng.randf())
+    personality.set("empathy", rng.randf())
+    personality.set("attentiveness", rng.randf())
     return personality

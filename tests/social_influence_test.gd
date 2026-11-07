@@ -2,7 +2,7 @@ extends SceneTree
 
 const Personality = preload("res://scripts/npc/npc_personality.gd")
 const Blackboard = preload("res://scripts/npc/npc_blackboard.gd")
-const Engine = preload("res://scripts/npc/npc_utility_engine.gd")
+const UtilityEngine = preload("res://scripts/npc/npc_utility_engine.gd")
 const Influence = preload("res://scripts/npc/social_influence.gd")
 
 func _initialize() -> void:
@@ -23,12 +23,12 @@ func _run() -> void:
     person.patience = 0.5
     var board := Blackboard.new()
     assert(board.update_snapshot(9, 1, Influence.apply_to_observations({"pedestrian_green": false, "crossing_clear": false}, negative, 1.0)))
-    var result := Engine.choose(person, board, 7)
+    var result := UtilityEngine.choose(person, board, 7)
     assert(result["action"] == "wait")
     assert(not result["scores"].has("cross_legally"))
     assert(not result["scores"].has("rush_crossing"))
     assert(board.update_snapshot(9, 2, Influence.apply_to_observations({"pedestrian_green": true, "crossing_clear": true}, positive, 1.0)))
-    var encouraged := Engine.choose(person, board, 7)
+    var encouraged := UtilityEngine.choose(person, board, 7)
     assert(encouraged["scores"]["cross_legally"] > 0.0)
     print("CIVIC_CHAOS_SOCIAL_INFLUENCE_PASS")
     quit(0)

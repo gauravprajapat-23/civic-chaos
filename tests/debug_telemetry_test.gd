@@ -16,7 +16,9 @@ func _run() -> void:
     var parsed: Variant = JSON.parse_string(raw)
     assert(parsed is Dictionary)
     assert(parsed["sample_count"] == 1)
-    assert(parsed["samples"][0]["routes"]["vehicle_1"] == [1, 2])
+    var route_values: Array = parsed["samples"][0]["routes"]["vehicle_1"]
+    assert(route_values.size() == 2)
+    assert(int(route_values[0]) == 1 and int(route_values[1]) == 2)
     var overlay := Overlay.new()
     root.add_child(overlay)
     await process_frame

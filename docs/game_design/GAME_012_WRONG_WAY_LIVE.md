@@ -1,0 +1,110 @@
+# GAME-012 — Wrong Way, Wrong Day: live physical scenario
+Date: 2026-11-06 | Branch `fix/regression-nov05` | Status: **CODE COMMITTED — GODOT 4.7.2 NOT RUN**
+
+## What changed
+- `scripts/civic/wrong_way_live_mission.gd`: stages a **real** `CivicVehicleAgent` offender facing and moving briefly against a legal incoming city lane, and a group of independently moving `CivicVehicleAgent` follower cars using the existing `CivicRoadGraph`, `CivicTrafficSensor`, vehicle profile, collision probes, and, in the actual scene, live city stop-line observation.
+- The stage uses the **real west-to-center city lane** (roughly x=-46→0, z=0); no extra synthetic road system is introduced. Spawn checks reject existing physical occupancy; a failed stage can retry later without creating an orphan civic incident.
+- The red offender remains a solid world vehicle obstruction. The follower cars brake/queue using real physical checks and longitudinal car-following. `stopped_count` counts cars **only after they have actually moved and then stopped**. It is never assigned from the old `queue_count += demand` simulation.
+- `scripts/civic/wrong_way_report_marker.gd`: a yellow pedestrian-side report post, layer 16 (interactable; not a physical blocker), with E/USE label.
+- A report requires a **visible, measured queue of at least two cars**, explicit inspection, proximity to the report post, and valid interaction state; duplicate reports are denied.
+- Following a valid report, an actual visible `TrafficMarshal` (stylized 3D capsule) moves from the sidewalk to the scene; incident state advances to INTERVENTION **only after it arrives**.
+- The obstruction is removed after authorized service delay, not merely when the user presses Report. Follower cars resume physical movement. The mission only resolves after at least two actual cars pass the former blockage and the incident approach's physically measured stopped queue stays clear for consecutive frames.
+- The main 3D scene starts this mission **after** completion of the first Footpath Blocked tutorial; the existing evidence modal and city HUD are reused, with a separate live wrong-way stopped/peak queue display.
+- Existing `CivicWrongWayScenario` remains untouched for deterministic, abstract unit tests; this GAME-012 version is player-facing and has actual colliders, vehicle movement and incidents.
+
+## Acceptance evidence / testing
+`tests/wrong_way_live_mission_test.gd` creates the actual city graph and vehicle scene nodes on a physical road support surface, then verifies:
+- Wrong-way offender faces against legal lane, existing route and actual physical followers are used.
+- No fabricated congestion at spawn and no early report/inspect.
+- At least two previously-moving vehicles stop; displayed queue matches their physics state.
+- Out-of-range report-post clicks are ignored, E/USE shows truthful nearby evidence.
+- Authorized report is one-time, a visible marshal arrives before intervention is recorded.
+- Blocker is actually removed and at least two real follower vehicles resume/past the blockage before completion.
+- Queued telemetry isn't zeroed by the cleanup flag; one-time reputation and rewards.
+
+**All above are test assertions added to the repository, not claims of passing outcomes.** Actual Godot runtime is unavailable to this GitHub editing session; Godot import, focused test, full regression and live playthrough are **NOT RUN**.
+
+## Live walkthrough (after the latest tests pass)
+1. Launch Civic Chaos, finish the orange **FOOTPATH BLOCKED** tutorial (inspect → report → service clears).
+2. The next mission should activate. Follow the main road west toward the red **WRONG WAY** car and its vehicle queue.
+3. Stand on the north-side sidewalk near **x=-20, z=-5.3** at the yellow report post. Do not walk into traffic.
+4. Watch real cars stop, then look at the post and press **E** / **USE** to open the familiar civic card.
+5. Choose **Inspect Evidence**, then **Report to Municipal Service**. Report stays locked until the real queue exists. Close the card.
+6. Observe the 3D marshal approach; after authorized service, the offender is removed and cars begin moving past its old location.
+7. Verify the HUD reflects real stopped/peak cars and the mission only completes after observed physical recovery.
+
+## Limitations / next phases
+- **GAME-013:** true authorized tow/escort along a legal verified route; the staged offender is currently queued for removal after marshal intervention, not driven along a full reroute.
+- **GAME-014:** game-wide checkpoint persistence of the additional live scenario, released-car states and marshal position is not implemented. F5/F9 are intentionally blocked while this scenario exists, with an explanatory message, rather than silently save or load a mismatched world.
+- **GAME-015:** detailed dialogue, failure/retry screen, service dispatch schedules and balancing are still future work.
+- Existing city vehicles are owned by the main spawner; the mission owns **four actual additional vehicle instances** on the same city road graph. They are counted separately for this incident; main-city total traffic simulation remains independently managed. Integrated congestion/performance profiling remains outstanding.
+- Actual moving-collision and signal behavior need game playtest and headless tests; no new issues may be marked resolved from source inspection alone.
+- No GitHub Actions were manually dispatched; the repository's configured push workflow may run automatically.
+
+## Local Godot commands (PowerShell)
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git switch fix/regression-nov05
+git pull --ff-only origin fix/regression-nov05
+$godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+& $godot --headless --path . --editor --import --quit
+& $godot --headless --path . --script res://tests/wrong_way_live_mission_test.gd
+python tools/run_regression.py --godot $godot --timeout 60 --report build/game-012-wrong-way-report.json
+Write-Host "Exit code: $LASTEXITCODE"
+```
+This report path avoids overwriting `build/regression-report.json` if it is modified locally.
+
+## Compilation blocker reported by player — targeted fix
+User-provided Godot 4.7.2 run at `a8814eb` failed to compile `scripts/civic/wrong_way_live_mission.gd` because `_physics_process` called a removed `_publish()` method. Dependent test load failed, followed by the derived `Live.new()` error. **This is the confirmed runtime failure; the scenario's physical queue was not reached.**
+
+Follow-up code removes the stale method call and emits the existing `feedback_changed` signal for periodic HUD text refresh. The main scene still polls live stop counts. It also adds layer 16 to the player's interaction ray mask so the nonblocking yellow report post can actually be targeted with E. A new physics test `tests/wrong_way_report_post_test.gd` asserts post collision layers and ray hit behavior.
+
+**Fix pushed, engine rerun pending.** Do not claim GAME-012 passes until `wrong_way_live_mission_test.gd` and `wrong_way_report_post_test.gd` pass on the new head. If staging, actual queue or road geometry fails next, preserve full Godot output and fix the actual cause.
+
+## 2026-11-06 — User's latest Godot 4.7.2 logs and save/load fix
+Actual user-supplied run at `5885135`:
+- Headless editor import completed.
+- Focused `wrong_way_report_post_test.gd` and `wrong_way_live_mission_test.gd` printed PASS markers.
+- The isolated report-post test also logged **17 missing InputMap errors** because it instantiated a player that ran normal movement physics without the main scene registering input actions.
+- Full regression: **56 PASS / 1 FAIL**. Failure: `gameplay_persistence_test.gd`; `CivicCityMetrics.restore` attempted direct assignment of a JSON-decoded `Array` into `history: Array[Dictionary]`. This was a real runtime type error.
+
+Follow-up candidate code:
+- `scripts/civic/city_metrics.gd` now validates each history record and rebuilds a typed `Array[Dictionary]`, preserving existing civic event/reward state. Invalid history is rejected without partially changing live scores. Integer-like values in JSON history are checked and normalized.
+- `tests/gameplay_persistence_test.gd` now exercises completed **on-disk JSON save/reload** with a nonempty score history and checks no duplicate reward is possible after restore.
+- `tests/city_metrics_test.gd` exercises plain JSON-decoded untyped history and malformed audit entries.
+- `tests/wrong_way_report_post_test.gd` disables unrelated player movement physics in its isolated ray fixture; the full game continues using the actual main scene's registered inputs.
+- `tools/run_regression.py` now treats **any Godot ERROR or SCRIPT ERROR** (including missing InputMap errors) as failure, not just a few specific parse errors. Replay and editor-import checks also use this strict rule.
+
+**Source changes committed, new Godot run NOT PERFORMED by assistant.** No GitHub Actions manually dispatched. Do not mark GAME-012's full regression verified until latest branch head is tested on Godot 4.7.2.
+
+## 2026-11-06 — Follow-up regression: three test failures after strict runner
+Actual user-supplied Godot 4.7.2 log on `dc79e68`:
+- Headless editor import **completed**.
+- Focused `gameplay_persistence_test.gd` **PASS**, `wrong_way_report_post_test.gd` **PASS**.
+- Full run **FAILED** in exactly three cases: `lifecycle_test.gd`, `incident_lifecycle_test.gd`, `vehicle_spawn_occupancy_test.gd`. Other displayed cases, including `wrong_way_live_mission_test.gd`, passed.
+- Life-cycle test failure was caused by two issues now caught by strict ERROR scanning: deliberate corrupt JSON parsing emitted `ERROR: Parse JSON failed`; an unparented instantiated menu scene was not freed and emitted resource/RID leak errors on quit.
+- Incident-lifecycle test deliberately parsed `broken`, which triggered the same JSON parse ERROR.
+- Spawn occupancy test set `blocker.global_position` **before** its StaticBody3D was added to SceneTree, producing repeated `Condition "!is_inside_tree()"` errors even though its intended tests continued.
+
+Code-only corrections pushed:
+- `scripts/core/save_repository.gd` and `scripts/civic/incident_manager.gd`: use `JSON.new().parse(...)` with a checked error return, rather than `JSON.parse_string`, for expected untrusted/invalid input. Both retain negative tests that reject invalid input.
+- `tests/lifecycle_test.gd`: explicitly free the instantiated menu scene (and its UI resources) after checking the scene loads.
+- `tests/vehicle_spawn_occupancy_test.gd`: assign blocker `position` before parenting; leave the physics-footprint assertions intact.
+- `tests/incident_lifecycle_test.gd`: add malformed-object/null JSON rejection checks.
+
+**Latest corrections NOT YET RERUN on Godot.** Keep the strict `ERROR:/SCRIPT ERROR:` regression scanner; do not suppress real engine errors or drop tests. No GitHub Actions manually triggered.
+
+Focused retest:
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git switch fix/regression-nov05
+git pull --ff-only origin fix/regression-nov05
+$godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
+& $godot --headless --path . --editor --import --quit
+& $godot --headless --path . --script res://tests/lifecycle_test.gd
+& $godot --headless --path . --script res://tests/incident_lifecycle_test.gd
+& $godot --headless --path . --script res://tests/vehicle_spawn_occupancy_test.gd
+python tools/run_regression.py --godot $godot --timeout 60 --report build/game-012-strict-retest.json
+Write-Host "Exit code: $LASTEXITCODE"
+```
+Separate report path avoids modifying user's existing `build/regression-report.json`.

@@ -7,12 +7,12 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    var first := Personality.seeded(12345)
-    var second := Personality.seeded(12345)
+    var first: CivicNpcPersonality = Personality.seeded(12345) as CivicNpcPersonality
+    var second: CivicNpcPersonality = Personality.seeded(12345) as CivicNpcPersonality
     if not first.validate().is_empty() or first.to_data() != second.to_data():
         _fail("seeded personality invalid or nondeterministic")
         return
-    var restored := Personality.from_data(first.to_data())
+    var restored: CivicNpcPersonality = Personality.from_data(first.to_data()) as CivicNpcPersonality
     if restored.to_data() != first.to_data():
         _fail("personality serialization mismatch")
         return
@@ -38,8 +38,11 @@ func _run() -> void:
         _fail("stale or foreign observation accepted")
         return
     var loaded := Blackboard.from_json(board.to_json())
-    if loaded == null or loaded.snapshot() != board.snapshot():
-        _fail("blackboard JSON roundtrip failed")
+    if loaded == null:
+        _fail("blackboard JSON roundtrip failed: deserialization returned null; JSON=" + board.to_json())
+        return
+    if not _json_equivalent(loaded.snapshot(), board.snapshot()):
+        _fail("blackboard JSON roundtrip failed: original=" + board.to_json() + " restored=" + loaded.to_json())
         return
     if board.update_snapshot(5, 13, {"bad": INF}):
         _fail("nonfinite observation accepted")
@@ -50,3 +53,22 @@ func _run() -> void:
 func _fail(message: String) -> void:
     push_error(message)
     quit(1)
+
+func _json_equivalent(left: Variant, right: Variant) -> bool:
+    if left is Dictionary and right is Dictionary:
+        if left.size() != right.size():
+            return false
+        for key in left:
+            if not right.has(key) or not _json_equivalent(left[key], right[key]):
+                return false
+        return true
+    if left is Array and right is Array:
+        if left.size() != right.size():
+            return false
+        for index in range(left.size()):
+            if not _json_equivalent(left[index], right[index]):
+                return false
+        return true
+    if (left is int or left is float) and (right is int or right is float):
+        return float(left) == float(right)
+    return left == right

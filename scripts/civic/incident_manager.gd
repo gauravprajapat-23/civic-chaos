@@ -63,7 +63,12 @@ func to_json() -> String:
     return JSON.stringify(snapshot())
 
 static func from_json(data: String) -> CivicIncidentManager:
-    var parsed: Variant = JSON.parse_string(data)
+    # Invalid network/save payloads must be rejected without producing
+    # Godot engine errors. JSON.parse_string emits ERROR on malformed text.
+    var parser := JSON.new()
+    if parser.parse(data) != OK:
+        return null
+    var parsed: Variant = parser.data
     if not parsed is Dictionary:
         return null
     var value: Dictionary = parsed

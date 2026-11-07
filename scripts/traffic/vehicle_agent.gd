@@ -10,9 +10,14 @@ signal route_rejected(reason: String)
 var feedback: CivicAgentFeedback
 
 func _ready() -> void:
-    feedback = CivicAgentFeedback.new()
-    feedback.name = "AgentFeedback"
-    add_child(feedback)
+    var feedback_script := load("res://scripts/npc/agent_feedback.gd")
+    if feedback_script == null:
+        push_warning("Agent feedback unavailable; vehicle simulation continues")
+        return
+    feedback = feedback_script.new() as CivicAgentFeedback
+    if feedback != null:
+        feedback.name = "AgentFeedback"
+        add_child(feedback)
 
 var road_graph: CivicRoadGraph
 var route: PackedInt32Array = PackedInt32Array()
@@ -26,6 +31,8 @@ var active: bool = false
 @export_range(0.1, 3.0, 0.1) var reaction_seconds: float = 0.8
 var lead_gap_m: float = INF
 var lead_speed_mps: float = 0.0
+## Disabled only for legacy isolated junction throughput simulations.
+var physics_obstacle_checks_enabled: bool = true
 
 func set_lead_observation(gap_m: float, speed: float) -> void:
     lead_gap_m = maxf(0.0, gap_m)
@@ -74,7 +81,7 @@ func advance_fixed(delta: float) -> void:
         active = false
         route_rejected.emit("lane_removed")
         return
-    var desired_speed: float = minf(target_speed_mps, profile.maximum_speed_mps, lane.speed_limit_mps)
+    var desired_speed: float = minf(minf(target_speed_mps, profile.maximum_speed_mps), lane.speed_limit_mps)
     if stop_requested:
         desired_speed = 0.0
     # Brake before the final endpoint, without overshooting.
@@ -89,12 +96,97 @@ func advance_fixed(delta: float) -> void:
     if is_finite(lead_gap_m):
         travel = CivicFollowingController.permitted_travel(travel, lead_gap_m, minimum_gap_m)
         next_speed = minf(next_speed, travel / delta)
+    if physics_obstacle_checks_enabled and travel > 0.0 and _path_has_vulnerable_obstacle(travel):
+        travel = 0.0
+        next_speed = 0.0
     speed_mps = next_speed
     _travel(travel)
     if active:
         _place_on_lane()
     if feedback != null:
         feedback.observe_vehicle(speed_mps, active, stop_requested)
+
+## Guard physical vehicles against player, pedestrian and other car penetration.
+## Abstract Node3D agents used in deterministic unit tests have no collider;
+## they keep the original lane-following behavior.
+func _path_has_vulnerable_obstacle(travel: float) -> bool:
+    if not is_inside_tree():
+        return false
+    var collision_body := get_node_or_null("CollisionBody") as StaticBody3D
+    if collision_body == null:
+        return false
+    var collision_shape := collision_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collision_shape == null or collision_shape.shape == null:
+        return false
+    var original_index := current_route_index
+    var original_distance := lane_distance_m
+    var remaining := travel
+    # Sample the swept path at sub-metre intervals, including turns.
+    var samples: int = maxi(1, int(ceil(travel / 0.4)))
+    for sample_index in range(1, samples + 1):
+        remaining = travel * float(sample_index) / float(samples)
+        var index := original_index
+        var distance := original_distance
+        while index < route.size() - 1:
+            var lane: CivicLaneData = road_graph.get_lane(route[index])
+            if lane == null:
+                return true
+            var available := maxf(0.0, lane.length_m() - distance)
+            if remaining <= available:
+                break
+            remaining -= available
+            index += 1
+            distance = 0.0
+        var sampled_lane: CivicLaneData = road_graph.get_lane(route[index])
+        if sampled_lane == null:
+            return true
+        var location: Dictionary = sample_centerline(sampled_lane.centerline, distance + remaining)
+        var tangent: Vector3 = location["tangent"]
+        var heading := atan2(-tangent.x, -tangent.z)
+        var basis := Basis(Vector3.UP, heading)
+        if footprint_blocked_at(Transform3D(basis, location["position"])):
+            return true
+    return false
+
+## Reused by spawn validation and movement: floors support the car,
+## while pedestrians, other cars, buildings, walls and street furniture block it.
+## This is a footprint *overlap* query, not rigid-body vehicle physics.
+func footprint_blocked_at(vehicle_transform: Transform3D) -> bool:
+    if not is_inside_tree():
+        return false
+    var body: StaticBody3D = get_node_or_null("CollisionBody") as StaticBody3D
+    if body == null:
+        return false
+    var collider: CollisionShape3D = body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collider == null or collider.shape == null:
+        return false
+    var shape_transform: Transform3D = vehicle_transform * body.transform * collider.transform
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.transform = shape_transform
+    query.collision_mask = 1 | 2 | 4 | 8
+    query.exclude = [body.get_rid()]
+    query.margin = 0.02
+    var car_bottom: float = shape_transform.origin.y - 0.6
+    if collider.shape is BoxShape3D:
+        car_bottom = shape_transform.origin.y - (collider.shape as BoxShape3D).size.y * 0.5
+    var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 32)
+    for hit in hits:
+        var obstacle: CollisionObject3D = hit.get("collider") as CollisionObject3D
+        if obstacle == null:
+            continue
+        if (obstacle.collision_layer & 1) == 0:
+            return true
+        # Broad, horizontal terrain/road support is not a traffic obstruction.
+        # A sidewalk, building or sign protruding above the tyre clearance is.
+        var world_shape: CollisionShape3D = obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if world_shape == null or not (world_shape.shape is BoxShape3D):
+            return true
+        var world_box: BoxShape3D = world_shape.shape as BoxShape3D
+        var surface_top: float = world_shape.global_position.y + world_box.size.y * 0.5
+        if surface_top > car_bottom + 0.035:
+            return true
+    return false
 
 func _travel(distance: float) -> void:
     var remaining := distance
