@@ -60,6 +60,29 @@ class RegressionRunnerTests(unittest.TestCase):
             result = {"returncode": 0, "output": marker + "\n" + message + "\n"}
             self.assertFalse(run_regression.test_passed("free_roam_card_test.gd", result))
 
+    def test_negative_path_rejects_timeout_and_generic_crashes(self):
+        marker = "ERROR: CIVIC_CHAOS_INTENTIONAL_FAILURE"
+        for code, timed_out in [(-1, True), (-1, False), (2, False), (0, False)]:
+            result = {"returncode": code, "timed_out": timed_out, "output": marker}
+            self.assertFalse(run_regression.negative_path_passed(result))
+        self.assertFalse(run_regression.negative_path_passed(
+            {"returncode": 1, "timed_out": False, "output": "unrelated failure"}
+        ))
+        self.assertTrue(run_regression.negative_path_passed(
+            {"returncode": 1, "timed_out": False, "output": marker}
+        ))
+
+    def test_godot_log_decoder_is_utf8_with_replacement(self):
+        result = run_regression.subprocess.CompletedProcess(
+            args=["godot"], returncode=0, stdout="READY", stderr=""
+        )
+        with patch.object(run_regression.subprocess, "run", return_value=result) as call:
+            output = run_regression.run("godot", ["--editor", "--quit"], 5)
+        self.assertEqual(output["returncode"], 0)
+        self.assertFalse(output["timed_out"])
+        self.assertEqual(call.call_args.kwargs["encoding"], "utf-8")
+        self.assertEqual(call.call_args.kwargs["errors"], "replace")
+
     def test_command_timeout_is_failure(self):
         with patch.object(run_regression.subprocess, "run", side_effect=run_regression.subprocess.TimeoutExpired("godot", 1)):
             result = run_regression.run("godot", ["--script", "x"], 1)
