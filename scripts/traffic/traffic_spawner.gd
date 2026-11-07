@@ -31,6 +31,8 @@ var current_tick: int = 0
 var _vehicle_delay: Dictionary = {}
 
 func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: bool = false) -> bool:
+	if restore_prepared():
+		abort_restore()
 	if graph == null or not graph.validate().is_empty():
 		return false
 	for vehicle in active_vehicles:
@@ -60,7 +62,9 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	return true
 
 func advance_fixed(tick: int, delta: float) -> void:
-	if road_graph == null or tick <= current_tick or delta <= 0.0:
+	# No traffic tick may advance between PREPARE and either COMMIT or ABORT,
+	# even when a test harness invokes this directly without the director.
+	if restore_prepared() or road_graph == null or tick <= current_tick or delta <= 0.0:
 		return
 	var started_us := Time.get_ticks_usec()
 	current_tick = tick
@@ -422,7 +426,9 @@ func commit_restore() -> bool:
 	for old in active_vehicles:
 		if is_instance_valid(old):
 			old.free()
-	var new_generation: Array[CivicVehicleAgent] = prepared["staged"]
+	var new_generation: Array[CivicVehicleAgent] = []
+	for car in prepared["staged"]:
+		new_generation.append(car as CivicVehicleAgent)
 	active_vehicles = new_generation
 	_vehicle_delay = prepared["staged_delay"]
 	current_tick = int(data["current_tick"])
@@ -438,3 +444,7 @@ func restore(data: Variant) -> bool:
 	if not prepare_restore(data):
 		return false
 	return commit_restore()
+
+func _exit_tree() -> void:
+	# Avoid leaving colliders disabled if a scene is torn down mid-prepare.
+	abort_restore()
