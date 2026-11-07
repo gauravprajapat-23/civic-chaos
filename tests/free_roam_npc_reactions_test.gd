@@ -11,6 +11,7 @@ func _run() -> void:
     root.add_child(stage)
     var walkers = Pedestrians.new()
     stage.add_child(walkers)
+    walkers.set_physics_process(false)
     if walkers._walkers.is_empty():
         _fail("no pedestrians in neighborhood")
         return
@@ -31,6 +32,7 @@ func _run() -> void:
         _fail("NPC did not acknowledge a completed challenge")
         return
     for frame in range(18):
+        await physics_frame
         walkers._physics_process(0.25)
     if walkers._reaction_label.visible:
         _fail("speech bubble never expired")
