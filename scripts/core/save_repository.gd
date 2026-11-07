@@ -85,7 +85,13 @@ static func _read_one(path: String) -> Dictionary:
 static func _checksum(document: Dictionary) -> String:
     var unsigned: Dictionary = document.duplicate(true)
     unsigned.erase("checksum")
-    return JSON.stringify(unsigned, "", true).sha256_text()
+    # Canonicalize through Godot's parser first. Godot may decode JSON whole
+    # numbers as float values; signing the pre-serialization Variant types
+    # would otherwise reject legitimate saves on the next launch.
+    var parser := JSON.new()
+    if parser.parse(JSON.stringify(unsigned, "", true)) != OK:
+        return ""
+    return JSON.stringify(parser.data, "", true).sha256_text()
 
 static func _valid_player(document: Dictionary) -> bool:
     if not (document.get("player") is Dictionary):

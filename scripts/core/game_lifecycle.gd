@@ -31,7 +31,7 @@ func save_player(player: Node3D, path: String = "", extra: Dictionary = {}) -> b
     var pos := player.global_position
     var data: Dictionary = {"player": {"x": pos.x, "y": pos.y, "z": pos.z, "yaw": player.rotation.y}}
     for key in extra.keys():
-        if key == "player" or key == "version":
+        if ["player", "version", "checksum"].has(key):
             lifecycle_message.emit("Save failed: invalid extra field")
             return false
         data[key] = extra[key]
@@ -42,8 +42,13 @@ func save_player(player: Node3D, path: String = "", extra: Dictionary = {}) -> b
 
 func load_player(player: Node3D, path: String = "") -> bool:
     var destination: String = SaveRepo.DEFAULT_PATH if path.is_empty() else path
-    var data: Dictionary = SaveRepo.read_save(destination)
-    if data.is_empty():
+    return load_player_snapshot(player, SaveRepo.read_save(destination))
+
+## GAME-018: apply the very document already validated by the mission loader.
+## Do not re-read the file between civic restore and player restore: a new F5
+## or a primary->backup recovery could otherwise mix two save generations.
+func load_player_snapshot(player: Node3D, data: Dictionary) -> bool:
+    if data.is_empty() or not (data.get("player") is Dictionary):
         lifecycle_message.emit("No valid save found")
         return false
     if not player is CivicPlayerController:
