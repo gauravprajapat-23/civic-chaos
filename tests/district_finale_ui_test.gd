@@ -34,14 +34,20 @@ func _run() -> void:
         if int((finale.dimension_bars[dimension] as ProgressBar).value) != score["scores"][dimension]:
             _fail("scorecard bar displayed a fabricated city metric")
             return
-    var continued: int = 0
-    var replayed: int = 0
-    var reviewed: int = 0
-    finale.continue_selected.connect(func() -> void: continued += 1)
-    finale.replay_selected.connect(func() -> void: replayed += 1)
-    finale.review_selected.connect(func() -> void: reviewed += 1)
+    # Dictionary storage is shared by Godot lambda captures; scalar locals
+    # can be captured by value and hide signal-dispatch regressions.
+    var dispatched: Dictionary = {"continue": 0, "replay": 0, "review": 0}
+    finale.continue_selected.connect(func() -> void:
+        dispatched["continue"] = int(dispatched["continue"]) + 1
+    )
+    finale.replay_selected.connect(func() -> void:
+        dispatched["replay"] = int(dispatched["replay"]) + 1
+    )
+    finale.review_selected.connect(func() -> void:
+        dispatched["review"] = int(dispatched["review"]) + 1
+    )
     finale.continue_button.pressed.emit()
-    if continued != 1 or replayed != 0:
+    if dispatched["continue"] != 1 or dispatched["replay"] != 0:
         _fail("continue action triggered wrong handler")
         return
     finale.dismiss()
@@ -49,14 +55,14 @@ func _run() -> void:
         _fail("Free Roam review button did not become available")
         return
     finale.review_button.pressed.emit()
-    if reviewed != 1:
+    if dispatched["review"] != 1:
         _fail("district review action was not exposed after ending")
         return
     if not finale.present(score):
         _fail("completed scorecard could not be reopened")
         return
     finale.replay_confirmation.confirmed.emit()
-    if replayed != 1 or continued != 1:
+    if dispatched["replay"] != 1 or dispatched["continue"] != 1:
         _fail("confirmed replay triggered reward/continue handler")
         return
     finale.dismiss()
