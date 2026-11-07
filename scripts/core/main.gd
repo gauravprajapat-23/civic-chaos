@@ -14,6 +14,8 @@ const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
 const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
+const DistrictCampaign = preload("res://scripts/civic/district_campaign.gd")
+const DistrictFinale = preload("res://scripts/ui/district_finale.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
@@ -25,6 +27,9 @@ var gameplay_session: CivicGameplaySession
 var wrong_way_world: CivicWrongWayLiveMission
 var parking_world: CivicIllegalParkingMission
 var cleanup_world: CivicMarketCleanupMission
+var district_finale: CivicDistrictFinale
+var free_roam_unlocked: bool = false
+var _finale_acknowledged: bool = false
 var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
@@ -41,6 +46,7 @@ func _enter_tree() -> void:
     _bind_key("jump", KEY_SPACE)
     _bind_key("interact", KEY_E)
     _bind_key("pause_game", KEY_F1)
+    _bind_key("district_results", KEY_F2)
     _bind_key("save_game", KEY_F5)
     _bind_key("load_game", KEY_F9)
     _bind_key("restart_game", KEY_F10)
@@ -121,11 +127,22 @@ func _ready() -> void:
     mission_guide.name = "CivicMissionGuide"
     add_child(mission_guide)
     mission_guide.recovery_action_requested.connect(_on_mission_recovery_action)
+    district_finale = DistrictFinale.new() as CivicDistrictFinale
+    district_finale.name = "DistrictFinale"
+    add_child(district_finale)
+    district_finale.continue_selected.connect(_on_finale_continue)
+    district_finale.replay_selected.connect(_on_finale_replay)
+    district_finale.review_selected.connect(_present_campaign_finale)
     _refresh_mission_guide()
     print("CIVIC_CHAOS_MAIN_READY")
 
 func _unhandled_key_input(event: InputEvent) -> void:
-    if not event.pressed or event.echo:
+    if not event.pressed or event.echo or (district_finale != null and district_finale.is_open()):
+        return
+    if event.is_action_pressed("district_results"):
+        if free_roam_unlocked and not get_tree().paused:
+            _present_campaign_finale()
+            get_viewport().set_input_as_handled()
         return
     if event.is_action_pressed("toggle_ai_debug"):
         debug_overlay.set_enabled(not debug_overlay.enabled)
@@ -181,6 +198,11 @@ func _save_gameplay_checkpoint() -> bool:
             _on_interaction_message("Cleanup save rejected: %s" % str(cleanup_errors))
             return false
         payload["cleanup_checkpoint"] = cleanup_state
+        if cleanup_world.finished:
+            if not _campaign_ready():
+                _on_interaction_message("Finale save refused: campaign ledger is incomplete")
+                return false
+            payload["campaign_checkpoint"] = DistrictCampaign.checkpoint(_finale_acknowledged)
     # GAME-019: a generation includes the background world as well as civic
     # mission actors. Reject an incoherent background tick instead of storing
     # an apparently valid player file with incomplete world state.
@@ -219,6 +241,10 @@ func _load_gameplay_checkpoint() -> bool:
     var has_live: bool = saved.has("wrong_way_checkpoint")
     var has_parking: bool = saved.has("parking_checkpoint")
     var has_cleanup: bool = saved.has("cleanup_checkpoint")
+    var has_finale: bool = saved.has("campaign_checkpoint")
+    if has_finale and not has_cleanup:
+        _on_interaction_message("Checkpoint rejected: Free Roam without completed cleanup")
+        return false
     if has_cleanup and not has_parking:
         _on_interaction_message("Checkpoint rejected: cleanup requires finished parking history")
         return false
@@ -259,6 +285,15 @@ func _load_gameplay_checkpoint() -> bool:
         if not CivicMarketCleanupMission.checkpoint_valid(saved["cleanup_checkpoint"], civic, cleanup_failures):
             _on_interaction_message("Checkpoint rejected: invalid market cleanup %s" % str(cleanup_failures))
             return false
+    if has_finale and not DistrictCampaign.checkpoint_valid(
+            saved["campaign_checkpoint"], civic, saved.get("wrong_way_checkpoint"),
+            saved.get("parking_checkpoint"), saved.get("cleanup_checkpoint")):
+        _on_interaction_message("Checkpoint rejected: forged or inconsistent Free Roam unlock")
+        return false
+    if has_cleanup and bool(saved["cleanup_checkpoint"].get("finished", false)) and not DistrictCampaign.can_unlock(
+            civic, saved["wrong_way_checkpoint"], saved["parking_checkpoint"], saved["cleanup_checkpoint"]):
+        _on_interaction_message("Checkpoint rejected: completed cleanup is missing campaign achievements")
+        return false
     var has_world: bool = saved.has("world_checkpoint")
     var pedestrian_world: Node3D = get_node_or_null("DistrictPedestrians") as Node3D
     if has_world and (junction == null or pedestrian_world == null or not bool(junction.call("checkpoint_valid", saved["world_checkpoint"], pedestrian_world))):
@@ -424,6 +459,12 @@ func _load_gameplay_checkpoint() -> bool:
         wrong_way_world = restored_world
         _connect_wrong_way_signals(restored_world)
     restore_guard.finish()
+    free_roam_unlocked = has_cleanup and is_instance_valid(restored_cleanup) and restored_cleanup.finished and _campaign_ready()
+    _finale_acknowledged = bool(saved["campaign_checkpoint"]["finale_acknowledged"]) if has_finale else false
+    if district_finale != null:
+        district_finale.set_unlocked(free_roam_unlocked)
+    if free_roam_unlocked and not _finale_acknowledged:
+        call_deferred("_present_campaign_finale")
     if has_parking and not has_cleanup and is_instance_valid(restored_parking) and restored_parking.finished:
         call_deferred("_start_market_cleanup_mission")
     if has_live and not has_parking and is_instance_valid(restored_world) and restored_world.finished:
@@ -524,10 +565,81 @@ func _start_market_cleanup_mission() -> void:
     _refresh_mission_guide()
 
 func _connect_cleanup_signals(cleanup: CivicMarketCleanupMission) -> void:
+    if not cleanup.mission_completed.is_connected(_on_cleanup_mission_completed):
+        cleanup.mission_completed.connect(_on_cleanup_mission_completed)
     if not cleanup.incident_card_requested.is_connected(_on_cleanup_card_requested):
         cleanup.incident_card_requested.connect(_on_cleanup_card_requested)
     if not cleanup.feedback_changed.is_connected(_on_interaction_message):
         cleanup.feedback_changed.connect(_on_interaction_message)
+
+## GAME-022: Free Roam is earned by four real mission completions.
+## Scorecard is derived from manager history; reopening cannot grant points.
+func _campaign_ready() -> bool:
+    if gameplay_session == null or not is_instance_valid(wrong_way_world) or not is_instance_valid(parking_world) or not is_instance_valid(cleanup_world):
+        return false
+    return DistrictCampaign.can_unlock(gameplay_session.snapshot(), wrong_way_world.snapshot(),
+        parking_world.snapshot(), cleanup_world.snapshot())
+
+func _on_cleanup_mission_completed() -> void:
+    if not _campaign_ready():
+        push_warning("District finale deferred: mission rewards or incident history incomplete")
+        return
+    free_roam_unlocked = true
+    _finale_acknowledged = false
+    if district_finale != null:
+        district_finale.set_unlocked(true)
+    # Save the earned unlock before opening a paused results screen.
+    # A failed write leaves the reward in memory and permits a later F5.
+    if not _save_gameplay_checkpoint():
+        _on_interaction_message("Free Roam unlocked, but autosave was unavailable. Press F5 after continuing.")
+    call_deferred("_present_campaign_finale")
+
+func _present_campaign_finale() -> void:
+    if not free_roam_unlocked or not _campaign_ready() or district_finale == null or district_finale.is_open():
+        return
+    var report: Dictionary = DistrictCampaign.scorecard(gameplay_session.snapshot(),
+        wrong_way_world.snapshot(), parking_world.snapshot(), cleanup_world.snapshot())
+    if report.is_empty():
+        return
+    if incident_card != null and incident_card.is_open():
+        incident_card.dismiss()
+    if not district_finale.present(report):
+        return
+    lifecycle.set_paused(true)
+    pause_panel.visible = false
+    if civic_hud != null:
+        civic_hud.visible = false
+    if mission_guide != null:
+        mission_guide.visible = false
+    if touch_layer != null:
+        touch_layer.visible = false
+
+func _on_finale_continue() -> void:
+    if district_finale == null or not district_finale.is_open() or not free_roam_unlocked:
+        return
+    _finale_acknowledged = true
+    district_finale.dismiss()
+    lifecycle.set_paused(false)
+    pause_panel.visible = false
+    if civic_hud != null:
+        civic_hud.visible = true
+    if mission_guide != null:
+        mission_guide.visible = true
+    if touch_layer != null:
+        touch_layer.visible = true
+    _refresh_mission_guide()
+    _on_interaction_message("FREE ROAM UNLOCKED | Explore Market Chowk. F2: district results. F5: save.")
+    call_deferred("_save_free_roam_acknowledgement")
+
+func _save_free_roam_acknowledgement() -> void:
+    if free_roam_unlocked and _finale_acknowledged:
+        if not _save_gameplay_checkpoint():
+            _on_interaction_message("Free Roam active. Autosave unavailable; try F5 later.")
+
+func _on_finale_replay() -> void:
+    if district_finale != null and district_finale.is_open():
+        district_finale.dismiss()
+    lifecycle.restart_game()
 
 func _on_cleanup_card_requested(state: Dictionary) -> void:
     _show_incident_card(state, cleanup_world)
@@ -577,7 +689,15 @@ func _refresh_mission_guide() -> void:
     if mission_guide == null or gameplay_session == null:
         return
     var state: Dictionary = {}
-    if is_instance_valid(cleanup_world):
+    if free_roam_unlocked:
+        state = {
+            "title": "Free Roam | Market Chowk",
+            "objective": "Campaign complete. Explore the city or press F2 / District Results.",
+            "speaker": "Neighborhood Radio",
+            "dialogue": "Your actions improved the district. The streets and public spaces are yours to explore.",
+            "has_target": false, "recovery_available": false
+        }
+    elif is_instance_valid(cleanup_world):
         state = cleanup_world.guidance_state()
     elif is_instance_valid(parking_world):
         state = parking_world.guidance_state()
@@ -613,6 +733,8 @@ func _on_mission_recovery_action(action: String) -> void:
             lifecycle.restart_game()
 
 func _toggle_pause() -> void:
+    if district_finale != null and district_finale.is_open():
+        return
     if incident_card != null and incident_card.is_open():
         incident_card.dismiss()
     lifecycle.set_paused(not get_tree().paused)
@@ -669,11 +791,23 @@ func _process(delta: float) -> void:
         metrics["wrong_way_peak"] = wrong_way_world.peak_stopped
         state.merge(wrong_way_world.hud_state(), true)
     if is_instance_valid(parking_world):
-        var mission: Dictionary = gameplay_session.missions.missions.get(CivicIllegalParkingMission.MISSION_ID, {})
-        state["mission"] = mission.duplicate(true)
+        var parking_mission: Dictionary = gameplay_session.missions.missions.get(CivicIllegalParkingMission.MISSION_ID, {})
+        state["mission"] = parking_mission.duplicate(true)
         state["incidents"] = 0 if parking_world.finished else 1
         state["feedback"] = parking_world.feedback
         state["scores"] = gameplay_session.metrics.scores.duplicate(true)
         state["reputation"] = gameplay_session.metrics.reputation()
+    if is_instance_valid(cleanup_world):
+        var cleanup_mission: Dictionary = gameplay_session.missions.missions.get(CivicMarketCleanupMission.MISSION_ID, {})
+        state["mission"] = cleanup_mission.duplicate(true)
+        state["incidents"] = 0 if cleanup_world.finished else 1
+        state["feedback"] = cleanup_world.feedback
+        state["scores"] = gameplay_session.metrics.scores.duplicate(true)
+        state["reputation"] = gameplay_session.metrics.reputation()
+    if free_roam_unlocked:
+        state["mission"] = {"id": "district_free_roam", "state": "unlocked",
+            "progress": {}, "objectives": []}
+        state["incidents"] = 0
+        state["feedback"] = "FREE ROAM UNLOCKED  |  F2 District Results"
     state["traffic"] = metrics
     civic_hud.render_state(state)
