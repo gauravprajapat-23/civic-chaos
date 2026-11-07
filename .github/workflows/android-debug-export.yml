@@ -1,14 +1,8 @@
 name: Android debug export
 
+# Keep export validation available at the final release gate only.
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "export_presets.cfg"
-      - "project.godot"
-      - "scenes/**"
-      - "scripts/**"
-      - ".github/workflows/android-debug-export.yml"
 
 permissions:
   contents: read
