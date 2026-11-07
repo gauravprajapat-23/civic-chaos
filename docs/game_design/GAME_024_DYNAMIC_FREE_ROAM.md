@@ -54,6 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw "Godot import failed" }
 $tests = @(
   "free_roam_dynamic_locations_test.gd",
   "free_roam_npc_reactions_test.gd",
+  "free_roam_legacy_migration_test.gd",
   "free_roam_live_events_test.gd",
   "free_roam_event_restart_test.gd",
   "free_roam_expiry_test.gd",
