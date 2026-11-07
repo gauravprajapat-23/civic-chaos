@@ -8,6 +8,7 @@ var last_started: Dictionary = {}
 var history: Array[Dictionary] = []
 var current_tick: int = -1
 var budget: int = 10
+var max_budget: int = 10
 var max_concurrent: int = 2
 var next_instance: int = 1
 
@@ -16,6 +17,7 @@ func configure(seed_value: int, available_budget: int = 10, concurrency: int = 2
         return false
     rng.seed = seed_value
     budget = available_budget
+    max_budget = available_budget
     max_concurrent = concurrency
     return true
 
@@ -117,7 +119,8 @@ func checkpoint_state() -> Dictionary:
             "tags": entry["tags"].duplicate(true)
         })
     return {"schema_version": 1, "current_tick": current_tick,
-        "budget": budget, "max_concurrent": max_concurrent, "next_instance": next_instance,
+        "budget": budget, "max_budget": max_budget,
+        "max_concurrent": max_concurrent, "next_instance": next_instance,
         "last_started": last_started.duplicate(true), "active_instances": instances,
         "history": history.duplicate(true), "rng_state": str(rng.state)}
 
@@ -135,7 +138,9 @@ func checkpoint_valid(raw: Variant) -> bool:
         return false
     if not _whole(data.get("current_tick"), -1, 1000000000):
         return false
-    if not _whole(data.get("budget"), 0, 1000000):
+    if not _whole(data.get("budget"), 0, max_budget):
+        return false
+    if not _whole(data.get("max_budget"), max_budget, max_budget):
         return false
     if not _whole(data.get("max_concurrent"), max_concurrent, max_concurrent):
         return false
@@ -173,7 +178,9 @@ func checkpoint_valid(raw: Variant) -> bool:
         if not (item.get("tags") is Array) or item["tags"] != def["tags"]:
             return false
         active_cost += int(item["cost"])
-    if int(data["budget"]) + active_cost > 1000000:
+    # An event owns the cost it borrowed until resolved or expired.
+    # A corrupt save must never silently mint additional scheduler budget.
+    if int(data["budget"]) + active_cost != max_budget:
         return false
     for event in data["history"]:
         if not (event is Dictionary):

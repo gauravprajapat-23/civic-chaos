@@ -43,6 +43,11 @@ func _run() -> void:
         _fail("invented event instance accepted")
         return
     forged = (data as Dictionary).duplicate(true)
+    forged["budget"] = 1
+    if b.restore_checkpoint(forged):
+        _fail("forged extra available budget accepted while event still active")
+        return
+    forged = (data as Dictionary).duplicate(true)
     forged["budget"] = -1
     if b.restore_checkpoint(forged):
         _fail("negative event budget accepted")
