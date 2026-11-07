@@ -77,24 +77,24 @@ func checkpoint_valid(raw: Variant, pedestrians: Node3D) -> bool:
     var saved_reservations: Dictionary = data["reservations"]
     return int(saved_clock["tick_index"]) == int(saved_traffic["current_tick"]) and int(saved_clock["tick_index"]) == int(saved_reservations["current_tick"])
 
-## The director *and* walker physics must be frozen by the parent transaction.
-## Restore cars first, then walkers and crossing permissions, then signal+tick;
-## if staging fails, the existing road generation stays in place.
+## GAME-020: two-phase commit. While the director/walkers are frozen,
+## stage replacement traffic but RETAIN every old vehicle and counter. The
+## pedestrian collision validation runs against the incoming traffic. On any
+## rejection, abort the staged group; original car nodes never need rebuilding.
 func restore_checkpoint(raw: Variant, pedestrians: Node3D) -> bool:
     if not checkpoint_valid(raw, pedestrians) or simulation.is_physics_processing() or pedestrians.is_physics_processing():
         return false
     var data: Dictionary = raw
-    var old_traffic: Dictionary = traffic_spawner.snapshot()
-    if not traffic_spawner.restore(data["traffic"]):
+    if not traffic_spawner.prepare_restore(data["traffic"]):
         return false
+    # This method preflights all walker destinations before moving any body.
+    # If it returns false, the previous city has not been modified.
     if not bool(pedestrians.call("restore_checkpoint", data["pedestrians"], data["reservations"])):
-        # The pedestrian restore must reject before altering any walker; the
-        # previous vehicle generation is reconstructed best-effort.
-        if not traffic_spawner.restore(old_traffic):
-            push_error("World checkpoint rollback could not reconstruct prior traffic")
+        traffic_spawner.abort_restore()
         return false
-    # Remaining changes are prevalidated and do not depend on live collider
-    # placement, so the restore cannot fail partway through these steps.
+    # No fallible operations remain after actor placement validation.
+    # Values below were validated in checkpoint_valid before staging.
+    traffic_spawner.commit_restore()
     intersection_reservations.restore(data["reservations"])
     traffic_signals.restore(data["signals"])
     simulation.restore_checkpoint(data["clock"])
