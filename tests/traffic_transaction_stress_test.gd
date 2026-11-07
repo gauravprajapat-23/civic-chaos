@@ -18,6 +18,8 @@ func _run() -> void:
         _fail("dense traffic setup failed")
         return
     for tick in range(1, 110):
+        # Spawner may perform physical clearance queries on spawn ticks.
+        await physics_frame
         spawner.advance_fixed(tick, 0.05)
     await physics_frame
     if spawner.active_vehicles.size() < 2:
@@ -35,6 +37,8 @@ func _run() -> void:
         original_layers.append((car.get_node("CollisionBody") as StaticBody3D).collision_layer)
 
     for attempt in range(12):
+        # Staged vehicle restoration performs physical swept/overlap probes.
+        await physics_frame
         if not spawner.prepare_restore(checkpoint):
             _fail("prepare failed before explicit abort on attempt %d" % attempt)
             return
@@ -68,6 +72,7 @@ func _run() -> void:
             _fail("abort mutated the logical traffic tick")
             return
 
+    await physics_frame
     if not spawner.prepare_restore(checkpoint) or not spawner.commit_restore():
         _fail("commit after repeated aborts was unsuccessful")
         return
