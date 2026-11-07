@@ -171,15 +171,18 @@ func _save_gameplay_checkpoint() -> bool:
     return lifecycle.save_player(player, "", payload)
 
 func _load_gameplay_checkpoint() -> bool:
-    var saved: Dictionary = SaveRepo.read_save()
+    var checkpoint: Dictionary = SaveRepo.read_save_detail()
+    var saved: Dictionary = checkpoint.get("data", {})
     if saved.is_empty():
         _on_interaction_message("No valid checkpoint found")
         return false
+    if str(checkpoint.get("source", "primary")) == "backup":
+        _on_interaction_message("Primary checkpoint is invalid or missing. Recovering the verified backup.")
     if not saved.has("civic_session"):
         if is_instance_valid(wrong_way_world) or is_instance_valid(parking_world):
             _on_interaction_message("Old player-only save cannot replace an active civic incident")
             return false
-        return lifecycle.load_player(player)
+        return lifecycle.load_player_snapshot(player, saved)
     var civic: Variant = saved["civic_session"]
     if gameplay_session == null or not gameplay_session.can_restore(civic):
         _on_interaction_message("Checkpoint rejected: invalid civic session")
@@ -272,7 +275,7 @@ func _load_gameplay_checkpoint() -> bool:
         return false
     # The player controller performs collision/floor checks and applies
     # accepted positions on the next physics frame.
-    if not lifecycle.load_player(player):
+    if not lifecycle.load_player_snapshot(player, saved):
         gameplay_session.restore(old_civic)
         if newly_prepared:
             restored_world.queue_free()
