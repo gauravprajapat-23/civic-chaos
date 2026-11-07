@@ -65,6 +65,19 @@ def discover_test_files(registered, root=ROOT):
     return list(dict.fromkeys([*registered, *present]))
 
 
+def negative_path_passed(result):
+    """Only the intentional, *completed* Godot failure is a valid negative test.
+
+    A timeout or missing executable also returns nonzero, but must never be
+    treated as proof that the deliberate failure detector works.
+    """
+    return (
+        result["returncode"] == 1
+        and not result.get("timed_out", False)
+        and "CIVIC_CHAOS_INTENTIONAL_FAILURE" in result["output"]
+    )
+
+
 def has_engine_error(output):
     """Godot errors fail a test even if it printed PASS or exited with zero."""
     return any(
@@ -77,8 +90,10 @@ def run(godot, args, timeout):
     started = time.monotonic()
     try:
         process = subprocess.run([godot, "--headless", "--path", str(ROOT), *args],
-                                 cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+                                 cwd=ROOT, capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace", timeout=timeout)
         return {"returncode": process.returncode, "output": process.stdout + process.stderr,
+                "timed_out": False,
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
     except subprocess.TimeoutExpired as error:
         captured = error.stdout or b""
@@ -88,9 +103,10 @@ def run(godot, args, timeout):
         if isinstance(stderr, bytes):
             stderr = stderr.decode("utf-8", errors="replace")
         return {"returncode": -1, "output": str(error) + "\\n" + captured + "\\n" + stderr,
+                "timed_out": True,
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
     except OSError as error:
-        return {"returncode": -1, "output": str(error),
+        return {"returncode": -1, "output": str(error), "timed_out": False,
                 "elapsed_seconds": round(time.monotonic() - started, 3)}
 
 
@@ -136,6 +152,7 @@ def main():
             engine_error = has_engine_error(first["output"])
             ok = test_passed(name, first)
             entry = {"test": name, "passed": ok, "exit_code": first["returncode"],
+                     "timed_out": first.get("timed_out", False),
                      "engine_error_detected": engine_error,
                      "expected_marker": marker, "markers": markers,
                      "duration_seconds": first["elapsed_seconds"],
@@ -144,7 +161,9 @@ def main():
                 entry["output_tail"] = first["output"][-4000:]
                 entry["failure_reasons"] = [
                     reason for condition, reason in (
-                        (first["returncode"] != 0, "nonzero_exit_or_timeout"),
+                        (first.get("timed_out", False), "timeout"),
+                        (first["returncode"] != 0 and not first.get("timed_out", False),
+                         "nonzero_exit"),
                         (marker not in markers, "expected_pass_marker_missing"),
                         (engine_error, "godot_engine_error"),
                     ) if condition
@@ -173,8 +192,9 @@ def main():
                 failed = True
         negative = run(args.godot, ["--script", "res://tests/smoke_test.gd", "--", "--force-fail"], args.timeout)
         (logs / "intentional-negative-path.log").write_text(negative["output"] + "\n", encoding="utf-8")
-        report["negative_path_passed"] = (negative["returncode"] != 0 and
-                                           "CIVIC_CHAOS_INTENTIONAL_FAILURE" in negative["output"])
+        report["negative_path_passed"] = negative_path_passed(negative)
+        report["negative_path_exit_code"] = negative["returncode"]
+        report["negative_path_timed_out"] = negative.get("timed_out", False)
         failed = failed or not report["negative_path_passed"]
     report["passed"] = not failed
     # The inventory count must not shrink during the run. A subset is not a
