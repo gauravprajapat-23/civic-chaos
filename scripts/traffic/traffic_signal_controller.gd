@@ -115,7 +115,7 @@ func can_restore(data: Variant) -> bool:
 func restore(data: Variant) -> bool:
     if not can_restore(data):
         return false
-    phase = int(data["phase"]) as Phase
+    phase = int(data["phase"])
     phase_elapsed = float(data["phase_elapsed"])
     # Refresh visuals/listeners after a restored phase. Never advance time.
     phase_changed.emit(phase_name())
