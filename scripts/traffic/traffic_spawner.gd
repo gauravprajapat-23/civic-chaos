@@ -198,3 +198,206 @@ func _spawn_occupied(candidate: CivicVehicleAgent) -> bool:
 		if offset.length_squared() < spawn_clearance_m * spawn_clearance_m:
 			return true
 	return false
+
+## GAME-019: background vehicles are ordered by snapshot slot, never
+## runtime ObjectDB IDs. RNG state is decimal text because JSON's float
+## numbers cannot round-trip every signed 64-bit RNG state.
+func snapshot() -> Dictionary:
+    var cars: Array[Dictionary] = []
+    for car in active_vehicles:
+        if not is_instance_valid(car) or not car.active or car.profile == null:
+            continue
+        var route_ids: Array[int] = []
+        for lane_id in car.route:
+            route_ids.append(lane_id)
+        cars.append({
+            "route": route_ids,
+            "route_index": car.current_route_index,
+            "lane_distance": car.lane_distance_m,
+            "speed": car.speed_mps,
+            "target_speed": car.target_speed_mps,
+            "stop_requested": car.stop_requested,
+            "obstacle_checks": car.physics_obstacle_checks_enabled,
+            "delay": float(_vehicle_delay.get(car.get_instance_id(), 0.0)),
+            "profile": {
+                "max_speed": car.profile.maximum_speed_mps,
+                "acceleration": car.profile.acceleration_mps2,
+                "braking": car.profile.braking_mps2,
+                "turn_rate": car.profile.turn_rate_radians,
+                "vehicle_mask": car.profile.vehicle_mask
+            }
+        })
+    return {
+        "schema_version": 1,
+        "seed": seed,
+        "city_mode": city_mode,
+        "current_tick": current_tick,
+        "rng_state": str(rng.state),
+        "spawned_total": spawned_total,
+        "completed_total": completed_total,
+        "rejected_total": rejected_total,
+        "total_delay_seconds": total_delay_seconds,
+        "cars": cars
+    }
+
+static func _finite_number(value: Variant, minimum: float, maximum: float) -> bool:
+    if not (value is float or value is int):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= minimum and number <= maximum
+
+static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
+    if not _finite_number(value, float(minimum), float(maximum)):
+        return false
+    return float(value) == floorf(float(value))
+
+## Never stage a vehicle or overwrite traffic counters before preflight.
+func can_restore(data: Variant) -> bool:
+    if not (data is Dictionary) or road_graph == null:
+        return false
+    if not _whole(data.get("schema_version"), 1, 1):
+        return false
+    if not _whole(data.get("seed"), -1000000000, 1000000000) or int(data["seed"]) != seed:
+        return false
+    if not (data.get("city_mode") is bool) or bool(data["city_mode"]) != city_mode:
+        return false
+    for name in ["current_tick", "spawned_total", "completed_total", "rejected_total"]:
+        if not _whole(data.get(name), 0, 1000000000):
+            return false
+    if int(data["completed_total"]) > int(data["spawned_total"]):
+        return false
+    if not _finite_number(data.get("total_delay_seconds"), 0.0, 1000000000.0):
+        return false
+    if not (data.get("rng_state") is String):
+        return false
+    var state_string: String = data["rng_state"]
+    if not state_string.is_valid_int() or str(int(state_string)) != state_string:
+        return false
+    if not (data.get("cars") is Array) or data["cars"].size() > mini(maximum_active, work_budget.maximum_agents):
+        return false
+    if data["cars"].size() > int(data["spawned_total"]):
+        return false
+    for item in data["cars"]:
+        if not (item is Dictionary):
+            return false
+        if not (item.get("route") is Array):
+            return false
+        var saved_route: Array = item["route"]
+        if saved_route.size() < 2 or saved_route.size() > 8:
+            return false
+        if not _whole(item.get("route_index"), 0, saved_route.size() - 1):
+            return false
+        if not (item.get("profile") is Dictionary):
+            return false
+        var parameters: Dictionary = item["profile"]
+        for param in ["max_speed", "acceleration", "braking", "turn_rate"]:
+            if not _finite_number(parameters.get(param), 0.01, 60.0):
+                return false
+        if not _whole(parameters.get("vehicle_mask"), 1, 255):
+            return false
+        if not (item.get("stop_requested") is bool) or not (item.get("obstacle_checks") is bool):
+            return false
+        for velocity_key in ["speed", "target_speed"]:
+            if not _finite_number(item.get(velocity_key), 0.0, float(parameters["max_speed"]) + 0.01):
+                return false
+        if not _finite_number(item.get("delay"), 0.0, 1000000000.0):
+            return false
+        var lanes: PackedInt32Array = PackedInt32Array()
+        for lane_variant in saved_route:
+            if not _whole(lane_variant, 0, 1000000):
+                return false
+            var lane_id: int = int(lane_variant)
+            var lane: CivicLaneData = road_graph.get_lane(lane_id)
+            if lane == null or lane.is_wrong_way_connector or not lane.is_vehicle_allowed(int(parameters["vehicle_mask"])):
+                return false
+            if not lanes.is_empty() and not road_graph.outgoing_legal_lanes(lanes[lanes.size() - 1], int(parameters["vehicle_mask"])).has(lane_id):
+                return false
+            lanes.append(lane_id)
+        var current_lane: CivicLaneData = road_graph.get_lane(lanes[int(item["route_index"])])
+        if not _finite_number(item.get("lane_distance"), 0.0, current_lane.length_m() + 0.025):
+            return false
+    return true
+
+## Replacing a traffic generation is all-or-nothing: old colliders are
+## disabled temporarily, incoming cars are validated against the live world
+## and each other, and any failed stage restores the original generation.
+## Call only while the simulation director is frozen by the load guard.
+func restore(data: Variant) -> bool:
+    if not can_restore(data):
+        return false
+    var disabled: Array[Dictionary] = []
+    for old in active_vehicles:
+        if not is_instance_valid(old):
+            continue
+        var body := old.get_node_or_null("CollisionBody") as StaticBody3D
+        if body != null:
+            disabled.append({"body": body, "layer": body.collision_layer})
+            body.collision_layer = 0
+    var staged: Array[CivicVehicleAgent] = []
+    var staged_delay: Dictionary = {}
+    var valid: bool = true
+    for item in data["cars"]:
+        var parameters: Dictionary = item["profile"]
+        var vehicle_profile := Profile.new()
+        vehicle_profile.maximum_speed_mps = float(parameters["max_speed"])
+        vehicle_profile.acceleration_mps2 = float(parameters["acceleration"])
+        vehicle_profile.braking_mps2 = float(parameters["braking"])
+        vehicle_profile.turn_rate_radians = float(parameters["turn_rate"])
+        vehicle_profile.vehicle_mask = int(parameters["vehicle_mask"])
+        var route_ids := PackedInt32Array()
+        for raw_lane in item["route"]:
+            route_ids.append(int(raw_lane))
+        var car := VehicleScene.instantiate() as CivicVehicleAgent
+        if car == null:
+            valid = false
+            break
+        add_child(car)
+        if not car.configure(road_graph, route_ids, vehicle_profile):
+            car.free()
+            valid = false
+            break
+        car.current_route_index = int(item["route_index"])
+        var lane: CivicLaneData = road_graph.get_lane(car.route[car.current_route_index])
+        car.lane_distance_m = minf(float(item["lane_distance"]), lane.length_m())
+        car.speed_mps = float(item["speed"])
+        car.target_speed_mps = float(item["target_speed"])
+        car.stop_requested = bool(item["stop_requested"])
+        car.physics_obstacle_checks_enabled = bool(item["obstacle_checks"])
+        car.clear_lead_observation()
+        car._place_on_lane()
+        if car.footprint_blocked_at(car.global_transform):
+            car.free()
+            valid = false
+            break
+        for earlier in staged:
+            var separation: Vector3 = car.global_position - earlier.global_position
+            separation.y = 0.0
+            if separation.length_squared() < 9.0:
+                valid = false
+                break
+        if not valid:
+            car.free()
+            break
+        staged.append(car)
+        staged_delay[car.get_instance_id()] = float(item["delay"])
+    if not valid:
+        for created in staged:
+            if is_instance_valid(created):
+                created.free()
+        for original in disabled:
+            var restored_body: StaticBody3D = original["body"]
+            if is_instance_valid(restored_body):
+                restored_body.collision_layer = int(original["layer"])
+        return false
+    for old in active_vehicles:
+        if is_instance_valid(old):
+            old.free()
+    active_vehicles = staged
+    _vehicle_delay = staged_delay
+    current_tick = int(data["current_tick"])
+    spawned_total = int(data["spawned_total"])
+    completed_total = int(data["completed_total"])
+    rejected_total = int(data["rejected_total"])
+    total_delay_seconds = float(data["total_delay_seconds"])
+    rng.state = int(data["rng_state"])
+    return true
