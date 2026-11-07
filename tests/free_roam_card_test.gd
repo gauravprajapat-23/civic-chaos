@@ -13,7 +13,7 @@ func _run() -> void:
     panel.action_selected.connect(func(action: String) -> void:
         selected.append(action)
     )
-    for action in ["collect_sign", "place_sign", "collect_litter", "deposit_litter"]:
+    for action in ["collect_sign", "place_sign", "collect_litter", "deposit_litter", "collect_cone", "store_cone"]:
         panel.present({"title": "Free Roam",
             "can_inspect": false, "can_report": true,
             "report_action": action, "report_label": action})
