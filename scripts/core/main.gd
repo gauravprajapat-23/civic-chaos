@@ -13,6 +13,7 @@ const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
 const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
+const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
@@ -23,6 +24,7 @@ var civic_hud: CivicStatusHUD
 var gameplay_session: CivicGameplaySession
 var wrong_way_world: CivicWrongWayLiveMission
 var parking_world: CivicIllegalParkingMission
+var cleanup_world: CivicMarketCleanupMission
 var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
@@ -169,6 +171,16 @@ func _save_gameplay_checkpoint() -> bool:
             _on_interaction_message("Parking save rejected: %s" % str(reasons))
             return false
         payload["parking_checkpoint"] = parking_state
+    if is_instance_valid(cleanup_world):
+        if not is_instance_valid(parking_world) or not parking_world.finished:
+            _on_interaction_message("Cleanup save rejected: parking mission is incomplete")
+            return false
+        var cleanup_state: Dictionary = cleanup_world.snapshot()
+        var cleanup_errors: Array = []
+        if not CivicMarketCleanupMission.checkpoint_valid(cleanup_state, civic, cleanup_errors):
+            _on_interaction_message("Cleanup save rejected: %s" % str(cleanup_errors))
+            return false
+        payload["cleanup_checkpoint"] = cleanup_state
     # GAME-019: a generation includes the background world as well as civic
     # mission actors. Reject an incoherent background tick instead of storing
     # an apparently valid player file with incomplete world state.
@@ -196,7 +208,7 @@ func _load_gameplay_checkpoint() -> bool:
     if str(checkpoint.get("source", "primary")) == "backup":
         _on_interaction_message("Primary checkpoint is invalid or missing. Recovering the verified backup.")
     if not saved.has("civic_session"):
-        if is_instance_valid(wrong_way_world) or is_instance_valid(parking_world):
+        if is_instance_valid(wrong_way_world) or is_instance_valid(parking_world) or is_instance_valid(cleanup_world):
             _on_interaction_message("Old player-only save cannot replace an active civic incident")
             return false
         return lifecycle.load_player_snapshot(player, saved)
@@ -206,6 +218,13 @@ func _load_gameplay_checkpoint() -> bool:
         return false
     var has_live: bool = saved.has("wrong_way_checkpoint")
     var has_parking: bool = saved.has("parking_checkpoint")
+    var has_cleanup: bool = saved.has("cleanup_checkpoint")
+    if has_cleanup and not has_parking:
+        _on_interaction_message("Checkpoint rejected: cleanup requires finished parking history")
+        return false
+    if not has_cleanup and is_instance_valid(cleanup_world):
+        _on_interaction_message("Checkpoint predates active cleanup; restart level to restore an earlier campaign stage")
+        return false
     if has_parking and not has_live:
         _on_interaction_message("Checkpoint rejected: parking requires completed wrong-way history")
         return false
@@ -231,6 +250,14 @@ func _load_gameplay_checkpoint() -> bool:
         var reasons: Array = []
         if not CivicIllegalParkingMission.checkpoint_valid(saved["parking_checkpoint"], civic, reasons):
             _on_interaction_message("Checkpoint rejected: invalid parking mission %s" % str(reasons))
+            return false
+    if has_cleanup:
+        if not bool(saved["parking_checkpoint"].get("finished", false)):
+            _on_interaction_message("Checkpoint rejected: market cleanup requires a reopened footpath")
+            return false
+        var cleanup_failures: Array = []
+        if not CivicMarketCleanupMission.checkpoint_valid(saved["cleanup_checkpoint"], civic, cleanup_failures):
+            _on_interaction_message("Checkpoint rejected: invalid market cleanup %s" % str(cleanup_failures))
             return false
     var has_world: bool = saved.has("world_checkpoint")
     var pedestrian_world: Node3D = get_node_or_null("DistrictPedestrians") as Node3D
@@ -261,6 +288,21 @@ func _load_gameplay_checkpoint() -> bool:
             _on_interaction_message("Checkpoint deferred: parking vehicle space is occupied")
             return false
         newly_prepared_parking = true
+    var restored_cleanup: CivicMarketCleanupMission = cleanup_world
+    var newly_prepared_cleanup: bool = false
+    if has_cleanup and not is_instance_valid(restored_cleanup):
+        restored_cleanup = CleanupMission.new() as CivicMarketCleanupMission
+        restored_cleanup.name = "MarketCleanupMission"
+        add_child(restored_cleanup)
+        if not restored_cleanup.prepare_restore(self, player, gameplay_session):
+            restored_cleanup.queue_free()
+            if newly_prepared_parking:
+                restored_parking.queue_free()
+            if newly_prepared:
+                restored_world.queue_free()
+            _on_interaction_message("Checkpoint deferred: cannot stage market cleanup props")
+            return false
+        newly_prepared_cleanup = true
     # GAME-018: pause the involved civic and physical actors for the entire
     # multi-manager application/rollback; restore their previous processing
     # state on every success or failure path.
@@ -268,7 +310,7 @@ func _load_gameplay_checkpoint() -> bool:
     if junction != null:
         background_director = junction.get("simulation") as Node
     var restore_guard: CivicCheckpointTransaction = CheckpointTransaction.new()
-    if not restore_guard.begin([gameplay_session, restored_world, restored_parking, background_director, pedestrian_world]):
+    if not restore_guard.begin([gameplay_session, restored_world, restored_parking, restored_cleanup, background_director, pedestrian_world]):
         return false
     var old_world_state: Dictionary = {}
     if has_world:
@@ -276,11 +318,14 @@ func _load_gameplay_checkpoint() -> bool:
     var old_civic: Dictionary = gameplay_session.snapshot()
     var old_live: Dictionary = wrong_way_world.snapshot() if is_instance_valid(wrong_way_world) else {}
     var old_parking: Dictionary = parking_world.snapshot() if is_instance_valid(parking_world) else {}
+    var old_cleanup: Dictionary = cleanup_world.snapshot() if is_instance_valid(cleanup_world) else {}
     if not gameplay_session.restore(civic):
         if newly_prepared:
             restored_world.queue_free()
         if newly_prepared_parking:
             restored_parking.queue_free()
+        if newly_prepared_cleanup:
+            restored_cleanup.queue_free()
         restore_guard.finish()
         _on_interaction_message("Checkpoint rejected: civic restore failed")
         return false
@@ -292,6 +337,8 @@ func _load_gameplay_checkpoint() -> bool:
             wrong_way_world.restore(old_live)
         if newly_prepared_parking:
             restored_parking.queue_free()
+        if newly_prepared_cleanup:
+            restored_cleanup.queue_free()
         restore_guard.finish()
         _on_interaction_message("Checkpoint rejected: wrong-way world could not be rebuilt")
         return false
@@ -305,8 +352,27 @@ func _load_gameplay_checkpoint() -> bool:
             restored_parking.queue_free()
         elif is_instance_valid(parking_world):
             parking_world.restore(old_parking)
+        if newly_prepared_cleanup:
+            restored_cleanup.queue_free()
         restore_guard.finish()
         _on_interaction_message("Checkpoint rejected: parked vehicle or pedestrian could not be reconstructed")
+        return false
+    if has_cleanup and not restored_cleanup.restore(saved["cleanup_checkpoint"]):
+        gameplay_session.restore(old_civic)
+        if newly_prepared:
+            restored_world.queue_free()
+        elif is_instance_valid(wrong_way_world):
+            wrong_way_world.restore(old_live)
+        if newly_prepared_parking:
+            restored_parking.queue_free()
+        elif is_instance_valid(parking_world):
+            parking_world.restore(old_parking)
+        if newly_prepared_cleanup:
+            restored_cleanup.queue_free()
+        elif is_instance_valid(cleanup_world):
+            cleanup_world.restore(old_cleanup)
+        restore_guard.finish()
+        _on_interaction_message("Checkpoint rejected: litter, bin or worker state could not be restored")
         return false
     # The background world uses the same verified document and is also
     # restored under the director/pedestrian physics guard. Missing world
@@ -321,6 +387,10 @@ func _load_gameplay_checkpoint() -> bool:
             restored_parking.queue_free()
         elif is_instance_valid(parking_world):
             parking_world.restore(old_parking)
+        if newly_prepared_cleanup:
+            restored_cleanup.queue_free()
+        elif is_instance_valid(cleanup_world):
+            cleanup_world.restore(old_cleanup)
         restore_guard.finish()
         _on_interaction_message("Checkpoint rejected: background vehicles or pedestrians cannot be staged safely")
         return false
@@ -336,6 +406,10 @@ func _load_gameplay_checkpoint() -> bool:
             restored_parking.queue_free()
         elif is_instance_valid(parking_world):
             parking_world.restore(old_parking)
+        if newly_prepared_cleanup:
+            restored_cleanup.queue_free()
+        elif is_instance_valid(cleanup_world):
+            cleanup_world.restore(old_cleanup)
         if has_world and not bool(junction.call("restore_checkpoint", old_world_state, pedestrian_world)):
             push_warning("Checkpoint rollback could not restore previous background world")
         restore_guard.finish()
@@ -343,10 +417,15 @@ func _load_gameplay_checkpoint() -> bool:
     if newly_prepared_parking:
         parking_world = restored_parking
         _connect_parking_signals(restored_parking)
+    if newly_prepared_cleanup:
+        cleanup_world = restored_cleanup
+        _connect_cleanup_signals(restored_cleanup)
     if newly_prepared:
         wrong_way_world = restored_world
         _connect_wrong_way_signals(restored_world)
     restore_guard.finish()
+    if has_parking and not has_cleanup and is_instance_valid(restored_parking) and restored_parking.finished:
+        call_deferred("_start_market_cleanup_mission")
     if has_live and not has_parking and is_instance_valid(restored_world) and restored_world.finished:
         call_deferred("_start_illegal_parking_mission")
     if not has_live and gameplay_session.finished:
@@ -417,10 +496,41 @@ func _start_illegal_parking_mission() -> void:
     _refresh_mission_guide()
 
 func _connect_parking_signals(live: CivicIllegalParkingMission) -> void:
+    if not live.mission_completed.is_connected(_on_parking_mission_completed):
+        live.mission_completed.connect(_on_parking_mission_completed)
     if not live.incident_card_requested.is_connected(_on_parking_card_requested):
         live.incident_card_requested.connect(_on_parking_card_requested)
     if not live.feedback_changed.is_connected(_on_interaction_message):
         live.feedback_changed.connect(_on_interaction_message)
+
+## GAME-021 begins only after the real pedestrian has crossed the
+## previously occupied footpath, not merely when the owner says yes.
+func _on_parking_mission_completed() -> void:
+    call_deferred("_start_market_cleanup_mission")
+
+func _start_market_cleanup_mission() -> void:
+    if is_instance_valid(cleanup_world) or gameplay_session == null or not is_instance_valid(parking_world) or not parking_world.finished:
+        return
+    var cleanup: CivicMarketCleanupMission = CleanupMission.new() as CivicMarketCleanupMission
+    cleanup.name = "MarketCleanupMission"
+    add_child(cleanup)
+    if not cleanup.configure(self, player, gameplay_session):
+        cleanup.queue_free()
+        push_warning("Market Clean-Up could not stage its physical items")
+        return
+    cleanup_world = cleanup
+    _connect_cleanup_signals(cleanup)
+    _on_interaction_message("NEW MISSION: Market Clean-Up Chain. Inspect wrappers and use the limited-capacity green bin.")
+    _refresh_mission_guide()
+
+func _connect_cleanup_signals(cleanup: CivicMarketCleanupMission) -> void:
+    if not cleanup.incident_card_requested.is_connected(_on_cleanup_card_requested):
+        cleanup.incident_card_requested.connect(_on_cleanup_card_requested)
+    if not cleanup.feedback_changed.is_connected(_on_interaction_message):
+        cleanup.feedback_changed.connect(_on_interaction_message)
+
+func _on_cleanup_card_requested(state: Dictionary) -> void:
+    _show_incident_card(state, cleanup_world)
 
 func _on_parking_card_requested(state: Dictionary) -> void:
     _show_incident_card(state, parking_world)
@@ -450,7 +560,7 @@ func _on_incident_card_action(action: String) -> void:
     incident_card.render_card(state)
     if accepted and action == "inspect" and not incident_card.report_button.disabled:
         incident_card.report_button.grab_focus()
-    elif accepted and ["report", "request_owner"].has(action):
+    elif accepted and ["report", "request_owner", "collect_litter", "deposit_litter", "request_service"].has(action):
         incident_card.close_button.grab_focus()
 
 func _on_incident_card_dismissed() -> void:
@@ -467,7 +577,9 @@ func _refresh_mission_guide() -> void:
     if mission_guide == null or gameplay_session == null:
         return
     var state: Dictionary = {}
-    if is_instance_valid(parking_world):
+    if is_instance_valid(cleanup_world):
+        state = cleanup_world.guidance_state()
+    elif is_instance_valid(parking_world):
         state = parking_world.guidance_state()
     elif is_instance_valid(wrong_way_world):
         state = wrong_way_world.guidance_state()
