@@ -16,6 +16,7 @@ const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
 const DistrictCampaign = preload("res://scripts/civic/district_campaign.gd")
 const DistrictFinale = preload("res://scripts/ui/district_finale.gd")
+const FreeRoamEvents = preload("res://scripts/civic/free_roam_events.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
@@ -28,6 +29,7 @@ var wrong_way_world: CivicWrongWayLiveMission
 var parking_world: CivicIllegalParkingMission
 var cleanup_world: CivicMarketCleanupMission
 var district_finale: CivicDistrictFinale
+var free_roam_world: CivicFreeRoamEvents
 var free_roam_unlocked: bool = false
 var _finale_acknowledged: bool = false
 var _card_source: Node
@@ -203,6 +205,12 @@ func _save_gameplay_checkpoint() -> bool:
                 _on_interaction_message("Finale save refused: campaign ledger is incomplete")
                 return false
             payload["campaign_checkpoint"] = DistrictCampaign.checkpoint(_finale_acknowledged)
+            if is_instance_valid(free_roam_world):
+                var roaming: Dictionary = free_roam_world.checkpoint_state()
+                if not CivicFreeRoamEvents.checkpoint_valid(roaming, civic):
+                    _on_interaction_message("Free Roam save rejected: event state disagrees with civic ledger")
+                    return false
+                payload["free_roam_checkpoint"] = roaming
     # GAME-019: a generation includes the background world as well as civic
     # mission actors. Reject an incoherent background tick instead of storing
     # an apparently valid player file with incomplete world state.
@@ -242,6 +250,13 @@ func _load_gameplay_checkpoint() -> bool:
     var has_parking: bool = saved.has("parking_checkpoint")
     var has_cleanup: bool = saved.has("cleanup_checkpoint")
     var has_finale: bool = saved.has("campaign_checkpoint")
+    var has_roam: bool = saved.has("free_roam_checkpoint")
+    if has_roam and (not has_finale or not bool(saved["campaign_checkpoint"].get("finale_acknowledged", false))):
+        _on_interaction_message("Checkpoint rejected: active Free Roam requires an acknowledged ending")
+        return false
+    if not has_roam and is_instance_valid(free_roam_world):
+        _on_interaction_message("Checkpoint predates current Free Roam events. Restart level to load this earlier stage.")
+        return false
     if has_finale and not has_cleanup:
         _on_interaction_message("Checkpoint rejected: Free Roam without completed cleanup")
         return false
@@ -293,6 +308,9 @@ func _load_gameplay_checkpoint() -> bool:
     if has_cleanup and bool(saved["cleanup_checkpoint"].get("finished", false)) and not DistrictCampaign.can_unlock(
             civic, saved["wrong_way_checkpoint"], saved["parking_checkpoint"], saved["cleanup_checkpoint"]):
         _on_interaction_message("Checkpoint rejected: completed cleanup is missing campaign achievements")
+        return false
+    if has_roam and not CivicFreeRoamEvents.checkpoint_valid(saved["free_roam_checkpoint"], civic):
+        _on_interaction_message("Checkpoint rejected: invalid Free Roam events or duplicated civic resolution")
         return false
     var has_world: bool = saved.has("world_checkpoint")
     var pedestrian_world: Node3D = get_node_or_null("DistrictPedestrians") as Node3D
@@ -463,6 +481,8 @@ func _load_gameplay_checkpoint() -> bool:
     _finale_acknowledged = bool(saved["campaign_checkpoint"]["finale_acknowledged"]) if has_finale else false
     if district_finale != null:
         district_finale.set_unlocked(free_roam_unlocked)
+    if free_roam_unlocked and _finale_acknowledged:
+        _start_free_roam_events(saved.get("free_roam_checkpoint", {}))
     if free_roam_unlocked and not _finale_acknowledged:
         call_deferred("_present_campaign_finale")
     if has_parking and not has_cleanup and is_instance_valid(restored_parking) and restored_parking.finished:
@@ -628,8 +648,34 @@ func _on_finale_continue() -> void:
     if touch_layer != null:
         touch_layer.visible = true
     _refresh_mission_guide()
-    _on_interaction_message("FREE ROAM UNLOCKED | Explore Market Chowk. F2: district results. F5: save.")
+    _start_free_roam_events()
+    _on_interaction_message("FREE ROAM UNLOCKED | Explore Market Chowk. Civic events will appear periodically.")
     call_deferred("_save_free_roam_acknowledgement")
+
+func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
+    if not free_roam_unlocked or not _finale_acknowledged or gameplay_session == null or player == null:
+        return
+    if not is_instance_valid(free_roam_world):
+        var world: CivicFreeRoamEvents = FreeRoamEvents.new() as CivicFreeRoamEvents
+        world.name = "FreeRoamEvents"
+        add_child(world)
+        if not world.configure(player, gameplay_session):
+            world.queue_free()
+            push_warning("Free Roam events could not start; district exploration remains available")
+            return
+        free_roam_world = world
+        world.incident_card_requested.connect(_on_free_roam_card_requested)
+        world.feedback_changed.connect(_on_interaction_message)
+        world.incident_resolved.connect(_on_free_roam_event_resolved)
+    if not saved_state.is_empty() and not free_roam_world.restore_checkpoint(saved_state):
+        push_warning("Free Roam event state could not be rehydrated; avoid overwriting the saved checkpoint")
+
+func _on_free_roam_card_requested(state: Dictionary) -> void:
+    _show_incident_card(state, free_roam_world)
+
+func _on_free_roam_event_resolved(kind: String) -> void:
+    _on_interaction_message("CIVIC ACTION COMPLETE | %s | City scores updated from real cleanup." % kind)
+    _refresh_mission_guide()
 
 func _save_free_roam_acknowledgement() -> void:
     if free_roam_unlocked and _finale_acknowledged:
@@ -672,7 +718,7 @@ func _on_incident_card_action(action: String) -> void:
     incident_card.render_card(state)
     if accepted and action == "inspect" and not incident_card.report_button.disabled:
         incident_card.report_button.grab_focus()
-    elif accepted and ["report", "request_owner", "collect_litter", "deposit_litter", "request_service"].has(action):
+    elif accepted and ["report", "request_owner", "collect_litter", "deposit_litter", "request_service", "collect_sign", "place_sign"].has(action):
         incident_card.close_button.grab_focus()
 
 func _on_incident_card_dismissed() -> void:
@@ -690,13 +736,16 @@ func _refresh_mission_guide() -> void:
         return
     var state: Dictionary = {}
     if free_roam_unlocked:
-        state = {
-            "title": "Free Roam | Market Chowk",
-            "objective": "Campaign complete. Explore the city or press F2 / District Results.",
-            "speaker": "Neighborhood Radio",
-            "dialogue": "Your actions improved the district. The streets and public spaces are yours to explore.",
-            "has_target": false, "recovery_available": false
-        }
+        if is_instance_valid(free_roam_world):
+            state = free_roam_world.guidance_state()
+        else:
+            state = {
+                "title": "Free Roam | Market Chowk",
+                "objective": "Campaign complete. Explore the city or press F2 / District Results.",
+                "speaker": "Neighborhood Radio",
+                "dialogue": "Public-space civic activities will appear while you explore.",
+                "has_target": false, "recovery_available": false
+            }
     elif is_instance_valid(cleanup_world):
         state = cleanup_world.guidance_state()
     elif is_instance_valid(parking_world):
@@ -807,7 +856,15 @@ func _process(delta: float) -> void:
     if free_roam_unlocked:
         state["mission"] = {"id": "district_free_roam", "state": "unlocked",
             "progress": {}, "objectives": []}
-        state["incidents"] = 0
-        state["feedback"] = "FREE ROAM UNLOCKED  |  F2 District Results"
+        if is_instance_valid(free_roam_world):
+            var roam_metrics: Dictionary = free_roam_world.hud_state()
+            state.merge(roam_metrics, true)
+            state["incidents"] = 1 if not free_roam_world.active_event.is_empty() else 0
+            state["scores"] = gameplay_session.metrics.scores.duplicate(true)
+            state["reputation"] = gameplay_session.metrics.reputation()
+            state["feedback"] = free_roam_world.feedback
+        else:
+            state["incidents"] = 0
+            state["feedback"] = "FREE ROAM UNLOCKED  |  F2 District Results"
     state["traffic"] = metrics
     civic_hud.render_state(state)
