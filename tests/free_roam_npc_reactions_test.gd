@@ -9,7 +9,7 @@ func _initialize() -> void:
 func _run() -> void:
     var stage := Node3D.new()
     root.add_child(stage)
-    var walkers: Node3D = Pedestrians.new()
+    var walkers = Pedestrians.new()
     stage.add_child(walkers)
     if walkers._walkers.is_empty():
         _fail("no pedestrians in neighborhood")
