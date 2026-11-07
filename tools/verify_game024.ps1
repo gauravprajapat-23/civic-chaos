@@ -38,6 +38,17 @@ function Write-Gate {
     Write-Host ("GAME-024 gate: " + $gate.status)
 }
 
+function Get-SourceChanges {
+    # build/ contains generated reports and Godot export artifacts.
+    # Everything else (including newly added but untracked test scripts)
+    # is source until committed. A clean SHA must cover *all* test code.
+    $changes = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Git source status check failed"
+    }
+    return $changes
+}
+
 function Run-Local {
     param([string[]]$Arguments, [string]$LogName)
     # Redirect streams to files so verbose or hung fixtures cannot deadlock.
@@ -83,6 +94,9 @@ function Run-Local {
 
 Push-Location $root
 try {
+    # Immediately replace any previously passing gate report with a pending
+    # status. A crash during a fresh run cannot leave stale success visible.
+    Write-Gate
     $gate.branch = (& git branch --show-current | Out-String).Trim()
     $gate.commit = (& git rev-parse HEAD | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $gate.commit -notmatch '^[0-9a-f]{40}$') {
@@ -95,9 +109,9 @@ try {
         Write-Gate
         exit 1
     }
-    $trackedChanges = (& git status --porcelain --untracked-files=no | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or -not [string]::IsNullOrWhiteSpace($trackedChanges)) {
-        $gate.reason = "Uncommitted tracked source changes: commit or stash before acceptance."
+    $sourceChanges = Get-SourceChanges
+    if (-not [string]::IsNullOrWhiteSpace($sourceChanges)) {
+        $gate.reason = "Uncommitted tracked or untracked source changes: commit or stash before acceptance."
         Write-Gate
         exit 1
     }
@@ -185,9 +199,9 @@ try {
         exit 1
     }
     $currentCommit = (& git rev-parse HEAD | Out-String).Trim()
-    $trackedChanges = (& git status --porcelain --untracked-files=no | Out-String).Trim()
-    $gate.source_unchanged = ($LASTEXITCODE -eq 0 -and $currentCommit -eq $gate.commit -and
-        [string]::IsNullOrWhiteSpace($trackedChanges))
+    $sourceChanges = Get-SourceChanges
+    $gate.source_unchanged = ($currentCommit -eq $gate.commit -and
+        [string]::IsNullOrWhiteSpace($sourceChanges))
     if (-not $gate.source_unchanged) {
         $gate.reason = "Source commit or tracked files changed during verification."
         Write-Gate
