@@ -14,6 +14,9 @@ func _environment() -> Dictionary:
     stage.add_child(actor)
     var session := Session.new() as CivicGameplaySession
     stage.add_child(session)
+    # Free Roam drives its own logical event tick in this isolated fixture.
+    # Awaited physics frames must not independently advance tutorial metrics.
+    session.set_physics_process(false)
     if not session.configure(stage, actor):
         return {}
     var events := FreeRoam.new() as CivicFreeRoamEvents
