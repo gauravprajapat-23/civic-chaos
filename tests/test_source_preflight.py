@@ -50,6 +50,13 @@ class SourcePreflightTests(unittest.TestCase):
         )
         self.assertTrue(preflight.check_project(self.root)["passed"])
 
+    def test_commented_preloads_are_not_real_dependencies(self):
+        (self.root / "scripts/npc.gd").write_text(
+            'class_name CivicTestActor\n# preload("res://scripts/obsolete.gd")\n',
+            encoding="utf-8"
+        )
+        self.assertTrue(preflight.check_project(self.root)["passed"])
+
     def test_parent_reference_rejected(self):
         (self.root / "scripts/npc.gd").write_text(
             'class_name CivicTestActor\nconst A = preload("res://../outside.gd")\n',
