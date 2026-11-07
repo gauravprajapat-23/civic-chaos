@@ -12,22 +12,22 @@ func _run() -> void:
     if loaded == null:
         _fail("NPC personality GDScript could not be loaded")
         return
-    var direct: Resource = Personality.new()
+    var direct: CivicNpcPersonality = Personality.new() as CivicNpcPersonality
     if direct == null or direct.get_script() != loaded:
         _fail("NPC personality preload constructed the wrong script resource")
         return
     if not direct.validate().is_empty():
         _fail("NPC personality factory defaults are invalid")
         return
-    var seeded: Resource = Personality.seeded(2025)
-    var replay: Resource = Personality.seeded(2025)
+    var seeded: CivicNpcPersonality = Personality.seeded(2025) as CivicNpcPersonality
+    var replay: CivicNpcPersonality = Personality.seeded(2025) as CivicNpcPersonality
     if seeded == null or replay == null:
         _fail("seeded NPC personality factory failed to construct a resource")
         return
     if seeded.to_data() != replay.to_data() or not seeded.validate().is_empty():
         _fail("seeded personality was not deterministic or valid")
         return
-    var copied: Resource = Personality.from_data(seeded.to_data())
+    var copied: CivicNpcPersonality = Personality.from_data(seeded.to_data()) as CivicNpcPersonality
     if copied == null or copied.to_data() != seeded.to_data():
         _fail("NPC personality save-data factory failed exact state roundtrip")
         return
