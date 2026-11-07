@@ -45,6 +45,21 @@ This new layer remains disconnected from live `district_pedestrians.gd` until GA
 
 **Not yet completed:** No call site is wired into `district_pedestrians.gd`, `main.gd` or the world checkpoint transaction. There is no live movement variation until GAME-024 has a recorded passing report for the accepted source revision and this draft passes Godot 4.7.2 import + full local regression. Do not interpret draft commits as GAME-025-A3 accepted or shipped.
 
+## 025-A3 next slice — Opt-in physical walker integration (committed, disabled by default)
+
+The current `district_pedestrians.gd` has a **test-only, explicitly enabled** `configure_daily_routine_preview()` API. The normal `Main` scene never calls it. It does not change the default eight-walker movement, traffic signals, player interaction or campaign scoring. Once enabled in a controlled test, the regular collision-safe walker advances toward a mapped sidewalk stop. On reaching a clear stationary activity site, the routine can suppress a movement step without recording a blocked-frame stall. When the scheduled phase changes, the walker continues along the **existing route**, not a newly invented teleportation path.
+
+The physically authoritative checks remain first: overlapping player recovery, yielding, traffic-signal permission and crossing reservations. A scheduler may never pause an actor inside the junction or holding a crossing reservation. Routine tick progression is explicitly driven by `advance_daily_routine_tick(tick)`; future live integration must call it from `FourWayJunction.simulation.clock.tick_index`, not wall time or per-frame delta.
+
+**Checkpoint behavior:** Normal gameplay still emits the existing v1 pedestrian schema. Explicit preview sessions emit v2 with a canonical schedule checkpoint. The pedestrian validator rejects a missing or forged agenda and refuses v1 restore into a running v2 routine session. The `JunctionScene` world-validator additionally rejects a routine tick differing from the saved authoritative simulation tick. V2 restore is currently for opt-in draft tests only; full live v1-to-v2 migration is reserved for the post-GAME-024 enablement gate.
+
+Two new isolated Godot tests are registered in the local regression suite:
+
+- `npc_routine_preview_physics_test.gd`: real physics-frame sidewalk approach, safe rest, no stall counter, active-crossing veto, nearby player clearance, resuming after phase change, v1 baseline and v2 checkpoint integrity.
+- `npc_routine_world_clock_test.gd`: world snapshot with routine preview disabled/enabled, JSON round-trip, rejection of a one-tick discrepancy between schedule and the district simulation clock, and normal frozen restore.
+
+**Gate remains open.** No Godot executable is available in the authoring runtime and no GAME-024 local acceptance report has been supplied. This code is not enabled in `main.gd`, not merged into the playable branch and has not been Godot runtime verified. After GAME-024 passes, run all new GAME-025 tests before wiring real-time simulation ticks or exposing the feature to players.
+
 ## Verify GAME-024 first (on Windows)
 
 ```powershell
@@ -71,6 +86,10 @@ if ($LASTEXITCODE -ne 0) { throw "NPC routine test failed" }
 if ($LASTEXITCODE -ne 0) { throw "NPC routine intent test failed" }
 & $godot --headless --path . --script res://tests/npc_routine_world_adapter_test.gd
 if ($LASTEXITCODE -ne 0) { throw "NPC physical routine adapter test failed" }
+& $godot --headless --path . --script res://tests/npc_routine_preview_physics_test.gd
+if ($LASTEXITCODE -ne 0) { throw "NPC physical routine preview test failed" }
+& $godot --headless --path . --script res://tests/npc_routine_world_clock_test.gd
+if ($LASTEXITCODE -ne 0) { throw "NPC schedule world clock test failed" }
 ```
 
 This test can prove the *model* works, but does **not** authorize enabling routines in the existing city before the GAME-024 acceptance gate.
