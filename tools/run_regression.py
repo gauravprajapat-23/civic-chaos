@@ -55,6 +55,16 @@ def missing_test_files(tests, root=ROOT):
     return [name for name in tests if not (root / "tests" / name).is_file()]
 
 
+def discover_test_files(registered, root=ROOT):
+    """Preserve mandatory fixtures and also run every newly authored fixture.
+
+    Do not silently skip registered tests removed from disk: the caller
+    checks the returned inventory with missing_test_files before import.
+    """
+    present = sorted(path.name for path in (root / "tests").glob("*_test.gd"))
+    return list(dict.fromkeys([*registered, *present]))
+
+
 def has_engine_error(output):
     """Godot errors fail a test even if it printed PASS or exited with zero."""
     return any(
@@ -93,13 +103,15 @@ def main():
     workflow = WORKFLOW.read_text(encoding="utf-8")
     tests = list(dict.fromkeys(re.findall(r"res://tests/([\w-]+_test\.gd)", workflow)))
     tests.extend(("traffic_stop_line_test.gd", "traffic_braking_test.gd", "world_collision_test.gd", "pedestrian_collision_test.gd", "vehicle_obstacle_test.gd", "city_traffic_test.gd", "surface_player_test.gd", "player_pedestrian_contact_test.gd", "player_vehicle_contact_test.gd", "player_safe_restore_test.gd", "pedestrian_crowd_avoidance_test.gd", "pedestrian_spawn_separation_test.gd", "building_distance_lod_test.gd", "city_signal_stop_line_test.gd", "vehicle_world_obstacle_test.gd", "vehicle_spawn_occupancy_test.gd", "gameplay_session_test.gd", "two_way_lane_separation_test.gd", "pedestrian_crossing_recovery_test.gd", "gameplay_persistence_test.gd", "gameplay_incident_card_test.gd", "wrong_way_live_mission_test.gd", "wrong_way_report_post_test.gd", "authorized_tow_route_test.gd", "authorized_tow_obstacle_test.gd", "wrong_way_checkpoint_test.gd", "mission_guide_test.gd", "mission_guidance_flow_test.gd", "illegal_parking_live_test.gd", "illegal_parking_obstacle_test.gd", "parking_owner_card_test.gd", "parking_checkpoint_test.gd", "multi_incident_checkpoint_test.gd", "save_resilience_test.gd", "checkpoint_transaction_test.gd", "save_generation_consistency_test.gd", "world_traffic_checkpoint_test.gd", "world_junction_checkpoint_test.gd", "world_pedestrian_checkpoint_test.gd", "world_transaction_rollback_test.gd", "traffic_transaction_stress_test.gd", "market_cleanup_live_test.gd", "market_cleanup_checkpoint_test.gd", "market_cleanup_card_test.gd", "district_campaign_unlock_test.gd", "district_finale_ui_test.gd", "district_finale_checkpoint_test.gd", "free_roam_director_checkpoint_test.gd", "free_roam_live_events_test.gd", "free_roam_event_restart_test.gd", "free_roam_card_test.gd", "free_roam_expiry_test.gd", "free_roam_dynamic_locations_test.gd", "free_roam_npc_reactions_test.gd", "free_roam_legacy_migration_test.gd", "npc_utility_test.gd"))
-    tests = list(dict.fromkeys(tests))
+    tests = discover_test_files(tests)
     # Never silently turn missing regression files into a green run.
     missing = missing_test_files(tests)
     report = {"schema_version": 1, "godot": args.godot, "tests": [],
               "expected_test_count": len(tests), "missing_tests": missing,
               "passed": False}
     destination = ROOT / args.report
+    logs = ROOT / "build" / "regression-logs"
+    logs.mkdir(parents=True, exist_ok=True)
     if not tests or missing:
         print("FAIL regression inventory: %s missing test(s): %s" %
               (len(missing), ", ".join(missing)), file=sys.stderr)
@@ -117,6 +129,8 @@ def main():
         for name in tests:
             command = ["--script", "res://tests/" + name]
             first = run(args.godot, command, args.timeout)
+            log_path = logs / (name + ".log")
+            log_path.write_text(first["output"] + "\n", encoding="utf-8")
             marker = expected_pass_marker(name)
             markers = extract_pass_markers(first["output"])
             engine_error = has_engine_error(first["output"])
@@ -124,20 +138,41 @@ def main():
             entry = {"test": name, "passed": ok, "exit_code": first["returncode"],
                      "engine_error_detected": engine_error,
                      "expected_marker": marker, "markers": markers,
-                     "duration_seconds": first["elapsed_seconds"]}
+                     "duration_seconds": first["elapsed_seconds"],
+                     "log": str(log_path.relative_to(ROOT)).replace(os.sep, "/")}
+            if not ok:
+                entry["output_tail"] = first["output"][-4000:]
+                entry["failure_reasons"] = [
+                    reason for condition, reason in (
+                        (first["returncode"] != 0, "nonzero_exit_or_timeout"),
+                        (marker not in markers, "expected_pass_marker_missing"),
+                        (engine_error, "godot_engine_error"),
+                    ) if condition
+                ]
             if name in REPLAY and ok:
                 second = run(args.godot, command, args.timeout)
+                with log_path.open("a", encoding="utf-8") as logfile:
+                    logfile.write("\n=== DETERMINISTIC REPLAY ===\n" + second["output"] + "\n")
                 second_markers = extract_pass_markers(second["output"])
                 entry["replay_passed"] = (test_passed(name, second) and
                                           second_markers == markers)
                 ok = ok and entry["replay_passed"]
                 entry["passed"] = ok
+                if not ok:
+                    entry["replay_output_tail"] = second["output"][-4000:]
+                    entry.setdefault("failure_reasons", []).append("deterministic_replay_failed")
             report["tests"].append(entry)
+            report["passed"] = False
+            # Write incrementally: a later crash leaves evidence of completed
+            # tests instead of an empty or stale acceptance report.
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
             print(("PASS" if ok else "FAIL") + " " + name, flush=True)
             if not ok:
                 print(first["output"][-3000:], file=sys.stderr)
                 failed = True
         negative = run(args.godot, ["--script", "res://tests/smoke_test.gd", "--", "--force-fail"], args.timeout)
+        (logs / "intentional-negative-path.log").write_text(negative["output"] + "\n", encoding="utf-8")
         report["negative_path_passed"] = (negative["returncode"] != 0 and
                                            "CIVIC_CHAOS_INTENTIONAL_FAILURE" in negative["output"])
         failed = failed or not report["negative_path_passed"]
