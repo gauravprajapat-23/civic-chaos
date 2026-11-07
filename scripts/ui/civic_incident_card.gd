@@ -103,7 +103,7 @@ func render_card(data: Dictionary) -> void:
     # Existing civic cards keep their Report action. An owner request has
     # its own explicit gameplay action; the UI cannot invent permissions.
     var report_action: String = str(data.get("report_action", "report"))
-    if not ["report", "request_owner", "collect_litter", "deposit_litter", "request_service", "collect_sign", "place_sign"].has(report_action):
+    if not ["report", "request_owner", "collect_litter", "deposit_litter", "request_service", "collect_sign", "place_sign", "collect_cone", "store_cone"].has(report_action):
         report_action = "report"
     report_button.set_meta("report_action", report_action)
     report_button.text = str(data.get("report_label", "Report to Municipal Service"))
