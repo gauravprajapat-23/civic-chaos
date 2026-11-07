@@ -8,7 +8,7 @@ const Intent = preload("res://scripts/npc/npc_routine_intent.gd")
 const Stops = preload("res://scripts/npc/npc_routine_waypoints.gd")
 
 var _clock: CivicNPCRoutines
-var _enabled: bool = false
+var _seed: int = Routines.DEFAULT_SEED
 
 func configure(agent_count: int, seed_value: int = Routines.DEFAULT_SEED) -> bool:
     if _clock != null:
@@ -17,6 +17,7 @@ func configure(agent_count: int, seed_value: int = Routines.DEFAULT_SEED) -> boo
     if not next_clock.configure(agent_count, seed_value):
         return false
     _clock = next_clock
+    _seed = seed_value
     return true
 
 func advance_to_simulation_tick(tick: int) -> bool:
@@ -66,7 +67,7 @@ func inspect_walker(pedestrians: Node3D, index: int) -> Dictionary:
             # vehicles and buildings. The adapter never invents a shortcut.
             point_clear = bool(pedestrians.call("_recovery_position_is_clear", index, root.position))
     var suggestion: Dictionary = Intent.decide(
-        index, _clock.current_tick(), int(_clock.checkpoint_state()["seed"]),
+        index, _clock.current_tick(), _seed,
         occupied_crossing, reserved_crossing, false, reached and on_lane and point_clear
     )
     if suggestion.is_empty():
