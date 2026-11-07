@@ -78,11 +78,17 @@ func render_state(state: Dictionary) -> void:
     var event_name: String = str(state.get("free_roam_event", ""))
     roam_label.visible = state.has("free_roam_resolved")
     if roam_label.visible:
-        roam_label.text = "FREE ROAM | Completed %d  Missed %d%s" % [
+        roam_label.text = "FREE ROAM | Completed %d  Missed %d" % [
             int(state.get("free_roam_resolved", 0)),
-            int(state.get("free_roam_expired", 0)),
-            "  ACTIVE" if not event_name.is_empty() else ""
+            int(state.get("free_roam_expired", 0))
         ]
+        if not event_name.is_empty():
+            var category: String = event_name.replace("_", " ").capitalize()
+            var location_id: String = str(state.get("free_roam_location", ""))
+            roam_label.text += "\nACTIVE | %s%s" % [
+                category, " | PRIORITY" if bool(state.get("free_roam_priority", false)) else ""]
+            if not location_id.is_empty():
+                roam_label.text += "\nDISTRICT | %s" % location_id.replace("_", " ").capitalize()
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
 
 func current_state() -> Dictionary:
