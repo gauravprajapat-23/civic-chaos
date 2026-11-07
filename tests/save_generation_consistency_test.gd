@@ -45,7 +45,10 @@ func _run() -> void:
     if lifecycle.can_load_player_snapshot(player, {"player": {"x": INF, "y": 0.0, "z": 0.0, "yaw": 0.0}}):
         _fail("non-finite player save passed transaction preflight")
         return
-    if lifecycle.can_load_player_snapshot(Node3D.new(), _payload(1.0)):
+    var detached := Node3D.new()
+    var accepted_detached: bool = lifecycle.can_load_player_snapshot(detached, _payload(1.0))
+    detached.free()
+    if accepted_detached:
         _fail("unmounted or unsupported player passed transaction preflight")
         return
     if not Repo.write_save(_payload(-3.0), PATH):
