@@ -60,6 +60,25 @@ Two new isolated Godot tests are registered in the local regression suite:
 
 **Gate remains open.** No Godot executable is available in the authoring runtime and no GAME-024 local acceptance report has been supplied. This code is not enabled in `main.gd`, not merged into the playable branch and has not been Godot runtime verified. After GAME-024 passes, run all new GAME-025 tests before wiring real-time simulation ticks or exposing the feature to players.
 
+## 025-A4 — Opt-in authoritative city-clock bridge (staged, OFF by default)
+
+The additional `scripts/npc/npc_routine_clock_bridge.gd` is a separate explicit `CivicNPCRoutineClockBridge` that listens to the existing `SimulationDirector.simulation_tick` signal. It is not connected or instantiated anywhere in the main gameplay scene.
+
+- `attach()` refuses pedestrians without an explicitly enabled routine preview, duplicate attachments, missing scene owners, or incompatible tick progression.
+- Initial sync uses the current authoritative city simulation tick; subsequent updates come from the same fixed-step signal that drives traffic and intersection reservations.
+- `detach()` removes the signal connection; pausing simulation leaves both the city and routine clock unchanged.
+- If the director reports a stale or inconsistent tick, the bridge detaches rather than advance a second timeline.
+- `tests/npc_routine_clock_bridge_test.gd` checks the opt-in gate, real fixed-step ticks, pause/resume, duplicate connection rejection, and complete disconnect behavior.
+
+Run the focused test only after the GAME-024 verification gate:
+
+```powershell
+& $godot --headless --path . --script res://tests/npc_routine_clock_bridge_test.gd
+if ($LASTEXITCODE -ne 0) { throw "NPC city-clock bridge test failed" }
+```
+
+**Remaining:** No end-user enablement, crowd scaling, route changes, or save-migration rollout is authorized until GAME-024 and all new 025-A regressions pass on Godot 4.7.2. This source-only milestone does not claim a passing local engine test.
+
 ## Verify GAME-024 first (on Windows)
 
 ```powershell
