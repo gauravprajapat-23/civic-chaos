@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-07
 **Branch:** `fix/regression-nov05`
-**Status:** Source implemented and committed; **Godot 4.7.2 execution pending**.
+**Status:** Source committed; Godot 4.7.2 runtime acceptance pending (not yet tested).
 
 ## Purpose and finding
 

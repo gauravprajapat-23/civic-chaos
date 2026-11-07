@@ -29,7 +29,9 @@ func _run() -> void:
         return
     var originals: Array[CivicVehicleAgent] = spawner.active_vehicles.duplicate()
     var original_layers: Array[int] = []
+    var original_ids: Array[int] = []
     for car in originals:
+        original_ids.append(car.get_instance_id())
         original_layers.append((car.get_node("CollisionBody") as StaticBody3D).collision_layer)
 
     for attempt in range(12):
@@ -74,7 +76,7 @@ func _run() -> void:
         return
     for index in range(originals.size()):
         var replacement: CivicVehicleAgent = spawner.active_vehicles[index]
-        if not is_instance_valid(replacement) or replacement == originals[index]:
+        if not is_instance_valid(replacement) or replacement.get_instance_id() == original_ids[index]:
             _fail("commit failed to replace generation exactly once")
             return
         if (replacement.get_node("CollisionBody") as StaticBody3D).collision_layer != original_layers[index]:
