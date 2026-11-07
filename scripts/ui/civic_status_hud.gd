@@ -7,6 +7,7 @@ var incidents_label: Label
 var reputation_label: Label
 var dimensions_label: Label
 var traffic_label: Label
+var roam_label: Label
 var feedback_label: Label
 var _last_state: Dictionary = {}
 
@@ -28,6 +29,7 @@ func _ready() -> void:
     reputation_label = _line(content)
     dimensions_label = _line(content)
     traffic_label = _line(content)
+    roam_label = _line(content)
     feedback_label = _line(content)
     render_state({})
 
@@ -72,6 +74,14 @@ func render_state(state: Dictionary) -> void:
         traffic_label.text += "\nWRONG WAY | Stopped %d  Peak %d" % [
             maxi(0, int(traffic["wrong_way_queue"])),
             maxi(0, int(traffic.get("wrong_way_peak", 0)))
+        ]
+    var event_name: String = str(state.get("free_roam_event", ""))
+    roam_label.visible = state.has("free_roam_resolved")
+    if roam_label.visible:
+        roam_label.text = "FREE ROAM | Completed %d  Missed %d%s" % [
+            int(state.get("free_roam_resolved", 0)),
+            int(state.get("free_roam_expired", 0)),
+            "  ACTIVE" if not event_name.is_empty() else ""
         ]
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
 

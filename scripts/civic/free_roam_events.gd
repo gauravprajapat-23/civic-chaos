@@ -77,6 +77,11 @@ func _physics_process(delta: float) -> void:
         return
     if previous_instance > 0 and not director.active.has(previous_instance):
         _expire_event()
+        # Director may schedule another definition on the expiry tick.
+        # Release that scheduling slot, then honor the explicit cooldown.
+        if str(result.get("started", "")) != "":
+            director.resolve_instance(int(result["instance"]), tick)
+        return
     var kind: String = str(result.get("started", ""))
     if kind != "" and active_event.is_empty():
         if not _start_event(kind, int(result["instance"])):
@@ -202,14 +207,21 @@ func perform_incident_action(actor: Node, action: String) -> bool:
 func _resolve_event() -> bool:
     var id: int = int(active_event["incident_id"])
     var instance: int = int(active_event["instance"])
+    var outcome_id: String = "free_roam:%d:resolved" % id
+    if tick < session.incidents.current_tick or tick < session.metrics.last_tick or session.metrics.processed_events.has(outcome_id):
+        return false
+    if not director.active.has(instance):
+        return false
     if not session.incidents.transition(id, CivicIncidentManager.INTERVENTION, tick, "player_handled_physical_object"):
         return false
     if not session.incidents.transition(id, CivicIncidentManager.RESOLVED, tick, "object_placed_in_safe_destination"):
         return false
     var kind: String = str(active_event["kind"])
     var changes: Dictionary = {"cooperation": 2, "trust": 1} if kind == LITTER else {"safety": 2, "efficiency": 1}
-    session.metrics.apply_outcome("free_roam:%d:resolved" % id, tick,
-        changes, "physical_civic_intervention")
+    if not session.metrics.apply_outcome(outcome_id, tick,
+            changes, "physical_civic_intervention"):
+        push_error("Free Roam civic metrics rejected a prevalidated physical outcome")
+        return false
     director.resolve_instance(instance, tick)
     resolved_total += 1
     active_event = {}
