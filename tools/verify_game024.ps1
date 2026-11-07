@@ -5,7 +5,7 @@ param(
     [string]$Python = "python",
     [int]$Timeout = 120,
     [string]$ExpectedBranch = "feat/game-024-dynamic-free-roam",
-    [int]$MinimumTestCount = 90
+    [int]$MinimumTestCount = 92
 )
 
 $ErrorActionPreference = "Stop"
@@ -109,8 +109,8 @@ try {
         Write-Gate
         exit 1
     }
-    if ($MinimumTestCount -lt 90 -or $Timeout -lt 1) {
-        $gate.reason = "Unsafe acceptance configuration: require at least 90 tests and a positive timeout."
+    if ($MinimumTestCount -lt 92 -or $Timeout -lt 1) {
+        $gate.reason = "Unsafe acceptance configuration: require at least 92 tests and a positive timeout."
         Write-Gate
         exit 1
     }
