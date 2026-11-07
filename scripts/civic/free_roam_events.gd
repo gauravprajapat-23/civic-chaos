@@ -323,6 +323,15 @@ static func checkpoint_valid(raw: Variant, civic: Variant) -> bool:
     var processed: Variant = civic["metrics"].get("processed_events")
     if not (processed is Dictionary):
         return false
+    # Every Free Roam credit comes from a unique audited outcome. Do not
+    # accept a saved counter that claims work not recorded by civic metrics.
+    var receipts: int = 0
+    for event_key in (processed as Dictionary).keys():
+        var event_name: String = str(event_key)
+        if event_name.begins_with("free_roam:") and event_name.ends_with(":resolved"):
+            receipts += 1
+    if receipts != int(data["resolved_total"]):
+        return false
     if not live.is_empty():
         var id: int = int(live["incident_id"])
         if not manager.incidents.has(id) or (processed as Dictionary).has("free_roam:%d:resolved" % id):
