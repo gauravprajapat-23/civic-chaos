@@ -190,6 +190,9 @@ func _load_gameplay_checkpoint() -> bool:
     if saved.is_empty():
         _on_interaction_message("No valid checkpoint found")
         return false
+    if not lifecycle.can_load_player_snapshot(player, saved):
+        _on_interaction_message("Checkpoint rejected: player cannot safely accept this save")
+        return false
     if str(checkpoint.get("source", "primary")) == "backup":
         _on_interaction_message("Primary checkpoint is invalid or missing. Recovering the verified backup.")
     if not saved.has("civic_session"):

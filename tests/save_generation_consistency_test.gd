@@ -42,6 +42,12 @@ func _run() -> void:
     var lifecycle := Lifecycle.new() as CivicGameLifecycle
     world.add_child(lifecycle)
     await physics_frame
+    if lifecycle.can_load_player_snapshot(player, {"player": {"x": INF, "y": 0.0, "z": 0.0, "yaw": 0.0}}):
+        _fail("non-finite player save passed transaction preflight")
+        return
+    if lifecycle.can_load_player_snapshot(Node3D.new(), _payload(1.0)):
+        _fail("unmounted or unsupported player passed transaction preflight")
+        return
     if not Repo.write_save(_payload(-3.0), PATH):
         _fail("could not save generation A")
         return

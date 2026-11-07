@@ -47,6 +47,12 @@ func load_player(player: Node3D, path: String = "") -> bool:
 ## GAME-018: apply the very document already validated by the mission loader.
 ## Do not re-read the file between civic restore and player restore: a new F5
 ## or a primary->backup recovery could otherwise mix two save generations.
+## GAME-020: pure eligibility preflight. The main scene runs this before
+## any civic/world restore so a missing player or invalid position cannot
+## reject a transaction after it has replaced background traffic.
+func can_load_player_snapshot(player: Node3D, data: Dictionary) -> bool:
+    return is_instance_valid(player) and player is CivicPlayerController and player.is_inside_tree() and SaveRepo._valid_player(data)
+
 func load_player_snapshot(player: Node3D, data: Dictionary) -> bool:
     if data.is_empty() or not SaveRepo._valid_player(data):
         lifecycle_message.emit("No valid save found")
