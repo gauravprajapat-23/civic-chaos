@@ -12,6 +12,7 @@ const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
+const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
@@ -20,6 +21,7 @@ var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
 var gameplay_session: CivicGameplaySession
 var wrong_way_world: CivicWrongWayLiveMission
+var parking_world: CivicIllegalParkingMission
 var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
@@ -144,6 +146,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _save_gameplay_checkpoint() -> bool:
     if gameplay_session == null:
         return false
+    # GAME-016 cannot be serialized by the GAME-014 document yet. Reject
+    # saves rather than silently writing a checkpoint that loses parking NPCs.
+    if is_instance_valid(parking_world):
+        _on_interaction_message("Parking mission saves need GAME-017 checkpoints; finish or restart before saving.")
+        return false
     var civic: Dictionary = gameplay_session.snapshot()
     var payload: Dictionary = {"civic_session": civic}
     if is_instance_valid(wrong_way_world):
@@ -159,6 +166,9 @@ func _save_gameplay_checkpoint() -> bool:
     return lifecycle.save_player(player, "", payload)
 
 func _load_gameplay_checkpoint() -> bool:
+    if is_instance_valid(parking_world):
+        _on_interaction_message("Parking scenario is active; restart the level before loading an older checkpoint.")
+        return false
     var saved: Dictionary = SaveRepo.read_save()
     if saved.is_empty():
         _on_interaction_message("No valid checkpoint found")
@@ -226,6 +236,8 @@ func _load_gameplay_checkpoint() -> bool:
     if newly_prepared:
         wrong_way_world = restored_world
         _connect_wrong_way_signals(restored_world)
+    if has_live and is_instance_valid(restored_world) and restored_world.finished:
+        call_deferred("_start_illegal_parking_mission")
     if not has_live and gameplay_session.finished:
         call_deferred("_start_wrong_way_mission")
     if civic_hud != null and is_instance_valid(wrong_way_world):
@@ -241,6 +253,8 @@ func _connect_wrong_way_signals(live: CivicWrongWayLiveMission) -> void:
         live.incident_card_requested.connect(_on_wrong_way_card_requested)
     if not live.feedback_changed.is_connected(_on_interaction_message):
         live.feedback_changed.connect(_on_interaction_message)
+    if not live.mission_completed.is_connected(_on_wrong_way_mission_completed):
+        live.mission_completed.connect(_on_wrong_way_mission_completed)
 
 ## Once the first playable tutorial is complete, stage a second physical
 ## mission on the same west approach of the existing city road graph.
@@ -271,6 +285,30 @@ func _start_wrong_way_mission() -> void:
     _on_interaction_message("NEW MISSION: Wrong Way, Wrong Day. Follow the west road to the yellow report post.")
     _refresh_mission_guide()
 
+
+## GAME-016 starts only after real GAME-012/013 traffic recovery.
+func _on_wrong_way_mission_completed() -> void:
+    call_deferred("_start_illegal_parking_mission")
+
+func _start_illegal_parking_mission() -> void:
+    if is_instance_valid(parking_world) or gameplay_session == null or not is_instance_valid(wrong_way_world) or not wrong_way_world.finished:
+        return
+    var live: CivicIllegalParkingMission = ParkingMission.new() as CivicIllegalParkingMission
+    live.name = "IllegalParkingMission"
+    add_child(live)
+    if not live.configure(self, player, gameplay_session):
+        live.queue_free()
+        push_warning("Illegal parking could not be staged safely")
+        return
+    parking_world = live
+    live.incident_card_requested.connect(_on_parking_card_requested)
+    live.feedback_changed.connect(_on_interaction_message)
+    _on_interaction_message("NEW MISSION: Footpath First. Watch the pedestrian and talk to the nearby car owner.")
+    _refresh_mission_guide()
+
+func _on_parking_card_requested(state: Dictionary) -> void:
+    _show_incident_card(state, parking_world)
+
 func _on_incident_card_requested(state: Dictionary) -> void:
     _show_incident_card(state, gameplay_session)
 
@@ -296,7 +334,7 @@ func _on_incident_card_action(action: String) -> void:
     incident_card.render_card(state)
     if accepted and action == "inspect" and not incident_card.report_button.disabled:
         incident_card.report_button.grab_focus()
-    elif accepted and action == "report":
+    elif accepted and ["report", "request_owner"].has(action):
         incident_card.close_button.grab_focus()
 
 func _on_incident_card_dismissed() -> void:
@@ -313,7 +351,9 @@ func _refresh_mission_guide() -> void:
     if mission_guide == null or gameplay_session == null:
         return
     var state: Dictionary = {}
-    if is_instance_valid(wrong_way_world):
+    if is_instance_valid(parking_world):
+        state = parking_world.guidance_state()
+    elif is_instance_valid(wrong_way_world):
         state = wrong_way_world.guidance_state()
     elif gameplay_session.finished:
         state = {
@@ -378,6 +418,11 @@ func _process(delta: float) -> void:
         if _wrong_way_retry_elapsed >= 4.0:
             _wrong_way_retry_elapsed = 0.0
             call_deferred("_start_wrong_way_mission")
+    if is_instance_valid(wrong_way_world) and wrong_way_world.finished and not is_instance_valid(parking_world):
+        _wrong_way_retry_elapsed += delta
+        if _wrong_way_retry_elapsed >= 4.0:
+            _wrong_way_retry_elapsed = 0.0
+            call_deferred("_start_illegal_parking_mission")
     _traffic_display_elapsed += delta
     if _traffic_display_elapsed < 0.5 or civic_hud == null:
         return
@@ -395,5 +440,12 @@ func _process(delta: float) -> void:
         metrics["wrong_way_queue"] = wrong_way_world.stopped_count
         metrics["wrong_way_peak"] = wrong_way_world.peak_stopped
         state.merge(wrong_way_world.hud_state(), true)
+    if is_instance_valid(parking_world):
+        var mission: Dictionary = gameplay_session.missions.missions.get(CivicIllegalParkingMission.MISSION_ID, {})
+        state["mission"] = mission.duplicate(true)
+        state["incidents"] = 0 if parking_world.finished else 1
+        state["feedback"] = parking_world.feedback
+        state["scores"] = gameplay_session.metrics.scores.duplicate(true)
+        state["reputation"] = gameplay_session.metrics.reputation()
     state["traffic"] = metrics
     civic_hud.render_state(state)

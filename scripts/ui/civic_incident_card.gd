@@ -100,6 +100,13 @@ func render_card(data: Dictionary) -> void:
     hint_label.text = str(data.get("hint", "Inspect before taking action."))
     inspect_button.disabled = not bool(data.get("can_inspect", false))
     report_button.disabled = not bool(data.get("can_report", false))
+    # Existing civic cards keep their Report action. An owner request has
+    # its own explicit gameplay action; the UI cannot invent permissions.
+    var report_action: String = str(data.get("report_action", "report"))
+    if not ["report", "request_owner"].has(report_action):
+        report_action = "report"
+    report_button.set_meta("report_action", report_action)
+    report_button.text = str(data.get("report_label", "Report to Municipal Service"))
 
 func is_open() -> bool:
     return backdrop != null and backdrop.visible
@@ -116,7 +123,7 @@ func _on_inspect() -> void:
 
 func _on_report() -> void:
     if is_open() and not report_button.disabled:
-        action_selected.emit("report")
+        action_selected.emit(str(report_button.get_meta("report_action", "report")))
 
 func _input(event: InputEvent) -> void:
     if not is_open():

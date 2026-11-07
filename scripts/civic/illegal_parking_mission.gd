@@ -124,6 +124,12 @@ func configure(world: Node3D, actor: Node3D, civic_session: CivicGameplaySession
     pad_paint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     bay.material_override = pad_paint
     add_child(bay)
+    # Refuse a crowded start instead of spawning a car inside a person,
+    # background vehicle, streetlight or building. Ground/sidewalk support
+    # is deliberately excluded from this physical overlap test.
+    if not _relocation_clear(parked_vehicle.global_transform, parked_vehicle.global_transform):
+        queue_free()
+        return false
     var incident: Dictionary = session.incidents.create_incident("illegal_parking", 1601, tick, "market_east_north_footpath")
     if not bool(incident.get("ok", false)):
         queue_free()
