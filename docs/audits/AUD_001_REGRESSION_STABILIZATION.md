@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 12 focused tests to pass with their exact markers.
+- Requires 13 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -123,6 +123,16 @@ The November 5 regression ticket (#48) names two unresolved startup blockers: a 
 
 The engine test is still **NOT RUN** in this environment. Once Godot 4.7.2 is available on the Windows checkout, examine `build/game-024-verification-logs/vehicle_scene_contract_test.gd.log`, `npc_personality_contract_test.gd.log`, and the script import log, then fix the first proven engine root cause. No Actions are to be used.
 
+## AUD-001-R11 — Optional vehicle feedback must not block traffic
+
+The vehicle root had a **hard GDScript type dependency** (`var feedback: CivicAgentFeedback`) even though `_ready()` tried to load `agent_feedback.gd` dynamically as an optional presentation component. If the presentation class is unavailable or its global class registration fails, the driving script may fail to parse before the soft fallback can run. This source-level mismatch is confirmed; whether it caused the previously reported scene parse failure remains unverified.
+
+- `scripts/traffic/vehicle_agent.gd` now stores the cue node as a generic `Node3D`; it checks `ResourceLoader.exists`, validates the loaded script and cue method before attaching, and uses a guarded dynamic call when the vehicle advances. It does **not** change lane motion, signals, collision policy, or score logic.
+- `feedback_enabled` and `feedback_script_path` support an explicit cue-off or missing-script scenario in tests. The normal scene uses the original default cue script and appearance.
+- `tests/vehicle_feedback_optional_test.gd` uses the **real physical car scene** to verify travel in three cases: normal cue script, disabled cues, and nonexistent optional cue script. Normal cues must still report a moving state. A missing optional cue must not prevent the car from being configured or advancing.
+- This new test is mandatory, increases the minimum suite from **92 to 93** fixtures, and raises the focused gate from **12 to 13**.
+- No actual Godot 4.7.2 import or runtime test has been executed in this environment. The observed type dependency is fixed in source, but the earlier startup error is **not declared resolved** without engine evidence.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -135,7 +145,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_regression_runner.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 9 focused fixtures + 92+ full regressions.
+# Godot 4.7.2: import + 9 focused fixtures + 93+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
