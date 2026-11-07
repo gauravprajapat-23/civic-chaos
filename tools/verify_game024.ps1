@@ -23,6 +23,8 @@ $gate = [ordered]@{
     commit = ""
     godot_version = ""
     import_passed = $false
+    python_runner_checks_passed = $false
+    python_runner_test_count = 0
     focused_tests = @()
     full_regression_passed = $false
     regression_tests_run = 0
@@ -50,7 +52,7 @@ function Get-SourceChanges {
 }
 
 function Run-Local {
-    param([string[]]$Arguments, [string]$LogName)
+    param([string[]]$Arguments, [string]$LogName, [string]$Executable = $Godot)
     # Redirect streams to files so verbose or hung fixtures cannot deadlock.
     $stdoutPath = Join-Path $logs ($LogName + ".stdout")
     $stderrPath = Join-Path $logs ($LogName + ".stderr")
@@ -61,7 +63,7 @@ function Run-Local {
         $quotedArguments = @($Arguments | ForEach-Object {
             if ($_ -match '\s') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
         })
-        $process = Start-Process -FilePath $Godot -ArgumentList $quotedArguments -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $process = Start-Process -FilePath $Executable -ArgumentList $quotedArguments -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
         if (-not $process.WaitForExit($Timeout * 1000)) {
             $timedOut = $true
             try { $process.Kill() } catch { }
@@ -129,6 +131,24 @@ try {
     $gate.godot_version = ($versionResult.output.Trim() -split "\r?\n")[0]
     if (-not $versionResult.passed -or $gate.godot_version -notmatch '^4\.7\.2([\.-]|$)') {
         $gate.reason = "GAME-024 requires Godot 4.7.2; found " + $gate.godot_version
+        Write-Gate
+        exit 1
+    }
+
+    # Validate the QA harness itself before trusting its Godot pass/fail.
+    # unittest writes progress to stderr even on success; redirected streams
+    # keep PowerShell 5.1 ErrorActionPreference from treating that as a throw.
+    $pythonCheck = Run-Local -Executable $Python -Arguments @(
+        "-m", "unittest", "discover", "-s", "tests", "-p",
+        "test_regression_runner.py", "-v"
+    ) -LogName "python-runner-tests.log"
+    $ranPattern = [regex]::Match($pythonCheck.output, '(?m)^Ran\s+(\d+)\s+tests?\s+in\s+')
+    if ($ranPattern.Success) {
+        $gate.python_runner_test_count = [int]$ranPattern.Groups[1].Value
+    }
+    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 9
+    if (-not $gate.python_runner_checks_passed) {
+        $gate.reason = "Python regression-runner self-tests failed; inspect python-runner-tests.log"
         Write-Gate
         exit 1
     }
