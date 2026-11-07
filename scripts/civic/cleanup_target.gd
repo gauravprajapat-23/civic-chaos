@@ -36,6 +36,12 @@ func _ready() -> void:
     elif kind == "stand":
         size = Vector3(0.92, 0.40, 0.76)
         paint = Color(0.17, 0.46, 0.73)
+    elif kind == "cone":
+        size = Vector3(0.46, 0.78, 0.46)
+        paint = Color(0.98, 0.41, 0.10)
+    elif kind == "rack":
+        size = Vector3(0.90, 0.70, 0.85)
+        paint = Color(0.18, 0.41, 0.54)
     body.size = size
     shape.shape = body
     shape.position.y = size.y * 0.5
