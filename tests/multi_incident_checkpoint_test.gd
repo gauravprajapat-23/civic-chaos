@@ -29,6 +29,7 @@ func _stage() -> Node3D:
     return scene
 
 func _run() -> void:
+    _cleanup_save()
     var graph: CivicRoadGraph = Builder.make_city_graph()
     var first := _stage()
     var player := Node3D.new()
@@ -177,11 +178,19 @@ func _run() -> void:
         _fail("earlier completed wrong-way checkpoint rejected after parking resolved")
         return
     second.queue_free()
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+    _cleanup_save()
     print("CIVIC_CHAOS_MULTI_INCIDENT_CHECKPOINT_PASS")
     quit(0)
 
 func _fail(reason: String) -> void:
     push_error(reason)
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+    _cleanup_save()
     quit(1)
+
+## A generation-2 checkpoint keeps backup and temporary siblings. Isolate
+## each test so an earlier run cannot be mistaken for a valid recovery.
+func _cleanup_save() -> void:
+    for suffix in ["", ".bak", ".tmp", ".bak.tmp"]:
+        var candidate: String = SAVE_PATH + suffix
+        if FileAccess.file_exists(candidate):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(candidate))

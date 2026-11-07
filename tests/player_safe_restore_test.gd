@@ -9,6 +9,7 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    _cleanup_save()
     for action in ["move_left", "move_right", "move_forward", "move_back", "look_left", "look_right", "look_up", "look_down", "sprint", "jump"]:
         if not InputMap.has_action(action):
             InputMap.add_action(action)
@@ -108,11 +109,19 @@ func _run() -> void:
         _fail("fall recovery did not restore world-supported position")
         return
     stage.queue_free()
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
+    _cleanup_save()
     print("CIVIC_CHAOS_PLAYER_SAFE_RESTORE_PASS")
     quit(0)
 
 func _fail(message: String) -> void:
     push_error(message)
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(TEST_SAVE))
+    _cleanup_save()
     quit(1)
+
+## A generation-2 checkpoint keeps backup and temporary siblings. Isolate
+## each test so an earlier run cannot be mistaken for a valid recovery.
+func _cleanup_save() -> void:
+    for suffix in ["", ".bak", ".tmp", ".bak.tmp"]:
+        var candidate: String = TEST_SAVE + suffix
+        if FileAccess.file_exists(candidate):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(candidate))

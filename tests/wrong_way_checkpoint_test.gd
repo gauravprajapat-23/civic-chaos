@@ -28,6 +28,7 @@ func _world_with_road() -> Node3D:
     return stage
 
 func _run() -> void:
+    _cleanup_save()
     var stage := _world_with_road()
     var player := Node3D.new()
     player.position = Vector3(15.0, 0.0, 15.0)
@@ -206,11 +207,19 @@ func _run() -> void:
         _fail("invalid tow overshoot passed numerical-tolerance check")
         return
     second_stage.queue_free()
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+    _cleanup_save()
     print("CIVIC_CHAOS_WRONG_WAY_CHECKPOINT_PASS")
     quit(0)
 
 func _fail(reason: String) -> void:
     push_error(reason)
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+    _cleanup_save()
     quit(1)
+
+## A generation-2 checkpoint keeps backup and temporary siblings. Isolate
+## each test so an earlier run cannot be mistaken for a valid recovery.
+func _cleanup_save() -> void:
+    for suffix in ["", ".bak", ".tmp", ".bak.tmp"]:
+        var candidate: String = SAVE_PATH + suffix
+        if FileAccess.file_exists(candidate):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(candidate))
