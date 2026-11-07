@@ -318,12 +318,17 @@ func can_restore(data: Variant) -> bool:
 			return false
 	return true
 
-## Replacing a traffic generation is all-or-nothing: old colliders are
-## disabled temporarily, incoming cars are validated against the live world
-## and each other, and any failed stage restores the original generation.
-## Call only while the simulation director is frozen by the load guard.
-func restore(data: Variant) -> bool:
-	if not can_restore(data):
+## GAME-020: a prepared car generation does NOT delete the running traffic.
+## Keep old actors/route counters intact until the pedestrian landing places
+## have passed all collision probes. Commit is deliberately infallible after
+## preflight; abort recovers the original physical actors and collision layers.
+var _prepared_restore: Dictionary = {}
+
+func restore_prepared() -> bool:
+	return not _prepared_restore.is_empty()
+
+func prepare_restore(data: Variant) -> bool:
+	if restore_prepared() or not can_restore(data):
 		return false
 	var disabled: Array[Dictionary] = []
 	for old in active_vehicles:
@@ -389,11 +394,37 @@ func restore(data: Variant) -> bool:
 			if is_instance_valid(restored_body):
 				restored_body.collision_layer = int(original["layer"])
 		return false
+	_prepared_restore = {"data": (data as Dictionary).duplicate(true),
+		"staged": staged, "staged_delay": staged_delay, "old_layers": disabled}
+	return true
+
+func abort_restore() -> void:
+	if not restore_prepared():
+		return
+	var prepared: Dictionary = _prepared_restore
+	_prepared_restore = {}
+	for created in prepared["staged"]:
+		if is_instance_valid(created):
+			created.free()
+	for original in prepared["old_layers"]:
+		var body: StaticBody3D = original["body"]
+		if is_instance_valid(body):
+			body.collision_layer = int(original["layer"])
+
+func commit_restore() -> bool:
+	if not restore_prepared():
+		return false
+	var prepared: Dictionary = _prepared_restore
+	_prepared_restore = {}
+	var data: Dictionary = prepared["data"]
+	# Everything that might fail (route validity, collision queries and
+	# instance construction) happened while the old cars were still present.
 	for old in active_vehicles:
 		if is_instance_valid(old):
 			old.free()
-	active_vehicles = staged
-	_vehicle_delay = staged_delay
+	var new_generation: Array[CivicVehicleAgent] = prepared["staged"]
+	active_vehicles = new_generation
+	_vehicle_delay = prepared["staged_delay"]
 	current_tick = int(data["current_tick"])
 	spawned_total = int(data["spawned_total"])
 	completed_total = int(data["completed_total"])
@@ -401,3 +432,9 @@ func restore(data: Variant) -> bool:
 	total_delay_seconds = float(data["total_delay_seconds"])
 	rng.state = int(data["rng_state"])
 	return true
+
+## Backwards-compatible one-shot API for isolated GAME-019 traffic tests.
+func restore(data: Variant) -> bool:
+	if not prepare_restore(data):
+		return false
+	return commit_restore()
