@@ -755,8 +755,11 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
     var saved_incident: Dictionary = incident_state.incidents[int(data["incident_id"])]
     if saved_incident.get("kind") != "wrong_way_driving" or saved_incident.get("location_key") != "market_west_approach":
         return _checkpoint_rejected("CKP-29: if saved_incident.get(\"kind\") != \"wrong_way_driving\" or saved_incident.get(\"location_key\") != \"market_west_approach\":", failures)
-    if tick_value < incident_state.current_tick:
-        return _checkpoint_rejected("CKP-30: if tick_value < incident_state.current_tick:", failures)
+    # Completed incidents keep their original last tick while later civic
+    # missions advance the shared manager. Only an ACTIVE wrong-way incident
+    # must be current with the global timeline.
+    if tick_value < incident_state.current_tick and not bool(data["finished"]):
+        return _checkpoint_rejected("CKP-30: active_wrong_way_snapshot_older_than_civic_clock", failures)
     var mission: Dictionary = mission_state.missions[MISSION_ID]
     var progress: Dictionary = mission["progress"]
     for objective in ["congestion_observed", "incident_reported", "marshal_intervened", "sustained_recovery"]:
