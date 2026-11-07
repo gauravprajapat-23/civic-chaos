@@ -3,7 +3,7 @@
 A Godot 4.x offline-first 3D civic-sense game about believable NPC behavior, traffic, and real-world consequences.
 
 ## Status
-**Playable district prototype; not yet a complete civic-sense game.** The repository has a third-person player, procedural neighborhood, traffic, pedestrians, HUD, offline-oriented lifecycle, core civic managers and automated regressions. The mission/incident logic is not fully wired into player-facing 3D gameplay, and known physics, city traffic and rendering fixes still require local verification.
+**Playable district prototype under development; not release verified.** The repository has a third-person player, procedural neighborhood, traffic, pedestrians, HUD, offline save/load and a connected civic story flow: footpath tutorial → wrong-way driving → illegal parking → Market Clean-Up. Latest physical gameplay, checkpoint recovery and Android builds still require local Godot 4.7.2 verification; no release acceptance is claimed.
 
 **Current game direction:** [Game Design Document](docs/game_design/CIVIC_CHAOS_GAME_DESIGN.md) · [Phased Build Plan](docs/game_design/PHASED_BUILD_PLAN.md) · [First-Playable Backlog](docs/game_design/IMPLEMENTATION_BACKLOG.md)
 

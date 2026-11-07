@@ -203,3 +203,16 @@ See [GAME_019_WORLD_CHECKPOINTS.md](GAME_019_WORLD_CHECKPOINTS.md). Source only;
 - [ ] Broader crash-atomic scene replacement and background world-object rollback.
 
 See [GAME_020_TRANSACTION_RECOVERY.md](GAME_020_TRANSACTION_RECOVERY.md). **Code committed, Godot runtime unverified.**
+
+
+## GAME-021 — Market Clean-Up Chain (continuation milestone, 2026-11-07)
+
+- [x] Source: after real parking recovery, three collectible litter objects and a physical two-slot market bin are staged on the north walkway.
+- [x] Source: existing incident card supports inspected collection, one-item carry, measured bin deposits, genuine full-bin service request, visible helper walk and bin emptying, single verified outcome/reward.
+- [x] Source: F5/F9 `cleanup_checkpoint` validates bin volume, item states, sanitation progress and civic objectives against the authoritative civic snapshot.
+- [x] Tests written: `market_cleanup_live_test.gd`, `market_cleanup_checkpoint_test.gd`, `market_cleanup_card_test.gd` and historical tutorial/parking clock test extensions.
+- [ ] Local Godot 4.7.2 import, focused/full regressions, PC/Android physical walkthrough and cleanup checkpoint recovery.
+- [ ] Future GAME-022: final three-story mission results, district scorecard and Free Roam unlock.
+- [ ] Separately pending: original backlog's event-cascade GAME-021 (ID collision — not implemented).
+
+See [GAME_021_MARKET_CLEANUP.md](GAME_021_MARKET_CLEANUP.md). **Runtime verification pending; CI/manual workflow dispatch intentionally deferred.**
