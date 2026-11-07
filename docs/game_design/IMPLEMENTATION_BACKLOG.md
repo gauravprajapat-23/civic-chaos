@@ -173,3 +173,14 @@ See [GAME_016_ILLEGAL_PARKING.md](GAME_016_ILLEGAL_PARKING.md). **Code added; no
 - [ ] GAME-018 full transaction recovery and extended save migration.
 
 See [GAME_017_CAMPAIGN_CHECKPOINTS.md](GAME_017_CAMPAIGN_CHECKPOINTS.md). Code is **not yet engine-verified**.
+
+
+## GAME-018 — Verified save generations and guarded restore (2026-11-07)
+
+- [x] Source: canonical SHA-256 checksummed v2 saves; verified temporary generation, last-known-good `.bak`, primary/backup read selection and legacy v1 compatibility.
+- [x] Source: single-document F9 player+civic restore; transaction guard freezes involved civic/mission physics and releases previous schedules on commit/failure.
+- [x] Tests authored and registered: `save_resilience_test.gd`, `checkpoint_transaction_test.gd`, `save_generation_consistency_test.gd`; legacy lifecycle and save-test isolation updated.
+- [ ] Godot 4.7.2 focus/full tests, GAME-014/017 retests, PC/Android manual acceptance.
+- [ ] Full-world atomic checkpointing and background traffic/signal snapshot, future schema migrations.
+
+See [GAME_018_SAVE_INTEGRITY.md](GAME_018_SAVE_INTEGRITY.md). **Source committed, runtime unverified.**
