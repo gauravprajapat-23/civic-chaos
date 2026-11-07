@@ -105,6 +105,8 @@ func _physics_process(delta: float) -> void:
 func _start_event(kind: String, instance_id: int) -> bool:
     if not active_event.is_empty() or not Challenges.all_kinds().has(kind) or not director.active.has(instance_id):
         return false
+    if str(director.active[instance_id].get("id", "")) != kind:
+        return false
     var site_id: String = Challenges.choose_site(instance_id, last_location_id, Callable(self, "_site_is_safe"))
     if site_id.is_empty() or not _stage_targets(kind, site_id):
         return false
