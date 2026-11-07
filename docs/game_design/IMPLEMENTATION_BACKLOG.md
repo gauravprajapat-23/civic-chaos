@@ -162,3 +162,14 @@ Details: [GAME_015_MISSION_GUIDE.md](GAME_015_MISSION_GUIDE.md). **Code committe
 - [ ] Background pedestrian path-network integration, owner alternatives and better vehicle/owner animations.
 
 See [GAME_016_ILLEGAL_PARKING.md](GAME_016_ILLEGAL_PARKING.md). **Code added; not Godot-verified.**
+
+
+## GAME-017 — Campaign checkpoint persistence (2026-11-07)
+
+- [x] Source: parking car/owner/witness physical snapshot, bounded route progress and cross-manager validation.
+- [x] Source: F5/F9 restores active parking alongside previous completed wrong-way state, with compatibility and anti-duplication checks.
+- [x] Tests authored and registered: `parking_checkpoint_test.gd`, `multi_incident_checkpoint_test.gd`.
+- [ ] Godot 4.7.2 import, focused and full regression suite, GAME-014 retest and manual PC/Android playthrough.
+- [ ] GAME-018 full transaction recovery and extended save migration.
+
+See [GAME_017_CAMPAIGN_CHECKPOINTS.md](GAME_017_CAMPAIGN_CHECKPOINTS.md). Code is **not yet engine-verified**.
