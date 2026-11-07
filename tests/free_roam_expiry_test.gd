@@ -13,6 +13,9 @@ func _run() -> void:
     stage.add_child(player)
     var civic := Session.new() as CivicGameplaySession
     stage.add_child(civic)
+    # Free Roam drives its own logical event tick in this isolated fixture.
+    # Awaited physics frames must not independently advance tutorial metrics.
+    civic.set_physics_process(false)
     if not civic.configure(stage, player):
         _fail("civic manager could not initialize")
         return
