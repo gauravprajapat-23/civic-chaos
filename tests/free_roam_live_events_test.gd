@@ -68,6 +68,14 @@ func _run() -> void:
     if not _act(roam, player, destination, place):
         _fail("physical destination did not resolve civic incident")
         return
+    # The nodes are still alive until queue_free is flushed at frame end.
+    # They must already be inert to the next raycast and physical spawn.
+    if is_instance_valid(first) and (first.collision_layer != 0 or first.visible):
+        _fail("resolved evidence left an interactable ghost collider")
+        return
+    if is_instance_valid(destination) and (destination.collision_layer != 0 or destination.visible):
+        _fail("resolved receiving prop left an interactable ghost collider")
+        return
     if not roam.active_event.is_empty() or roam.resolved_total != 1 or roam.director.budget != 1:
         _fail("resolved event left a pending interaction or leaked budget")
         return
