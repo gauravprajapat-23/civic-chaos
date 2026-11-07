@@ -18,11 +18,15 @@ func _run() -> void:
     stage.add_child(player)
     var session := Session.new() as CivicGameplaySession
     stage.add_child(session)
+    # Free Roam drives its own logical event tick in this isolated fixture.
+    # Awaited physics frames must not independently advance tutorial metrics.
+    session.set_physics_process(false)
     if not session.configure(stage, player):
         _fail("civic session was not configured")
         return
     var roam := FreeRoam.new() as CivicFreeRoamEvents
     stage.add_child(roam)
+    roam.set_physics_process(false)
     if not roam.configure(player, session):
         _fail("free-roam system could not configure")
         return
@@ -30,6 +34,7 @@ func _run() -> void:
         _fail("initial Free Roam snapshot not valid")
         return
     for i in range(20):
+        await physics_frame
         roam._physics_process(0.25)
     if roam.active_event.is_empty() or roam.director.active.size() != 1:
         _fail("no seeded physical civic event appeared")
@@ -90,6 +95,7 @@ func _run() -> void:
         _fail("repeated action farmed civic points")
         return
     for i in range(100):
+        await physics_frame
         roam._physics_process(0.25)
     if roam.active_event.is_empty() or roam.director.active.size() > 1:
         _fail("cooldown did not generate another bounded incident")

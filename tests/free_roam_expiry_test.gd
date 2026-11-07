@@ -13,15 +13,20 @@ func _run() -> void:
     stage.add_child(player)
     var civic := Session.new() as CivicGameplaySession
     stage.add_child(civic)
+    # Free Roam drives its own logical event tick in this isolated fixture.
+    # Awaited physics frames must not independently advance tutorial metrics.
+    civic.set_physics_process(false)
     if not civic.configure(stage, player):
         _fail("civic manager could not initialize")
         return
     var roam := FreeRoam.new() as CivicFreeRoamEvents
     stage.add_child(roam)
+    roam.set_physics_process(false)
     if not roam.configure(player, civic):
         _fail("Free Roam did not configure")
         return
     for frame in range(20):
+        await physics_frame
         roam._physics_process(0.25)
     if roam.active_event.is_empty():
         _fail("no event spawned to test expiry")
@@ -30,6 +35,7 @@ func _run() -> void:
     var current_metrics: Dictionary = civic.metrics.scores.duplicate(true)
     var duration: int = int(roam.director.definitions[roam.active_event["kind"]]["duration"])
     for frame in range(duration * 4):
+        await physics_frame
         roam._physics_process(0.25)
         if roam.expired_total > 0:
             break
@@ -46,6 +52,7 @@ func _run() -> void:
         _fail("expired incident fabricated a player reward")
         return
     for frame in range(16):
+        await physics_frame
         roam._physics_process(0.25)
     if not roam.active_event.is_empty():
         _fail("next incident bypassed the explicit cooldown")
