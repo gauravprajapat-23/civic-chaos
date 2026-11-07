@@ -287,7 +287,10 @@ func can_restore(data: Variant) -> bool:
     var id: int = saved["incident_id"]
     if not incident_copy.incidents.has(id) or not mission_copy.missions.has(MISSION_ID):
         return false
-    if saved_tick < incident_copy.current_tick or saved_tick < metric_copy.last_tick:
+    # Once the tutorial has resolved, later traffic/parking/cleanup incidents
+    # legitimately move the shared civic clock forward. Its historical tick
+    # remains in the checkpoint; only an ACTIVE tutorial must stay current.
+    if not bool(saved["finished"]) and (saved_tick < incident_copy.current_tick or saved_tick < metric_copy.last_tick):
         return false
     var incident: Dictionary = incident_copy.incidents[id]
     var mission: Dictionary = mission_copy.missions[MISSION_ID]
