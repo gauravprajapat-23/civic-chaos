@@ -28,7 +28,11 @@ def source_files(root):
 
 
 def literal_resources(path, content):
-    found = set(LITERAL_LOAD.findall(content))
+    # Full-line comments are documentation, not imports. Their examples
+    # must not make an otherwise healthy project fail its preflight.
+    script = "\n".join(line for line in content.splitlines()
+                       if not line.lstrip().startswith("#")) if path.suffix == ".gd" else content
+    found = set(LITERAL_LOAD.findall(script))
     if path.suffix in (".tscn", ".tres", ".godot"):
         found.update(RESOURCE_PATH.findall(content))
         found.update(MAIN_SCENE.findall(content))
