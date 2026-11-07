@@ -146,11 +146,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _save_gameplay_checkpoint() -> bool:
     if gameplay_session == null:
         return false
-    # GAME-016 cannot be serialized by the GAME-014 document yet. Reject
-    # saves rather than silently writing a checkpoint that loses parking NPCs.
-    if is_instance_valid(parking_world):
-        _on_interaction_message("Parking mission saves need GAME-017 checkpoints; finish or restart before saving.")
-        return false
     var civic: Dictionary = gameplay_session.snapshot()
     var payload: Dictionary = {"civic_session": civic}
     if is_instance_valid(wrong_way_world):
@@ -163,18 +158,25 @@ func _save_gameplay_checkpoint() -> bool:
             _on_interaction_message("Checkpoint rejected: incomplete wrong-way mission state")
             return false
         payload["wrong_way_checkpoint"] = live_state
+    if is_instance_valid(parking_world):
+        if not is_instance_valid(wrong_way_world) or not wrong_way_world.finished:
+            _on_interaction_message("Parking save rejected: previous traffic incident not completed")
+            return false
+        var parking_state: Dictionary = parking_world.snapshot()
+        var reasons: Array = []
+        if not CivicIllegalParkingMission.checkpoint_valid(parking_state, civic, reasons):
+            _on_interaction_message("Parking save rejected: %s" % str(reasons))
+            return false
+        payload["parking_checkpoint"] = parking_state
     return lifecycle.save_player(player, "", payload)
 
 func _load_gameplay_checkpoint() -> bool:
-    if is_instance_valid(parking_world):
-        _on_interaction_message("Parking scenario is active; restart the level before loading an older checkpoint.")
-        return false
     var saved: Dictionary = SaveRepo.read_save()
     if saved.is_empty():
         _on_interaction_message("No valid checkpoint found")
         return false
     if not saved.has("civic_session"):
-        if is_instance_valid(wrong_way_world):
+        if is_instance_valid(wrong_way_world) or is_instance_valid(parking_world):
             _on_interaction_message("Old player-only save cannot replace an active civic incident")
             return false
         return lifecycle.load_player(player)
@@ -183,6 +185,13 @@ func _load_gameplay_checkpoint() -> bool:
         _on_interaction_message("Checkpoint rejected: invalid civic session")
         return false
     var has_live: bool = saved.has("wrong_way_checkpoint")
+    var has_parking: bool = saved.has("parking_checkpoint")
+    if has_parking and not has_live:
+        _on_interaction_message("Checkpoint rejected: parking requires completed wrong-way history")
+        return false
+    if not has_parking and is_instance_valid(parking_world):
+        _on_interaction_message("Checkpoint has no parking world; restart the level to load the earlier campaign stage")
+        return false
     if not has_live and is_instance_valid(wrong_way_world):
         _on_interaction_message("Checkpoint has no active wrong-way mission; restart the level to load it")
         return false
@@ -195,6 +204,14 @@ func _load_gameplay_checkpoint() -> bool:
     if has_live and not CivicWrongWayLiveMission.checkpoint_valid(saved["wrong_way_checkpoint"], graph, civic):
         _on_interaction_message("Checkpoint rejected: wrong-way incident data is inconsistent")
         return false
+    if has_parking:
+        if not bool(saved["wrong_way_checkpoint"].get("finished", false)):
+            _on_interaction_message("Checkpoint rejected: parking started before traffic recovered")
+            return false
+        var reasons: Array = []
+        if not CivicIllegalParkingMission.checkpoint_valid(saved["parking_checkpoint"], civic, reasons):
+            _on_interaction_message("Checkpoint rejected: invalid parking mission %s" % str(reasons))
+            return false
     var restored_world: CivicWrongWayLiveMission = wrong_way_world
     var newly_prepared: bool = false
     if has_live and not is_instance_valid(restored_world):
@@ -206,14 +223,29 @@ func _load_gameplay_checkpoint() -> bool:
             _on_interaction_message("Checkpoint deferred: can't safely reconstruct road vehicles")
             return false
         newly_prepared = true
-    # Restore all world actors first. Only request the player's safe-position
-    # move after mission reconstruction succeeds, so a rejected checkpoint
-    # does not leave a queued player teleport behind.
+    var restored_parking: CivicIllegalParkingMission = parking_world
+    var newly_prepared_parking: bool = false
+    if has_parking and not is_instance_valid(restored_parking):
+        restored_parking = ParkingMission.new() as CivicIllegalParkingMission
+        restored_parking.name = "IllegalParkingMission"
+        add_child(restored_parking)
+        if not restored_parking.prepare_restore(self, player, gameplay_session):
+            restored_parking.queue_free()
+            if newly_prepared:
+                restored_world.queue_free()
+            _on_interaction_message("Checkpoint deferred: parking vehicle space is occupied")
+            return false
+        newly_prepared_parking = true
+    # Preflight physical staging before applying any civic mutations.
+    # Player safe placement is requested only after all actor reconstruction.
     var old_civic: Dictionary = gameplay_session.snapshot()
     var old_live: Dictionary = wrong_way_world.snapshot() if is_instance_valid(wrong_way_world) else {}
+    var old_parking: Dictionary = parking_world.snapshot() if is_instance_valid(parking_world) else {}
     if not gameplay_session.restore(civic):
         if newly_prepared:
             restored_world.queue_free()
+        if newly_prepared_parking:
+            restored_parking.queue_free()
         _on_interaction_message("Checkpoint rejected: civic restore failed")
         return false
     if has_live and not restored_world.restore(saved["wrong_way_checkpoint"]):
@@ -222,7 +254,21 @@ func _load_gameplay_checkpoint() -> bool:
             restored_world.queue_free()
         elif is_instance_valid(wrong_way_world):
             wrong_way_world.restore(old_live)
+        if newly_prepared_parking:
+            restored_parking.queue_free()
         _on_interaction_message("Checkpoint rejected: wrong-way world could not be rebuilt")
+        return false
+    if has_parking and not restored_parking.restore(saved["parking_checkpoint"]):
+        gameplay_session.restore(old_civic)
+        if newly_prepared:
+            restored_world.queue_free()
+        elif is_instance_valid(wrong_way_world):
+            wrong_way_world.restore(old_live)
+        if newly_prepared_parking:
+            restored_parking.queue_free()
+        elif is_instance_valid(parking_world):
+            parking_world.restore(old_parking)
+        _on_interaction_message("Checkpoint rejected: parked vehicle or pedestrian could not be reconstructed")
         return false
     # The player controller performs collision/floor checks and applies
     # accepted positions on the next physics frame.
@@ -232,11 +278,18 @@ func _load_gameplay_checkpoint() -> bool:
             restored_world.queue_free()
         elif is_instance_valid(wrong_way_world):
             wrong_way_world.restore(old_live)
+        if newly_prepared_parking:
+            restored_parking.queue_free()
+        elif is_instance_valid(parking_world):
+            parking_world.restore(old_parking)
         return false
+    if newly_prepared_parking:
+        parking_world = restored_parking
+        _connect_parking_signals(restored_parking)
     if newly_prepared:
         wrong_way_world = restored_world
         _connect_wrong_way_signals(restored_world)
-    if has_live and is_instance_valid(restored_world) and restored_world.finished:
+    if has_live and not has_parking and is_instance_valid(restored_world) and restored_world.finished:
         call_deferred("_start_illegal_parking_mission")
     if not has_live and gameplay_session.finished:
         call_deferred("_start_wrong_way_mission")
@@ -244,7 +297,7 @@ func _load_gameplay_checkpoint() -> bool:
         var state: Dictionary = civic_hud.current_state()
         state.merge(wrong_way_world.hud_state(), true)
         civic_hud.render_state(state)
-    _on_interaction_message("Checkpoint restored. Mission, vehicles and civic progress resumed.")
+    _on_interaction_message("Checkpoint restored. All active civic incidents and physical actors resumed.")
     _refresh_mission_guide()
     return true
 
@@ -301,10 +354,15 @@ func _start_illegal_parking_mission() -> void:
         push_warning("Illegal parking could not be staged safely")
         return
     parking_world = live
-    live.incident_card_requested.connect(_on_parking_card_requested)
-    live.feedback_changed.connect(_on_interaction_message)
+    _connect_parking_signals(live)
     _on_interaction_message("NEW MISSION: Footpath First. Watch the pedestrian and talk to the nearby car owner.")
     _refresh_mission_guide()
+
+func _connect_parking_signals(live: CivicIllegalParkingMission) -> void:
+    if not live.incident_card_requested.is_connected(_on_parking_card_requested):
+        live.incident_card_requested.connect(_on_parking_card_requested)
+    if not live.feedback_changed.is_connected(_on_interaction_message):
+        live.feedback_changed.connect(_on_interaction_message)
 
 func _on_parking_card_requested(state: Dictionary) -> void:
     _show_incident_card(state, parking_world)
