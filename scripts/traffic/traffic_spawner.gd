@@ -64,7 +64,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 func advance_fixed(tick: int, delta: float) -> void:
 	# No traffic tick may advance between PREPARE and either COMMIT or ABORT,
 	# even when a test harness invokes this directly without the director.
-	if restore_prepared() or road_graph == null or tick <= current_tick or delta <= 0.0:
+	if restore_prepared() or road_graph == null or tick <= current_tick or delta <= 0.0 or not is_finite(delta) or spawn_interval_ticks < 1:
 		return
 	var started_us := Time.get_ticks_usec()
 	current_tick = tick
@@ -279,7 +279,9 @@ func can_restore(data: Variant) -> bool:
 		return false
 	if not (data.get("cars") is Array) or data["cars"].size() > mini(maximum_active, work_budget.maximum_agents):
 		return false
-	if data["cars"].size() > int(data["spawned_total"]):
+	# Every still-active car was spawned but has not yet completed.
+	# Reject impossible generations before allocating replacement physics bodies.
+	if int(data["completed_total"]) + data["cars"].size() > int(data["spawned_total"]):
 		return false
 	for item in data["cars"]:
 		if not (item is Dictionary):
@@ -319,6 +321,11 @@ func can_restore(data: Variant) -> bool:
 			lanes.append(lane_id)
 		var current_lane: CivicLaneData = road_graph.get_lane(lanes[int(item["route_index"])])
 		if not _finite_number(item.get("lane_distance"), 0.0, current_lane.length_m() + 0.025):
+			return false
+		# A saved *active* car already at its final endpoint can never
+		# complete: advance_fixed() computes zero desired speed and the
+		# _travel() completion path is not reached. Refuse that ghost car.
+		if int(item["route_index"]) == saved_route.size() - 1 and float(item["lane_distance"]) >= current_lane.length_m() - 0.000001:
 			return false
 	return true
 
