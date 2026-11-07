@@ -132,6 +132,7 @@ func _show_reaction(index: int, message: String) -> void:
         _reaction_label.font_size = 32
         _reaction_label.pixel_size = 0.006
         _reaction_label.outline_size = 9
+        _reaction_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
         _reaction_label.position = Vector3(0.0, 2.2, 0.0)
     if _reaction_label.get_parent() != walker:
         if _reaction_label.get_parent() != null:
