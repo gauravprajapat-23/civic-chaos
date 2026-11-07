@@ -21,6 +21,20 @@ The module is not instantiated by `district_pedestrians.gd` or `main.gd` yet. It
 
 `tests/npc_daily_routines_test.gd` covers four-role coverage, boundaries, seeded replay, forged saves, JSON round-trip, monotonic ticks and non-mutating rejection. It is listed in the draft branch's local `tools/run_regression.py` suite.
 
+## 025-A2 — Routine-to-navigation safety contract (draft)
+
+`scripts/npc/npc_routine_intent.gd` implements `CivicNPCRoutineIntent`, a **stateless intent arbiter** consuming canonical role/time schedules and observed pedestrian safety flags. It proposes an existing-route travel, safe-place activity, obstacle yield, or crossing-authority handoff. **It never sets a position, changes crossing reservations, forces traffic-light progression, or awards civic points.**
+
+- The current controller remains authoritative over scene geometry and physical movement.
+- A walker inside a crosswalk or holding a crossing reservation must remain under existing crossing authority, even when their next planned activity is stationary.
+- Physical path obstructions take precedence over routine travel, but never allow routines to override a crossing already in progress.
+- A stationary activity is requested **only** after the existing controller has established a clear, safe destination.
+- All seven semantic destination types have data-only area tags. Coordinates, interaction priorities, and actual waypoint navigation remain deferred until the GAME-024 gate passes.
+
+`tests/npc_routine_intent_test.gd` verifies all four day phases across 16 agents, occupied crossing and held-reservation safety, obstacle yield, stationary idle at safe destinations, determinism, and rejection of invalid IDs/times/seeds. Registered with `tools/run_regression.py` on this draft branch.
+
+This new layer remains disconnected from live `district_pedestrians.gd` until GAME-024's acceptance report is green.
+
 ## Verify GAME-024 first (on Windows)
 
 ```powershell
