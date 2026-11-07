@@ -169,6 +169,19 @@ func _save_gameplay_checkpoint() -> bool:
             _on_interaction_message("Parking save rejected: %s" % str(reasons))
             return false
         payload["parking_checkpoint"] = parking_state
+    # GAME-019: a generation includes the background world as well as civic
+    # mission actors. Reject an incoherent background tick instead of storing
+    # an apparently valid player file with incomplete world state.
+    var city_junction: Node = get_node_or_null("FourWayJunction")
+    var walkers: Node3D = get_node_or_null("DistrictPedestrians") as Node3D
+    if city_junction == null or walkers == null:
+        _on_interaction_message("Checkpoint refused: city simulation unavailable")
+        return false
+    var world_state: Dictionary = city_junction.checkpoint_state(walkers)
+    if not city_junction.checkpoint_valid(world_state, walkers):
+        _on_interaction_message("Checkpoint refused: unsafe or inconsistent traffic world state")
+        return false
+    payload["world_checkpoint"] = world_state
     return lifecycle.save_player(player, "", payload)
 
 func _load_gameplay_checkpoint() -> bool:
@@ -216,6 +229,11 @@ func _load_gameplay_checkpoint() -> bool:
         if not CivicIllegalParkingMission.checkpoint_valid(saved["parking_checkpoint"], civic, reasons):
             _on_interaction_message("Checkpoint rejected: invalid parking mission %s" % str(reasons))
             return false
+    var has_world: bool = saved.has("world_checkpoint")
+    var pedestrian_world: Node3D = get_node_or_null("DistrictPedestrians") as Node3D
+    if has_world and (junction == null or pedestrian_world == null or not junction.checkpoint_valid(saved["world_checkpoint"], pedestrian_world)):
+        _on_interaction_message("Checkpoint rejected: corrupted or incompatible city simulation")
+        return false
     var restored_world: CivicWrongWayLiveMission = wrong_way_world
     var newly_prepared: bool = false
     if has_live and not is_instance_valid(restored_world):
@@ -243,9 +261,15 @@ func _load_gameplay_checkpoint() -> bool:
     # GAME-018: pause the involved civic and physical actors for the entire
     # multi-manager application/rollback; restore their previous processing
     # state on every success or failure path.
+    var background_director: Node = null
+    if junction != null:
+        background_director = junction.get("simulation") as Node
     var restore_guard: CivicCheckpointTransaction = CheckpointTransaction.new()
-    if not restore_guard.begin([gameplay_session, restored_world, restored_parking]):
+    if not restore_guard.begin([gameplay_session, restored_world, restored_parking, background_director, pedestrian_world]):
         return false
+    var old_world_state: Dictionary = {}
+    if has_world:
+        old_world_state = junction.checkpoint_state(pedestrian_world)
     var old_civic: Dictionary = gameplay_session.snapshot()
     var old_live: Dictionary = wrong_way_world.snapshot() if is_instance_valid(wrong_way_world) else {}
     var old_parking: Dictionary = parking_world.snapshot() if is_instance_valid(parking_world) else {}
@@ -281,6 +305,22 @@ func _load_gameplay_checkpoint() -> bool:
         restore_guard.finish()
         _on_interaction_message("Checkpoint rejected: parked vehicle or pedestrian could not be reconstructed")
         return false
+    # The background world uses the same verified document and is also
+    # restored under the director/pedestrian physics guard. Missing world
+    # checkpoints are legacy saves: keep the current background simulation.
+    if has_world and not junction.restore_checkpoint(saved["world_checkpoint"], pedestrian_world):
+        gameplay_session.restore(old_civic)
+        if newly_prepared:
+            restored_world.queue_free()
+        elif is_instance_valid(wrong_way_world):
+            wrong_way_world.restore(old_live)
+        if newly_prepared_parking:
+            restored_parking.queue_free()
+        elif is_instance_valid(parking_world):
+            parking_world.restore(old_parking)
+        restore_guard.finish()
+        _on_interaction_message("Checkpoint rejected: background vehicles or pedestrians cannot be staged safely")
+        return false
     # The player controller performs collision/floor checks and applies
     # accepted positions on the next physics frame.
     if not lifecycle.load_player_snapshot(player, saved):
@@ -293,6 +333,8 @@ func _load_gameplay_checkpoint() -> bool:
             restored_parking.queue_free()
         elif is_instance_valid(parking_world):
             parking_world.restore(old_parking)
+        if has_world and not junction.restore_checkpoint(old_world_state, pedestrian_world):
+            push_warning("Checkpoint rollback could not restore previous background world")
         restore_guard.finish()
         return false
     if newly_prepared_parking:
