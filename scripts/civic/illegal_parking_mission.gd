@@ -312,6 +312,8 @@ func _advance_owner_and_car(delta: float) -> void:
             return
         owner.position = owner.position.move_toward(OWNER_DESTINATION, OWNER_SPEED * delta)
         if owner.position.distance_to(OWNER_DESTINATION) <= 0.12:
+            # Record exact endpoint for reproducible owner checkpoints.
+            owner.position = OWNER_DESTINATION
             if session.incidents.transition(incident_id, CivicIncidentManager.INTERVENTION, tick, "owner_accepted_safe_relocation"):
                 intervention_tick = tick
                 relocation_started = true
@@ -504,6 +506,9 @@ static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = [])
     if reported_at < 0 and (bool(data["owner_agreed"]) or bool(data["relocation_started"]) or float(data["owner_progress"]) > CHECKPOINT_EPSILON_M):
         failures.append("owner_without_report")
         return false
+    if bool(data["owner_agreed"]) != (reported_at >= 0):
+        failures.append("owner_consent_mismatch")
+        return false
     if bool(data["inspected"]) and not bool(data["observed_blockage"]):
         failures.append("inspection_evidence")
         return false
@@ -521,6 +526,9 @@ static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = [])
         return false
     if not bool(data["relocation_started"]) and float(data["car_route_progress"]) > CHECKPOINT_EPSILON_M:
         failures.append("car_moved_without_intervention")
+        return false
+    if bool(data["relocation_started"]) and reported_at < 0:
+        failures.append("relocation_unreported")
         return false
     if bool(data["relocation_started"]) and float(data["owner_progress"]) < 1.0 - CHECKPOINT_EPSILON_M:
         failures.append("owner_not_arrived")
