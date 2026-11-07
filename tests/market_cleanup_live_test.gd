@@ -94,7 +94,7 @@ func _run() -> void:
     if not cleanup.service_completed or cleanup.helper.position.distance_to(Cleanup.HELPER_DESTINATION) > 0.025:
         _fail("worker never physically reached and emptied bin")
         return
-    if cleanup.bin_fill != 0 or not civic.missions.missions[Cleanup.MISSION_ID]["progress"]["bin_serviced"] == 1:
+    if cleanup.bin_fill != 0 or int(civic.missions.missions[Cleanup.MISSION_ID]["progress"]["bin_serviced"]) != 1:
         _fail("physical sanitation did not release bin capacity exactly once")
         return
     if not _act(cleanup, player, "bin", -1, "deposit_litter"):

@@ -98,6 +98,19 @@ func _run() -> void:
     if replay.missions.claim_reward(Session.MISSION_ID) != 0:
         _fail("reward farmed after reloading")
         return
+    # Completed tutorial ticks are historical after later city incidents.
+    var newer: Dictionary = replay.incidents.create_incident(
+        "future_market_case", 2345, replay.tick + 5, "next_market_block")
+    if not bool(newer.get("ok", false)):
+        _fail("later civic incident could not advance manager clock")
+        return
+    if not replay.metrics.apply_outcome("newer:civic:score", replay.tick + 5,
+        {"trust": 1}, "later_incident_progress"):
+        _fail("later city metric could not advance beyond tutorial tick")
+        return
+    if not replay.can_restore(JSON.parse_string(JSON.stringify(replay.snapshot()))):
+        _fail("completed tutorial incorrectly rejected newer incident clock")
+        return
     stage.queue_free()
     _cleanup_save()
     print("CIVIC_CHAOS_GAMEPLAY_PERSISTENCE_PASS")

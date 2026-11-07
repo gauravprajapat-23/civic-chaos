@@ -3,6 +3,7 @@ extends SceneTree
 ## Also enforces the same once-only reward after the restored mission finishes.
 const Session = preload("res://scripts/civic/gameplay_session.gd")
 const Parking = preload("res://scripts/civic/illegal_parking_mission.gd")
+const Cleanup = preload("res://scripts/civic/market_cleanup_mission.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const SAVE_PATH: String = "user://game017_parking_checkpoint_test.json"
 
@@ -187,6 +188,22 @@ func _run() -> void:
     forged["pedestrian_recovered"] = false
     if Parking.checkpoint_valid(forged, next_civic.snapshot()):
         _fail("forged pedestrian recovery passed checkpoint validation")
+        return
+    # After the later market incident starts, the earlier completed
+    # parking checkpoint retains its terminal tick and must remain valid.
+    var cleanup := Cleanup.new() as CivicMarketCleanupMission
+    fresh.add_child(cleanup)
+    if not cleanup.configure(fresh, next_player, next_civic):
+        _fail("later market cleanup could not start after completed parking")
+        return
+    for frame in range(8):
+        await physics_frame
+    reason.clear()
+    if not Parking.checkpoint_valid(final_checkpoint, next_civic.snapshot(), reason):
+        _fail("completed parking was rejected after a later incident: " + str(reason))
+        return
+    if not Cleanup.checkpoint_valid(cleanup.snapshot(), next_civic.snapshot()):
+        _fail("later cleanup initial checkpoint is inconsistent")
         return
     fresh.queue_free()
     _cleanup_save()
