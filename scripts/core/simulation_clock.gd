@@ -47,3 +47,45 @@ func interpolation_alpha() -> float:
 
 func get_elapsed_seconds() -> float:
     return float(tick_index) * fixed_delta
+
+## GAME-019: fixed-step checkpoint. The accumulator is included so the
+## next physics frame does not artificially advance/skip a simulation tick.
+func snapshot() -> Dictionary:
+    return {
+        "schema_version": 1,
+        "tick_index": tick_index,
+        "fixed_delta": fixed_delta,
+        "accumulator": _accumulator,
+        "paused": paused
+    }
+
+func can_restore(data: Variant) -> bool:
+    if not (data is Dictionary):
+        return false
+    if not (data.get("schema_version") is int or data.get("schema_version") is float):
+        return false
+    if float(data["schema_version"]) != 1.0:
+        return false
+    for field in ["tick_index", "fixed_delta", "accumulator"]:
+        if not (data.get(field) is int or data.get(field) is float):
+            return false
+        if not is_finite(float(data[field])):
+            return false
+    var candidate_tick: float = float(data["tick_index"])
+    if candidate_tick != floorf(candidate_tick) or candidate_tick < 0.0 or candidate_tick > 1000000000.0:
+        return false
+    var candidate_fixed: float = float(data["fixed_delta"])
+    if absf(candidate_fixed - fixed_delta) > 0.0000001:
+        return false
+    var candidate_accum: float = float(data["accumulator"])
+    if candidate_accum < -EPSILON or candidate_accum >= fixed_delta + EPSILON:
+        return false
+    return data.get("paused") is bool
+
+func restore(data: Variant) -> bool:
+    if not can_restore(data):
+        return false
+    tick_index = int(data["tick_index"])
+    _accumulator = clampf(float(data["accumulator"]), 0.0, fixed_delta - EPSILON)
+    paused = bool(data["paused"])
+    return true

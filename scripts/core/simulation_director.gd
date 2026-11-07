@@ -38,3 +38,16 @@ func _on_tick_started(tick_index: int, fixed_delta: float) -> void:
         if callback.is_valid():
             callback.call(tick_index, fixed_delta)
     simulation_tick.emit(tick_index, fixed_delta)
+
+## World clock state can only be applied to a stopped SimulationDirector
+## inside the GAME-019 restore transaction.
+func checkpoint_state() -> Dictionary:
+    return clock.snapshot() if clock != null else {}
+
+func checkpoint_valid(data: Variant) -> bool:
+    return clock != null and clock.can_restore(data)
+
+func restore_checkpoint(data: Variant) -> bool:
+    if clock == null or is_physics_processing() or not clock.can_restore(data):
+        return false
+    return clock.restore(data)
