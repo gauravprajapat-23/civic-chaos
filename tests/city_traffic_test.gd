@@ -32,6 +32,8 @@ func _run() -> void:
         _fail("expanded traffic spawner rejected graph")
         return
     for attempt in range(12):
+        # City spawn checks use actual vehicle footprint overlap queries.
+        await physics_frame
         spawner.try_spawn()
     if spawner.active_vehicles.is_empty():
         _fail("no perimeter traffic spawned")
