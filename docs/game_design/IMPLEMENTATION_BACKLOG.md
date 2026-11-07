@@ -212,7 +212,20 @@ See [GAME_020_TRANSACTION_RECOVERY.md](GAME_020_TRANSACTION_RECOVERY.md). **Code
 - [x] Source: F5/F9 `cleanup_checkpoint` validates bin volume, item states, sanitation progress and civic objectives against the authoritative civic snapshot.
 - [x] Tests written: `market_cleanup_live_test.gd`, `market_cleanup_checkpoint_test.gd`, `market_cleanup_card_test.gd` and historical tutorial/parking clock test extensions.
 - [ ] Local Godot 4.7.2 import, focused/full regressions, PC/Android physical walkthrough and cleanup checkpoint recovery.
-- [ ] Future GAME-022: final three-story mission results, district scorecard and Free Roam unlock.
+- [x] GAME-022 source: final three-story results, district scorecard and Free Roam unlock (local Godot verification pending).
 - [ ] Separately pending: original backlog's event-cascade GAME-021 (ID collision — not implemented).
 
 See [GAME_021_MARKET_CLEANUP.md](GAME_021_MARKET_CLEANUP.md). **Runtime verification pending; CI/manual workflow dispatch intentionally deferred.**
+
+
+## GAME-022 — District Finale, Civic Scorecard and Free Roam (2026-11-07)
+
+- [x] Source: first story campaign ends after physically verified cleanup; four authentic tutorial/mission completions unlock Free Roam exactly once.
+- [x] Source: story ending and scrollable scorecard display read-only city metrics, district reputation/rating, completed missions and earned reward totals.
+- [x] Source: Continue in Free Roam resumes simulation, F2/on-screen button reopens results, Replay Story requests confirmation and restarts without deleting disk save immediately.
+- [x] Source: F5/F9 `campaign_checkpoint` persists the unlocked/acknowledged state; checks completed manager/incident history, rejects fabricated rewards and supports older completed GAME-021 checkpoints.
+- [x] Tests written: `district_campaign_unlock_test.gd`, `district_finale_ui_test.gd`, `district_finale_checkpoint_test.gd`; all registered in strict local regression runner.
+- [ ] Godot 4.7.2 import, new and accumulated checkpoint regressions, PC/Android finale playback and device accessibility.
+- [ ] Later improvements: decorative ending art/audio and optional dynamic Free Roam incident generation.
+
+See [GAME_022_DISTRICT_FINALE.md](GAME_022_DISTRICT_FINALE.md). **Source committed, runtime unverified. GitHub Actions remain manual-only.**
