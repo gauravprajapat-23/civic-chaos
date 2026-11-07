@@ -22,6 +22,11 @@ const CROSSING_CLEARANCE: float = 1.3
 const VEHICLE_CLEARANCE: float = 1.5
 const PERSONAL_SPACE: float = 1.4
 const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
+const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd")
+var _reaction_context: Dictionary = {}
+var _reaction_label: Label3D
+var _reaction_end: float = -1.0
+var _last_reaction_time: float = -100.0
 const SIDESTEP_DISTANCE: float = 1.4
 const SIDESTEP_SPEED: float = 1.5
 var _sidestep_offsets: Array[float] = []
@@ -89,6 +94,54 @@ func _ready() -> void:
             "side": index % 4, "offset": float(index) * 5.0
         })
 
+## NPCs react when a nearby incident appears, is inspected, carried or resolved.
+## This is visual feedback only; checkpointed pedestrian movement remains intact.
+func react_to_incident(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
+    if not FreeRoamChallenges.all_kinds().has(kind) or instance_id <= 0:
+        return
+    if phase == "resolved" or phase == "expired":
+        _reaction_context = {}
+    else:
+        _reaction_context = {"position": at, "kind": kind,
+            "phase": phase, "instance": instance_id}
+    var witness: int = _closest_witness(at, 20.0)
+    if witness >= 0:
+        _show_reaction(witness, FreeRoamChallenges.reaction(kind, phase, instance_id))
+
+func _closest_witness(at: Vector3, max_distance: float) -> int:
+    var best: int = -1
+    var best_distance: float = max_distance * max_distance
+    for index in range(_walkers.size()):
+        var walker: Node3D = _walkers[index]["root"]
+        if not is_instance_valid(walker):
+            continue
+        var gap: Vector3 = walker.global_position - at
+        gap.y = 0.0
+        if gap.length_squared() < best_distance:
+            best_distance = gap.length_squared()
+            best = index
+    return best
+
+func _show_reaction(index: int, message: String) -> void:
+    if message.is_empty() or index < 0 or index >= _walkers.size():
+        return
+    var walker: Node3D = _walkers[index]["root"]
+    if not is_instance_valid(_reaction_label):
+        _reaction_label = Label3D.new()
+        _reaction_label.name = "CivicWitnessSpeech"
+        _reaction_label.font_size = 32
+        _reaction_label.pixel_size = 0.006
+        _reaction_label.outline_size = 9
+        _reaction_label.position = Vector3(0.0, 2.2, 0.0)
+    if _reaction_label.get_parent() != walker:
+        if _reaction_label.get_parent() != null:
+            _reaction_label.get_parent().remove_child(_reaction_label)
+        walker.add_child(_reaction_label)
+    _reaction_label.text = message
+    _reaction_label.visible = true
+    _last_reaction_time = _elapsed
+    _reaction_end = _elapsed + 4.0
+
 func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vector3, color: Color) -> MeshInstance3D:
     var part := MeshInstance3D.new()
     part.name = part_name
@@ -113,6 +166,14 @@ func _physics_process(delta: float) -> void:
     if delta <= 0.0:
         return
     _elapsed += delta
+    if is_instance_valid(_reaction_label) and _elapsed >= _reaction_end:
+        _reaction_label.visible = false
+    if not _reaction_context.is_empty() and _elapsed - _last_reaction_time >= 8.0:
+        var witness: int = _closest_witness(_reaction_context["position"], 10.0)
+        if witness >= 0:
+            _show_reaction(witness, FreeRoamChallenges.reaction(
+                str(_reaction_context["kind"]), str(_reaction_context["phase"]),
+                int(_reaction_context["instance"])))
     var length: float = district_extent * 1.65
     for index in range(_walkers.size()):
         var data: Dictionary = _walkers[index]
@@ -165,6 +226,8 @@ func _physics_process(delta: float) -> void:
         var arms: Array = data["arms"]
         var legs: Array = data["legs"]
         arms[0].rotation.x = swing
+        if is_instance_valid(_reaction_label) and _reaction_label.visible and _reaction_label.get_parent() == root:
+            arms[0].rotation.x = -0.95 # Brief acknowledgement; no collision or path override.
         arms[1].rotation.x = -swing
         legs[0].rotation.x = -swing
         legs[1].rotation.x = swing
