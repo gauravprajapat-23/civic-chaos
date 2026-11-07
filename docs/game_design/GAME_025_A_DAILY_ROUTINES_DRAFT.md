@@ -35,6 +35,16 @@ The module is not instantiated by `district_pedestrians.gd` or `main.gd` yet. It
 
 This new layer remains disconnected from live `district_pedestrians.gd` until GAME-024's acceptance report is green.
 
+## 025-A3 — Safe sidewalk stops + real-physics adapter (staged, OFF in live game)
+
+- `scripts/npc/npc_routine_waypoints.gd` maps all seven schedule destination types onto deterministic stop coordinates **along the existing sidewalk routes**. Each target stays over eight metres away from the central crossing region and short of the route wrap.
+- `scripts/npc/npc_routine_world_adapter.gd` reads real `district_pedestrians.gd` walker bodies, progress, crossing flags and `_recovery_position_is_clear()` physics checks. It returns a suggestion for when a routine may pause and does not move, teleport, snap, spawn, or score any actor.
+- Crossing-zone occupancy and held reservations always veto a scheduled break. Only a clear real sidewalk stop within the arrival tolerance can permit `perform_activity`.
+- The adapter accepts **simulation tick values supplied by the existing JunctionScene clock**. It must never advance itself using render delta or system wall time.
+- `tests/npc_routine_world_adapter_test.gd` stages a real `AnimatableBody3D` pedestrian in an isolated scene, tests a clear market stop, overlap with the player, simulated occupied crossing, sidestep deviation, deterministic save round-trip and tamper refusal. The test is registered in the local Python regression runner.
+
+**Not yet completed:** No call site is wired into `district_pedestrians.gd`, `main.gd` or the world checkpoint transaction. There is no live movement variation until GAME-024 has a recorded passing report for the accepted source revision and this draft passes Godot 4.7.2 import + full local regression. Do not interpret draft commits as GAME-025-A3 accepted or shipped.
+
 ## Verify GAME-024 first (on Windows)
 
 ```powershell
@@ -59,6 +69,8 @@ if ($LASTEXITCODE -ne 0) { throw "Godot import failed" }
 if ($LASTEXITCODE -ne 0) { throw "NPC routine test failed" }
 & $godot --headless --path . --script res://tests/npc_routine_intent_test.gd
 if ($LASTEXITCODE -ne 0) { throw "NPC routine intent test failed" }
+& $godot --headless --path . --script res://tests/npc_routine_world_adapter_test.gd
+if ($LASTEXITCODE -ne 0) { throw "NPC physical routine adapter test failed" }
 ```
 
 This test can prove the *model* works, but does **not** authorize enabling routines in the existing city before the GAME-024 acceptance gate.
