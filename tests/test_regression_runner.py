@@ -41,6 +41,25 @@ class RegressionRunnerTests(unittest.TestCase):
                 ["missing_test.gd"]
             )
 
+    def test_discover_runs_new_fixtures_without_losing_required_ones(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = pathlib.Path(folder)
+            (root / "tests").mkdir()
+            (root / "tests" / "new_collision_test.gd").write_text("extends SceneTree\n", encoding="utf-8")
+            inventory = run_regression.discover_test_files(
+                ["required_test.gd", "required_test.gd"], root
+            )
+            self.assertEqual(inventory, ["required_test.gd", "new_collision_test.gd"])
+            self.assertEqual(
+                run_regression.missing_test_files(inventory, root), ["required_test.gd"]
+            )
+
+    def test_godot_error_lines_fail_even_after_expected_marker(self):
+        marker = run_regression.expected_pass_marker("free_roam_card_test.gd")
+        for message in ("ERROR: Invalid shape", "  SCRIPT ERROR: Parse failed"):
+            result = {"returncode": 0, "output": marker + "\n" + message + "\n"}
+            self.assertFalse(run_regression.test_passed("free_roam_card_test.gd", result))
+
     def test_command_timeout_is_failure(self):
         with patch.object(run_regression.subprocess, "run", side_effect=run_regression.subprocess.TimeoutExpired("godot", 1)):
             result = run_regression.run("godot", ["--script", "x"], 1)
