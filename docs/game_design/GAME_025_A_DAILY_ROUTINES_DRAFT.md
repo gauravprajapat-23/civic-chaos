@@ -11,7 +11,7 @@
 - Four roles: commuter, shopkeeper, sanitation worker, resident.
 - Four simulated day phases: morning, workday, evening and night.
 - Role-specific activity + semantic destination (e.g., shop, transit stop, neighborhood lane, home).
-- Simulated 1,200-tick days, with 300 ticks per phase; no wall-clock or unseeded randomness.
+- Simulated 24,000-tick days (about 20 minutes at the existing 20 Hz fixed simulation rate), with 6,000 ticks per phase; no wall-clock or unseeded randomness.
 - Stable role allocation using configured seed and actor ID, not spawn order or dictionary iteration.
 - Idempotent monotonic `advance_to(tick)`; no time travel.
 - Canonical v1 checkpoint with seed, agent count, tick and derived role/agenda records.
