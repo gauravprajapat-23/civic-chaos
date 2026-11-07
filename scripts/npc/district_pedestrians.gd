@@ -581,3 +581,103 @@ func _exit_tree() -> void:
     for index in range(_crossing.size()):
         if _crossing[index]:
             _release_crossing(index, index % 4)
+
+## GAME-019: crossing participants have stable index-derived IDs (100000+i).
+## Preserve their physical positions *and* the progress/occupation counters.
+func checkpoint_state() -> Dictionary:
+    var saved: Array[Dictionary] = []
+    for index in range(_walkers.size()):
+        var walker: Node3D = _walkers[index]["root"]
+        var coords: Array[float] = [walker.position.x, walker.position.y, walker.position.z]
+        saved.append({
+            "side": int(_walkers[index]["side"]),
+            "position": coords,
+            "progress": _walker_progress[index],
+            "sidestep": _sidestep_offsets[index],
+            "blocked_frames": _blocked_frames[index],
+            "crossing": _crossing[index],
+            "crossing_start_tick": _crossing_start_tick[index]
+        })
+    return {"schema_version": 1, "elapsed": _elapsed, "walkers": saved}
+
+static func _checkpoint_number(value: Variant, minimum: float, maximum: float) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= minimum and number <= maximum
+
+static func _checkpoint_whole(value: Variant, minimum: int, maximum: int) -> bool:
+    return _checkpoint_number(value, float(minimum), float(maximum)) and float(value) == floorf(float(value))
+
+## Snapshot validation is pure, including the reservation-to-walker link.
+func checkpoint_valid(raw: Variant, reservations_state: Variant) -> bool:
+    if not (raw is Dictionary) or not (reservations_state is Dictionary):
+        return false
+    var data: Dictionary = raw
+    var reservation_data: Dictionary = reservations_state
+    if not _checkpoint_whole(data.get("schema_version"), 1, 1) or not _checkpoint_number(data.get("elapsed"), 0.0, 1000000000.0):
+        return false
+    if not (data.get("walkers") is Array) or data["walkers"].size() != _walkers.size():
+        return false
+    if not (reservation_data.get("occupied") is Dictionary):
+        return false
+    var locations: Array[Vector3] = []
+    for index in range(data["walkers"].size()):
+        var item: Variant = data["walkers"][index]
+        if not (item is Dictionary):
+            return false
+        if not _checkpoint_whole(item.get("side"), 0, 3) or int(item["side"]) != int(_walkers[index]["side"]):
+            return false
+        if not (item.get("position") is Array) or item["position"].size() != 3:
+            return false
+        for coord in item["position"]:
+            if not _checkpoint_number(coord, -500.0, 500.0):
+                return false
+        var destination := Vector3(float(item["position"][0]), float(item["position"][1]), float(item["position"][2]))
+        if absf(destination.y) > 2.0:
+            return false
+        for earlier in locations:
+            var distance: Vector3 = destination - earlier
+            distance.y = 0.0
+            if distance.length_squared() < HARD_SEPARATION * HARD_SEPARATION:
+                return false
+        locations.append(destination)
+        if not _checkpoint_number(item.get("progress"), 0.0, 1000000000.0) or not _checkpoint_number(item.get("sidestep"), -SIDESTEP_DISTANCE - 0.1, SIDESTEP_DISTANCE + 0.1):
+            return false
+        if not _checkpoint_whole(item.get("blocked_frames"), 0, 1000000000):
+            return false
+        if not (item.get("crossing") is bool) or not _checkpoint_whole(item.get("crossing_start_tick"), -1, 1000000000):
+            return false
+        var zone: String = _crossing_zone(int(item["side"]))
+        var occupied: Dictionary = reservation_data["occupied"]
+        if bool(item["crossing"]):
+            if int(occupied.get(zone, -1)) != 100000 + index or int(item["crossing_start_tick"]) < 0:
+                return false
+        elif int(item["crossing_start_tick"]) != -1:
+            return false
+    return true
+
+func restore_checkpoint(raw: Variant, reservations_state: Variant) -> bool:
+    if not checkpoint_valid(raw, reservations_state):
+        return false
+    var data: Dictionary = raw
+    # Check world props and resumed vehicle locations before mutating the
+    # pedestrians; no pawn may appear inside an incoming car/building.
+    for index in range(data["walkers"].size()):
+        var record: Dictionary = data["walkers"][index]
+        var coords: Array = record["position"]
+        var destination := Vector3(float(coords[0]), float(coords[1]), float(coords[2]))
+        if _swept_path_blocked(index, destination, destination, true):
+            return false
+    _elapsed = float(data["elapsed"])
+    for index in range(data["walkers"].size()):
+        var record: Dictionary = data["walkers"][index]
+        var coords: Array = record["position"]
+        var walker: Node3D = _walkers[index]["root"]
+        walker.position = Vector3(float(coords[0]), float(coords[1]), float(coords[2]))
+        _walker_progress[index] = float(record["progress"])
+        _sidestep_offsets[index] = float(record["sidestep"])
+        _blocked_frames[index] = int(record["blocked_frames"])
+        _crossing[index] = bool(record["crossing"])
+        _crossing_start_tick[index] = int(record["crossing_start_tick"])
+    return true
