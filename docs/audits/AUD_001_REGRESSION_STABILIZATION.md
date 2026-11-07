@@ -133,6 +133,21 @@ The vehicle root had a **hard GDScript type dependency** (`var feedback: CivicAg
 - This new test is mandatory, increases the minimum suite from **92 to 93** fixtures, and raises the focused gate from **12 to 13**.
 - No actual Godot 4.7.2 import or runtime test has been executed in this environment. The observed type dependency is fixed in source, but the earlier startup error is **not declared resolved** without engine evidence.
 
+## AUD-001-R12 — Fix physical traffic tests that query locked physics space
+
+Source inspection found three traffic fixtures invoking the physical vehicle spawner from long deferred-callback loops rather than from actual Godot physics ticks. `CivicTrafficSpawner.try_spawn()` creates a real `VehicleAgent` and calls `footprint_blocked_at()`; the GAME-020 traffic restore path also invokes vehicle footprint queries when staging a replacement generation. These operations use `World3D.direct_space_state`, which is not safe to access from arbitrary nonphysics callbacks.
+
+The following **test-only** fixes now wait for `physics_frame` before stepping the traffic sim or performing a physical restore:
+
+- `tests/traffic_spawner_test.gd`: 1,600 fixed ticks and physical car-spawn checks are scheduled on physics frames rather than in one synchronous loop. It retains the existing 20-spawn and throughput acceptance assertions.
+- `tests/city_traffic_test.gd`: perimeter vehicle spawn attempts run on physics frames before checking real scene collision.
+- `tests/traffic_transaction_stress_test.gd`: preflight traffic spawning and repeated PREPARE/ABORT/COMMIT snapshots execute after physics-frame boundaries, so `footprint_blocked_at()` cannot be called from the original deferred test loop.
+- `tests/traffic_budget_test.gd`: replaces all bare `assert()` calls with descriptive `push_error()` and nonzero exits, guarding against disabled runtime assertions.
+
+This keeps live traffic, checkpoint schema, spawn policies and vehicle collision settings unchanged. The purpose is to remove test-harness artifacts and expose genuine traffic failures. The 93-fixture GAME-024 regression baseline is unchanged by these edits.
+
+**Important:** These fixes have not been run in Godot 4.7.2 here. They should be followed by targeted `traffic_spawner_test.gd`, `city_traffic_test.gd`, `traffic_transaction_stress_test.gd`, and `traffic_budget_test.gd` executions as well as the full local acceptance script. Any real physics lock error or throughput failure in that run must be investigated from its log, not presumed fixed.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
