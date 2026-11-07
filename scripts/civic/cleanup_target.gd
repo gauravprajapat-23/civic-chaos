@@ -30,6 +30,12 @@ func _ready() -> void:
     elif kind == "helper":
         size = Vector3(0.60, 1.75, 0.60)
         paint = Color(0.14, 0.51, 0.66)
+    elif kind == "sign":
+        size = Vector3(0.68, 0.26, 0.42)
+        paint = Color(0.89, 0.30, 0.12)
+    elif kind == "stand":
+        size = Vector3(0.92, 0.40, 0.76)
+        paint = Color(0.17, 0.46, 0.73)
     body.size = size
     shape.shape = body
     shape.position.y = size.y * 0.5
