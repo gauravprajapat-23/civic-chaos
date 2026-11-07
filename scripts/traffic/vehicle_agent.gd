@@ -7,17 +7,31 @@ signal route_rejected(reason: String)
 
 @export var profile: CivicVehicleProfile
 
-var feedback: CivicAgentFeedback
+## Presentation is a soft dependency: the driving script must still load
+## if optional cue code is missing or its class_name cache is unavailable.
+var feedback: Node3D
+var feedback_script_path: String = "res://scripts/npc/agent_feedback.gd"
+var feedback_enabled: bool = true
 
 func _ready() -> void:
-    var feedback_script := load("res://scripts/npc/agent_feedback.gd")
-    if feedback_script == null:
-        push_warning("Agent feedback unavailable; vehicle simulation continues")
+    if not feedback_enabled:
         return
-    feedback = feedback_script.new() as CivicAgentFeedback
-    if feedback != null:
-        feedback.name = "AgentFeedback"
-        add_child(feedback)
+    if not ResourceLoader.exists(feedback_script_path):
+        push_warning("Optional agent feedback script missing; vehicle simulation continues")
+        return
+    var feedback_script: Script = load(feedback_script_path) as Script
+    if feedback_script == null:
+        push_warning("Optional agent feedback script could not load; vehicle simulation continues")
+        return
+    var instance: Variant = feedback_script.new()
+    if not (instance is Node3D) or not instance.has_method("observe_vehicle"):
+        if instance is Node:
+            instance.free()
+        push_warning("Optional agent feedback has an incompatible scene contract")
+        return
+    feedback = instance as Node3D
+    feedback.name = "AgentFeedback"
+    add_child(feedback)
 
 var road_graph: CivicRoadGraph
 var route: PackedInt32Array = PackedInt32Array()
@@ -103,8 +117,8 @@ func advance_fixed(delta: float) -> void:
     _travel(travel)
     if active:
         _place_on_lane()
-    if feedback != null:
-        feedback.observe_vehicle(speed_mps, active, stop_requested)
+    if is_instance_valid(feedback) and feedback.has_method("observe_vehicle"):
+        feedback.call("observe_vehicle", speed_mps, active, stop_requested)
 
 ## Guard physical vehicles against player, pedestrian and other car penetration.
 ## Abstract Node3D agents used in deterministic unit tests have no collider;
