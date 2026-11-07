@@ -108,7 +108,9 @@ static func checkpoint_valid(raw: Variant, civic: Variant, traffic: Variant,
     var data: Dictionary = raw
     if not _whole(data.get("schema_version"), CHECKPOINT_VERSION, CHECKPOINT_VERSION):
         return false
-    if data.get("free_roam_unlocked") != true or not (data.get("finale_acknowledged") is bool):
+    if not (data.get("free_roam_unlocked") is bool) or data["free_roam_unlocked"] != true:
+        return false
+    if not (data.get("finale_acknowledged") is bool):
         return false
     return can_unlock(civic, traffic, parking, cleanup)
 

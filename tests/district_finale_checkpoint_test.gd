@@ -53,6 +53,14 @@ func _run() -> void:
     if not bool(loaded["campaign_checkpoint"]["finale_acknowledged"]):
         _fail("Free Roam acknowledgement was lost after JSON restart")
         return
+    # GAME-021 completed checkpoints did not have a campaign object.
+    # They must still earn Free Roam from the immutable mission ledger.
+    var legacy: Dictionary = loaded.duplicate(true)
+    legacy.erase("campaign_checkpoint")
+    if not Campaign.can_unlock(legacy["civic_session"], legacy["wrong_way_checkpoint"],
+        legacy["parking_checkpoint"], legacy["cleanup_checkpoint"]):
+        _fail("completed legacy market checkpoint could not derive Free Roam")
+        return
     var status: Dictionary = Repo.read_save_detail(PATH)
     if status.get("source") != "primary" or not bool(status.get("ok", false)):
         _fail("latest verified save generation was not primary")

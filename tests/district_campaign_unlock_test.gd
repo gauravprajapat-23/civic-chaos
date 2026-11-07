@@ -45,6 +45,11 @@ func _run() -> void:
         _fail("wrong free roam flag accepted")
         return
     invalid = (snapshot as Dictionary).duplicate(true)
+    invalid["free_roam_unlocked"] = 1
+    if Campaign.checkpoint_valid(invalid, civic, wrong, parking, cleanup):
+        _fail("numeric forged Free Roam flag accepted as boolean")
+        return
+    invalid = (snapshot as Dictionary).duplicate(true)
     invalid["schema_version"] = 19
     if Campaign.checkpoint_valid(invalid, civic, wrong, parking, cleanup):
         _fail("unsupported finale version accepted")
