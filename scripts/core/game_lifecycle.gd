@@ -48,7 +48,7 @@ func load_player(player: Node3D, path: String = "") -> bool:
 ## Do not re-read the file between civic restore and player restore: a new F5
 ## or a primary->backup recovery could otherwise mix two save generations.
 func load_player_snapshot(player: Node3D, data: Dictionary) -> bool:
-    if data.is_empty() or not (data.get("player") is Dictionary):
+    if data.is_empty() or not SaveRepo._valid_player(data):
         lifecycle_message.emit("No valid save found")
         return false
     if not player is CivicPlayerController:
