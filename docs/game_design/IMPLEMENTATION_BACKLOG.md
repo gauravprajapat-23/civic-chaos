@@ -148,3 +148,17 @@ Full details: [GAME_014_CHECKPOINTS.md](GAME_014_CHECKPOINTS.md). **Not yet engi
 - [ ] Localization/audio/animation polish and mobile UI acceptance.
 
 Details: [GAME_015_MISSION_GUIDE.md](GAME_015_MISSION_GUIDE.md). **Code committed, runtime unverified.**
+
+
+## GAME-016 — Illegal parking with a real pedestrian blockage (2026-11-07)
+
+- [x] Source: orange solid car blocking a 2 m north sidewalk, real pedestrian swept movement, observed physical stopping and reopening.
+- [x] Source: visible cooperative owner, E/USE action `request_owner`, revalidation of distance/evidence/once-only report, authorized physical relocation to a marked bay.
+- [x] Source: no score/reward until the actual witness moves beyond the former obstruction and the path is open; one-time civic outcomes.
+- [x] Scene: follows completed wrong-way mission; new guide and existing incident card/HUD reused.
+- [x] Tests authored: `illegal_parking_live_test.gd`, `illegal_parking_obstacle_test.gd`, `parking_owner_card_test.gd`.
+- [ ] Engine import, focused tests, full strict regressions and visual playtest.
+- [ ] GAME-017 parking mission persistence (GAME-014 format currently refuses incomplete parking saves).
+- [ ] Background pedestrian path-network integration, owner alternatives and better vehicle/owner animations.
+
+See [GAME_016_ILLEGAL_PARKING.md](GAME_016_ILLEGAL_PARKING.md). **Code added; not Godot-verified.**
