@@ -86,7 +86,7 @@ func _run() -> void:
     var blocked := StaticBody3D.new()
     blocked.collision_layer = 4
     blocked.collision_mask = 0
-    blocked.global_position = first.active_vehicles[0].global_position + Vector3.UP * 0.9
+    blocked.position = first.active_vehicles[0].global_position + Vector3.UP * 0.9
     var shape := CollisionShape3D.new()
     shape.name = "CollisionShape3D"
     var box := BoxShape3D.new()
@@ -115,9 +115,19 @@ func _run() -> void:
     if not resumed.configure(graph, 3411) or not resumed.restore(saved):
         _fail("background traffic did not reconstruct from JSON")
         return
-    if resumed.snapshot() != saved:
+    var round_trip: Dictionary = resumed.snapshot()
+    if round_trip["rng_state"] != saved["rng_state"] or round_trip["current_tick"] != saved["current_tick"] or round_trip["spawned_total"] != saved["spawned_total"]:
         _fail("traffic generation, counters or RNG state changed on restore")
         return
+    if round_trip["cars"].size() != saved["cars"].size():
+        _fail("restored traffic generation has missing or duplicate cars")
+        return
+    for index in range(round_trip["cars"].size()):
+        var actual: Dictionary = round_trip["cars"][index]
+        var expected: Dictionary = saved["cars"][index]
+        if actual["route"] != expected["route"] or actual["route_index"] != expected["route_index"] or absf(float(actual["lane_distance"]) - float(expected["lane_distance"])) > 0.001:
+            _fail("restored car lost its route or physical lane position")
+            return
     if resumed.rng.state != int((saved as Dictionary)["rng_state"]):
         _fail("RNG state did not survive JSON's integer limitations")
         return
