@@ -102,9 +102,9 @@ func _run() -> void:
         _fail("legacy v1 save silently reset an active routine clock")
         return
     var forged: Dictionary = (serialized as Dictionary).duplicate(true)
-    forged["routine_checkpoint"]["tick"] += 1
+    forged["routine_checkpoint"]["tick"] = Routines.PHASE_TICKS * 3
     if walkers.checkpoint_valid(forged, empty_reservations):
-        _fail("routine clock tampering bypassed checkpoint consistency")
+        _fail("routine checkpoint accepted a new phase with stale role activities")
         return
     forged = (serialized as Dictionary).duplicate(true)
     forged["routine_checkpoint"]["agents"][0]["activity"] = "teleport"
