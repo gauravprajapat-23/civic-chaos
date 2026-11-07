@@ -73,3 +73,86 @@ func reset() -> void:
     current_tick = 0
     _reservations.clear()
     _occupied.clear()
+
+## GAME-019: preserve reservations together with their exact occupied zones.
+## All IDs are logical actor IDs from this simulation, never node instance IDs.
+func snapshot() -> Dictionary:
+    var saved: Array[Dictionary] = []
+    for entry in _reservations:
+        var zones: Array[String] = []
+        for zone in entry["zones"]:
+            zones.append(zone)
+        saved.append({
+            "vehicle_id": int(entry["vehicle_id"]),
+            "zones": zones,
+            "start_tick": int(entry["start_tick"]),
+            "end_tick": int(entry["end_tick"])
+        })
+    return {"schema_version": 1, "current_tick": current_tick,
+        "reservations": saved, "occupied": _occupied.duplicate(true)}
+
+static func _valid_whole(raw: Variant, minimum: int, maximum: int) -> bool:
+    if not (raw is int or raw is float):
+        return false
+    var value: float = float(raw)
+    return is_finite(value) and value == floorf(value) and value >= minimum and value <= maximum
+
+func can_restore(raw: Variant) -> bool:
+    if not (raw is Dictionary):
+        return false
+    var data: Dictionary = raw
+    if not _valid_whole(data.get("schema_version"), 1, 1) or not _valid_whole(data.get("current_tick"), 0, 1000000000):
+        return false
+    if not (data.get("reservations") is Array) or not (data.get("occupied") is Dictionary):
+        return false
+    if data["reservations"].size() > 256 or data["occupied"].size() > 64:
+        return false
+    var pending: Array[Dictionary] = []
+    for raw_entry in data["reservations"]:
+        if not (raw_entry is Dictionary):
+            return false
+        var entry: Dictionary = raw_entry
+        if not _valid_whole(entry.get("vehicle_id"), 0, 1000000000) or not _valid_whole(entry.get("start_tick"), 0, 1000000000) or not _valid_whole(entry.get("end_tick"), 1, 1000000000):
+            return false
+        if int(entry["start_tick"]) >= int(entry["end_tick"]) or int(entry["end_tick"]) <= int(data["current_tick"]):
+            return false
+        if not (entry.get("zones") is Array) or entry["zones"].is_empty() or entry["zones"].size() > 16:
+            return false
+        var unique: Dictionary = {}
+        for zone in entry["zones"]:
+            if not (zone is String) or zone.is_empty() or zone.length() > 64 or unique.has(zone):
+                return false
+            unique[zone] = true
+        for other in pending:
+            if int(other["vehicle_id"]) == int(entry["vehicle_id"]):
+                continue
+            if int(entry["start_tick"]) < int(other["end_tick"]) and int(entry["end_tick"]) > int(other["start_tick"]):
+                for zone in entry["zones"]:
+                    if other["zones"].has(zone):
+                        return false
+        pending.append(entry)
+    var occupied: Dictionary = data["occupied"]
+    for zone in occupied.keys():
+        if not (zone is String) or zone.is_empty() or zone.length() > 64 or not _valid_whole(occupied[zone], 0, 1000000000):
+            return false
+    return true
+
+func restore(raw: Variant) -> bool:
+    if not can_restore(raw):
+        return false
+    var data: Dictionary = raw
+    var restored: Array[Dictionary] = []
+    for entry in data["reservations"]:
+        var zones := PackedStringArray()
+        for zone in entry["zones"]:
+            zones.append(zone)
+        restored.append({
+            "vehicle_id": int(entry["vehicle_id"]),
+            "zones": zones,
+            "start_tick": int(entry["start_tick"]),
+            "end_tick": int(entry["end_tick"])
+        })
+    current_tick = int(data["current_tick"])
+    _reservations = restored
+    _occupied = data["occupied"].duplicate(true)
+    return true
