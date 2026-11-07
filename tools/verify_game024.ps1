@@ -149,7 +149,7 @@ try {
     if ($ranPattern.Success) {
         $gate.python_runner_test_count = [int]$ranPattern.Groups[1].Value
     }
-    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 17
+    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 18
     if (-not $gate.python_runner_checks_passed) {
         $gate.reason = "Python regression and resource-preflight unit tests failed; inspect python-runner-tests.log"
         Write-Gate
@@ -161,7 +161,7 @@ try {
     $sourceCheck = Run-Local -Executable $Python -Arguments @(
         "tools/preflight_godot_sources.py", "--report", "build/game-024-source-preflight.json"
     ) -LogName "source-preflight.log"
-    $sourceReportPath = Join-Path $root "build\\game-024-source-preflight.json"
+    $sourceReportPath = Join-Path $root "build\game-024-source-preflight.json"
     if ($sourceCheck.passed -and (Test-Path -LiteralPath $sourceReportPath)) {
         $sourceReport = Get-Content -LiteralPath $sourceReportPath -Raw | ConvertFrom-Json
         $gate.source_files_checked = [int]$sourceReport.source_files_checked
