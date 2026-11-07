@@ -75,6 +75,13 @@ func checkpoint_valid(raw: Variant, pedestrians: Node3D) -> bool:
     var saved_clock: Dictionary = data["clock"]
     var saved_traffic: Dictionary = data["traffic"]
     var saved_reservations: Dictionary = data["reservations"]
+    # GAME-025-A3: a preview schedule (walker schema v2) may never reload at
+    # a different city tick. V1 playable checkpoints are unchanged.
+    var walker_state: Dictionary = data["pedestrians"]
+    if int(walker_state.get("schema_version", 1)) == 2:
+        var routine: Dictionary = walker_state["routine_checkpoint"]
+        if int(routine["tick"]) != int(saved_clock["tick_index"]):
+            return false
     return int(saved_clock["tick_index"]) == int(saved_traffic["current_tick"]) and int(saved_clock["tick_index"]) == int(saved_reservations["current_tick"])
 
 ## GAME-020: two-phase commit. While the director/walkers are frozen,
