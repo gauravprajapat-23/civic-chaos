@@ -561,8 +561,11 @@ static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = [])
     if incident.get("kind") != "illegal_parking" or incident.get("location_key") != "market_east_north_footpath" or int(incident.get("source_id", -1)) != 1601:
         failures.append("wrong_incident_identity")
         return false
-    if current_tick < incidents.current_tick:
-        failures.append("stale_parking_tick")
+    # A completed parking mission keeps its terminal tick while the later
+    # Market Clean-Up mission legitimately advances the shared civic clock.
+    # Active parking checkpoints must still be current.
+    if current_tick < incidents.current_tick and not bool(data["finished"]):
+        failures.append("stale_active_parking_tick")
         return false
     var mission: Dictionary = missions.missions[MISSION_ID]
     var progress: Dictionary = mission.get("progress", {})

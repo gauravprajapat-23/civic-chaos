@@ -342,8 +342,8 @@ static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = [])
     if not incident_manager.incidents.has(incident_id_value) or not mission_manager.missions.has(MISSION_ID):
         failures.append("mission_missing")
         return false
-    if int(data["tick"]) < incident_manager.current_tick:
-        failures.append("clock")
+    if int(data["tick"]) < incident_manager.current_tick and not bool(data["finished"]):
+        failures.append("active_cleanup_clock")
         return false
     var incident: Dictionary = incident_manager.incidents[incident_id_value]
     if incident.get("kind") != "market_litter" or int(incident.get("source_id", -1)) != 2101 or incident.get("location_key") != "market_north_sidewalk":
