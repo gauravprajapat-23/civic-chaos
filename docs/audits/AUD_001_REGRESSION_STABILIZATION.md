@@ -84,6 +84,33 @@ Godot subprocess output is decoded as UTF-8 with replacement instead of the syst
 
 **Verification remains OPEN.** Source code was updated, but no Python or Godot test was executed in this authoring environment. Passing tests must be confirmed on the exact Windows checkout and SHA.
 
+## AUD-001-R09 — Static Godot resource reference preflight (next work batch)
+
+The engine failures called out in draft PR #48 include a vehicle scene load and NPC personality preload. Source-only checks cannot prove Godot import is healthy, but they can identify missing **literal** dependencies and duplicated global classes before launching the editor.
+
+Added:
+
+- `tools/preflight_godot_sources.py` scans GDScript, `.tscn`, `.tres`, `.gdshader` and project configuration for literal `preload`, `load`, `ResourceLoader.load/exists`, scene `path="res://..."` and `run/main_scene` references.
+- It rejects missing literal source/scene resources, unsafe `res://../` paths, duplicate `class_name` names and missing project configuration. Dynamic runtime-computed asset paths and GDScript syntax are **outside** its scope.
+- The scanner ignores full-line commented import examples and excludes generated `.godot/`, `build/` and Git internals.
+- Its standalone JSON inventory at `build/game-024-source-preflight.json` includes `passed`, files scanned, static resource reference count, global class count and detailed issues.
+- `tests/test_source_preflight.py` supplies seven tests for valid dependencies, missing resources, duplicate classes, dynamic paths, invalid relative paths, commented examples and missing project files.
+- `tools/verify_game024.ps1` runs **at least 18 Python tests** across `test_*.py`, then runs the source preflight before Godot import; any failed Python preflight blocks acceptance and records diagnostics.
+
+**Evidence:** The seven source-preflight unit tests passed in an isolated local Python 3.13 fixture, and the committed source/test blob hashes matched those tested. This does **not** establish that the entire live GitHub repository passed static preflight or that Godot 4.7.2 successfully imported it. The latest branch's full Python suite, Godot import, 90+ GDScript regression tests and manual gameplay still require the developer's Windows checkout.
+
+Fast local diagnostic (no Actions):
+
+```powershell
+python -m unittest discover -s tests -p "test_*.py" -v
+if ($LASTEXITCODE -ne 0) { throw "Python QA checks failed" }
+python tools/preflight_godot_sources.py --report build/game-024-source-preflight.json
+if ($LASTEXITCODE -ne 0) {
+    Get-Content build/game-024-source-preflight.json
+    throw "Godot literal source references are broken"
+}
+```
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
