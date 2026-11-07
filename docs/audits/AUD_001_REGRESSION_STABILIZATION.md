@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 14 focused tests to pass with their exact markers.
+- Requires 15 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -163,6 +163,21 @@ Source fixes in `scripts/traffic/traffic_spawner.gd`:
 
 The test is registered with the strict runner and focused gate, raising **mandatory Godot fixtures to 94** and **focused checks to 14**. No Godot binary was available in this authoring environment; source-level implementation is committed, but **runtime verification remains pending**.
 
+## AUD-001-R14 — Failed traffic reconfiguration must not destroy live state
+
+**Confirmed source defect:** `CivicTrafficSpawner.configure()` previously aborted any staged checkpoint, queued the existing fleet for deletion, cleared vehicle-delay tracking, and changed the current road graph/mode **before** checking whether an expanded-city graph had even one eligible perimeter entry lane. When this late check failed, `configure()` returned `false` but the previous traffic generation was already lost.
+
+Source fix in `scripts/traffic/traffic_spawner.gd`:
+
+- Evaluate graph validity, spawn interval/agent limit/clearance and expanded-city entrance eligibility **before** calling `abort_restore()`, deleting vehicles, or changing counters, seed, road graph or mode.
+- Build proposed city entries in a local typed array and assign it only once validation succeeds.
+- Preserve the existing semantic that a **successful** configuration replaces the previous fleet and cancels a prepared checkpoint, resetting counters and RNG to the newly requested seed.
+- The network, save schema and gameplay feature flags are unchanged. The change affects normal traffic reconfiguration as well as the isolated test harness.
+
+New `tests/traffic_reconfigure_atomicity_test.gd` checks a rejected expanded-city graph **both with an in-progress restore and with an active physical vehicle**, along with rejected zero spawn interval and nonfinite clearance. It asserts unchanged actor identity, fleet inventory, road graph, RNG state, counters and restore transaction after failure. It also checks that a legitimate new configuration resets traffic, retires the old vehicle and invalidates a prepared restore.
+
+Registered in the strict full regression and GAME-024 focused gate: **95 mandatory Godot tests / 15 focused tests**. Status: code committed, **Godot 4.7.2 runtime not executed here**.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -175,7 +190,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_regression_runner.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 14 focused fixtures + 94+ full regressions.
+# Godot 4.7.2: import + 15 focused fixtures + 95+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
@@ -204,4 +219,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 14 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 15 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
