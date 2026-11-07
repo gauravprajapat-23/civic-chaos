@@ -71,6 +71,15 @@ func _run() -> void:
     if not spawner.city_entry_lanes.is_empty() or spawner.restore_prepared():
         _fail("successful reconfiguration retained stale city entrances or restore state")
         return
+    # A successful configuration is allowed to invalidate a prepared
+    # checkpoint, unlike a rejected configuration.
+    var fresh: Dictionary = spawner.snapshot()
+    if not spawner.prepare_restore(fresh):
+        _fail("could not prepare a checkpoint after successful reset")
+        return
+    if not spawner.configure(graph, 7001) or spawner.restore_prepared() or spawner.seed != 7001:
+        _fail("accepted reconfiguration failed to retire the old checkpoint")
+        return
     await physics_frame
     if is_instance_valid(original_vehicle):
         _fail("superseded vehicle collider survived the successful reconfiguration")
