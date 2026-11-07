@@ -25,6 +25,9 @@ $gate = [ordered]@{
     import_passed = $false
     python_runner_checks_passed = $false
     python_runner_test_count = 0
+    source_preflight_passed = $false
+    source_files_checked = 0
+    static_resources_checked = 0
     focused_tests = @()
     full_regression_passed = $false
     regression_tests_run = 0
@@ -140,15 +143,38 @@ try {
     # keep PowerShell 5.1 ErrorActionPreference from treating that as a throw.
     $pythonCheck = Run-Local -Executable $Python -Arguments @(
         "-m", "unittest", "discover", "-s", "tests", "-p",
-        "test_regression_runner.py", "-v"
+        "test_*.py", "-v"
     ) -LogName "python-runner-tests.log"
     $ranPattern = [regex]::Match($pythonCheck.output, '(?m)^Ran\s+(\d+)\s+tests?\s+in\s+')
     if ($ranPattern.Success) {
         $gate.python_runner_test_count = [int]$ranPattern.Groups[1].Value
     }
-    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 9
+    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 17
     if (-not $gate.python_runner_checks_passed) {
-        $gate.reason = "Python regression-runner self-tests failed; inspect python-runner-tests.log"
+        $gate.reason = "Python regression and resource-preflight unit tests failed; inspect python-runner-tests.log"
+        Write-Gate
+        exit 1
+    }
+
+    # Static preflight catches missing literal scene/preload paths and
+    # duplicate global class names before Godot's expensive import.
+    $sourceCheck = Run-Local -Executable $Python -Arguments @(
+        "tools/preflight_godot_sources.py", "--report", "build/game-024-source-preflight.json"
+    ) -LogName "source-preflight.log"
+    $sourceReportPath = Join-Path $root "build\\game-024-source-preflight.json"
+    if ($sourceCheck.passed -and (Test-Path -LiteralPath $sourceReportPath)) {
+        $sourceReport = Get-Content -LiteralPath $sourceReportPath -Raw | ConvertFrom-Json
+        $gate.source_files_checked = [int]$sourceReport.source_files_checked
+        $gate.static_resources_checked = [int]$sourceReport.static_resources_checked
+        $gate.source_preflight_passed = (
+            [bool]$sourceReport.passed -and
+            @($sourceReport.issues).Count -eq 0 -and
+            $gate.source_files_checked -gt 0 -and
+            $gate.static_resources_checked -gt 0
+        )
+    }
+    if (-not $gate.source_preflight_passed) {
+        $gate.reason = "Source-reference preflight failed; inspect build/game-024-source-preflight.json and source-preflight.log"
         Write-Gate
         exit 1
     }
