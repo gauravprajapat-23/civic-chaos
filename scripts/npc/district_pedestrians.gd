@@ -23,6 +23,9 @@ const VEHICLE_CLEARANCE: float = 1.5
 const PERSONAL_SPACE: float = 1.4
 const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
 const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd")
+const RoutineAdapter = preload("res://scripts/npc/npc_routine_world_adapter.gd")
+## GAME-025-A3 gated preview. Never enabled by main.gd or by default.
+var _daily_routine_adapter: CivicNPCRoutineWorldAdapter
 var _reaction_context: Dictionary = {}
 var _reaction_label: Label3D
 var _reaction_end: float = -1.0
@@ -36,6 +39,30 @@ func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTraf
     _signal_controller = signals
     _traffic_spawner = spawner
     _reservations = reservations
+
+## Preview must be deliberately enabled *after* the pedestrians have spawned.
+## The playable game does not call this method while GAME-024 is unverified.
+## No independent wall clock or delta-based time progression is allowed.
+func configure_daily_routine_preview(seed_value: int = 25025) -> bool:
+    if not is_inside_tree() or _daily_routine_adapter != null:
+        return false
+    var adapter := RoutineAdapter.new() as CivicNPCRoutineWorldAdapter
+    if not adapter.configure(_walkers.size(), seed_value):
+        return false
+    _daily_routine_adapter = adapter
+    return true
+
+## Caller must supply the authoritative SimulationDirector tick.
+func advance_daily_routine_tick(tick: int) -> bool:
+    return _daily_routine_adapter != null and _daily_routine_adapter.advance_to_simulation_tick(tick)
+
+func daily_routine_preview_enabled() -> bool:
+    return _daily_routine_adapter != null
+
+func daily_routine_preview_state(index: int) -> Dictionary:
+    if _daily_routine_adapter == null:
+        return {}
+    return _daily_routine_adapter.inspect_walker(self, index)
 
 func _ready() -> void:
     var shirt_colors := [
@@ -184,6 +211,13 @@ func _physics_process(delta: float) -> void:
         var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
         var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
         var can_walk: bool = true
+        # No schedule can override traffic permission or an occupied crossing.
+        # Only an already validated clear sidewalk stop may request a rest.
+        var routine_pause: bool = false
+        if _daily_routine_adapter != null:
+            var suggestion: Dictionary = _daily_routine_adapter.inspect_walker(self, index)
+            routine_pause = bool(suggestion.get("pause_for_activity", false))
+        var routine_resting: bool = false
         # Safety recovery is independent of traffic-light permission. A walker
         # at a red crossing must still move away from an overlapping player.
         var recovering: bool = _resolve_actor_overlap(index, delta)
@@ -201,8 +235,13 @@ func _physics_process(delta: float) -> void:
         if recovering or _yield_to_player(index, delta):
             can_walk = false
         elif can_walk:
-            can_walk = _advance_clear_walker(index, delta, length)
-        if can_walk:
+            if routine_pause:
+                can_walk = false
+                routine_resting = true
+            else:
+                can_walk = _advance_clear_walker(index, delta, length)
+        if can_walk or routine_resting:
+            # An intentional schedule stop is not an obstruction or stall.
             _blocked_frames[index] = 0
         else:
             _blocked_frames[index] += 1
@@ -662,7 +701,13 @@ func checkpoint_state() -> Dictionary:
             "crossing": _crossing[index],
             "crossing_start_tick": _crossing_start_tick[index]
         })
-    return {"schema_version": 1, "elapsed": _elapsed, "walkers": saved}
+    var result: Dictionary = {"schema_version": 1, "elapsed": _elapsed, "walkers": saved}
+    if _daily_routine_adapter != null:
+        # v2 exists only in explicitly enabled previews. Existing playable
+        # v1 checkpoints remain byte-for-byte shape compatible.
+        result["schema_version"] = 2
+        result["routine_checkpoint"] = _daily_routine_adapter.checkpoint_state()
+    return result
 
 static func _checkpoint_number(value: Variant, minimum: float, maximum: float) -> bool:
     if not (value is int or value is float):
@@ -679,7 +724,15 @@ func checkpoint_valid(raw: Variant, reservations_state: Variant) -> bool:
         return false
     var data: Dictionary = raw
     var reservation_data: Dictionary = reservations_state
-    if not _checkpoint_whole(data.get("schema_version"), 1, 1) or not _checkpoint_number(data.get("elapsed"), 0.0, 1000000000.0):
+    if not _checkpoint_whole(data.get("schema_version"), 1, 2) or not _checkpoint_number(data.get("elapsed"), 0.0, 1000000000.0):
+        return false
+    var version: int = int(data["schema_version"])
+    if version == 2:
+        if _daily_routine_adapter == null or not _daily_routine_adapter.checkpoint_valid(data.get("routine_checkpoint")):
+            return false
+    elif _daily_routine_adapter != null:
+        # Never restore a legacy v1 snapshot with an implicitly reset active
+        # routine clock; migration will be added with the live enablement gate.
         return false
     if not (data.get("walkers") is Array) or data["walkers"].size() != _walkers.size():
         return false
@@ -744,4 +797,7 @@ func restore_checkpoint(raw: Variant, reservations_state: Variant) -> bool:
         _blocked_frames[index] = int(record["blocked_frames"])
         _crossing[index] = bool(record["crossing"])
         _crossing_start_tick[index] = int(record["crossing_start_tick"])
+    if _daily_routine_adapter != null:
+        # Already validated, so this cannot fail after positions are placed.
+        _daily_routine_adapter.restore_checkpoint(data["routine_checkpoint"])
     return true
