@@ -52,6 +52,14 @@ func _ready() -> void:
     cube.size = size
     mesh.mesh = cube
     mesh.position = shape.position
+    if kind == "cone":
+        # Make a recognizable road cone rather than another orange box.
+        var tapered := CylinderMesh.new()
+        tapered.top_radius = 0.08
+        tapered.bottom_radius = 0.28
+        tapered.height = 0.66
+        mesh.mesh = tapered
+        mesh.position = Vector3(0.0, 0.40, 0.0)
     var material := StandardMaterial3D.new()
     material.albedo_color = paint
     mesh.material_override = material
