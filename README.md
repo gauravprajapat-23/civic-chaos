@@ -35,6 +35,8 @@ See [ROADMAP.md](ROADMAP.md) for development dependencies and acceptance gates.
 
 ## First campaign controls
 
-Play through the footpath tutorial, wrong-way traffic recovery, illegal parking and market cleanup. A district report appears after the final real cleanup. **Continue in Free Roam** resumes district exploration. Press **F2** or use the on-screen **District Results** button to review scores again. **Replay Story** restarts at the tutorial after confirmation. Free Roam and finale acknowledgement can be saved with F5 and loaded with F9, subject to physical checkpoint safety validation.
+Play through the footpath tutorial, wrong-way traffic recovery, illegal parking and market cleanup. A district report appears after the final real cleanup. **Continue in Free Roam** resumes district exploration and enables occasional, bounded civic activities: pick up fresh litter for the recycling bin or return a fallen public sign to its stand. These new events use the existing E / USE interaction card and add **small, audited city-score improvements** without granting story rewards again. Press **F2** or use the on-screen **District Results** button to review scores again. **Replay Story** restarts at the tutorial after confirmation. Free Roam events and finale acknowledgement can be saved with F5 and loaded with F9, subject to physical checkpoint safety validation.
 
 [GAME-022 finale and local verification](docs/game_design/GAME_022_DISTRICT_FINALE.md). GitHub Actions are manual-only by request; run Godot locally during development.
+
+[GAME-023 Free Roam event design and local tests](docs/game_design/GAME_023_FREE_ROAM_EVENTS.md).

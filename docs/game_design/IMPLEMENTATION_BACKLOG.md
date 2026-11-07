@@ -229,3 +229,16 @@ See [GAME_021_MARKET_CLEANUP.md](GAME_021_MARKET_CLEANUP.md). **Runtime verifica
 - [ ] Later improvements: decorative ending art/audio and optional dynamic Free Roam incident generation.
 
 See [GAME_022_DISTRICT_FINALE.md](GAME_022_DISTRICT_FINALE.md). **Source committed, runtime unverified. GitHub Actions remain manual-only.**
+
+
+## GAME-023 — Repeatable Free Roam events (2026-11-07)
+
+- [x] Source: after acknowledged district finale, one seeded public-space incident at a time, chosen from physically collectible litter and a fallen sign with safe placement destination.
+- [x] Source: inspection, one-object carry, disposal/placement, direct civic incident closure, unique metric receipts and no additional story reward claims.
+- [x] Source: event director capped budget, deterministic JSON checkpoint/restore and expiration without awards; HUD and waypoint guide updated.
+- [x] Source: F5/F9 `free_roam_checkpoint` validates the director, ongoing object progress and authoritative civic receipt history; older completed finale saves remain supported.
+- [x] Tests written: `free_roam_director_checkpoint_test.gd`, `free_roam_live_events_test.gd`, `free_roam_event_restart_test.gd`, `free_roam_card_test.gd`, `free_roam_expiry_test.gd`.
+- [ ] Godot 4.7.2 import, focused/full local regressions and PC/Android playthrough.
+- [ ] Future work: dynamic incident placement, enhanced NPC consequences/animations and more Free Roam activities.
+
+See [GAME_023_FREE_ROAM_EVENTS.md](GAME_023_FREE_ROAM_EVENTS.md). **Source committed; engine execution unverified; no GitHub Actions dispatched.**
