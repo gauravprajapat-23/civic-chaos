@@ -185,10 +185,14 @@ func _notify_witness(phase: String) -> void:
             str(active_event["kind"]), phase, int(active_event["instance"]))
 
 func _clear_targets() -> void:
-    if is_instance_valid(primary):
-        primary.queue_free()
-    if is_instance_valid(receiver):
-        receiver.queue_free()
+    # queue_free() is deferred. Retire collision and E/USE immediately so a
+    # same-frame reload or new incident cannot interact with ghost props.
+    for target in [primary, receiver]:
+        if is_instance_valid(target):
+            target.collision_layer = 0
+            target.collision_mask = 0
+            target.visible = false
+            target.queue_free()
     primary = null
     receiver = null
     _current_target = ""
