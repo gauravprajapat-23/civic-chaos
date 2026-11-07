@@ -5,7 +5,7 @@ extends RefCounted
 ## exclusively owned by their existing systems. No wall-clock or global RNG.
 const SCHEMA_VERSION: int = 1
 const MAX_AGENTS: int = 128
-const PHASE_TICKS: int = 300
+const PHASE_TICKS: int = 6000 # Five real minutes per phase at 20 simulation ticks/s
 const DAY_TICKS: int = 4 * PHASE_TICKS
 const DEFAULT_SEED: int = 25025
 const ROLES: Array[String] = ["commuter", "shopkeeper", "sanitation_worker", "resident"]
