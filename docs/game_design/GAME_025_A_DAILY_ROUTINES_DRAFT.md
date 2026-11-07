@@ -57,6 +57,8 @@ $godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 if ($LASTEXITCODE -ne 0) { throw "Godot import failed" }
 & $godot --headless --path . --script res://tests/npc_daily_routines_test.gd
 if ($LASTEXITCODE -ne 0) { throw "NPC routine test failed" }
+& $godot --headless --path . --script res://tests/npc_routine_intent_test.gd
+if ($LASTEXITCODE -ne 0) { throw "NPC routine intent test failed" }
 ```
 
 This test can prove the *model* works, but does **not** authorize enabling routines in the existing city before the GAME-024 acceptance gate.
