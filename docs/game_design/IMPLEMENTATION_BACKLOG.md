@@ -192,3 +192,14 @@ See [GAME_018_SAVE_INTEGRITY.md](GAME_018_SAVE_INTEGRITY.md). **Source committed
 - [x] Regression source: `world_traffic_checkpoint_test.gd`, `world_junction_checkpoint_test.gd`, `world_pedestrian_checkpoint_test.gd`.
 - [ ] Godot import/focused/full strict regression, PC/Android collision playtests and stronger city-wide rollback.
 See [GAME_019_WORLD_CHECKPOINTS.md](GAME_019_WORLD_CHECKPOINTS.md). Source only; runtime unverified.
+
+
+## GAME-020 — Dense-traffic transaction recovery (2026-11-07)
+
+- [x] Source: stage background cars without deleting original nodes, then commit only after physical pedestrian landing checks; abort restores original colliders and counters without recreating cars.
+- [x] Source: reject concurrent staged loads, prevent traffic ticks during staging and guard player restore eligibility before changing civic/world state.
+- [x] Regression source: `world_transaction_rollback_test.gd`, `traffic_transaction_stress_test.gd`; expanded single-generation player restore test.
+- [ ] Godot 4.7.2 import and focused/full GAME-014–020 regressions, dense-traffic/Android manual verification.
+- [ ] Broader crash-atomic scene replacement and background world-object rollback.
+
+See [GAME_020_TRANSACTION_RECOVERY.md](GAME_020_TRANSACTION_RECOVERY.md). **Code committed, Godot runtime unverified.**
