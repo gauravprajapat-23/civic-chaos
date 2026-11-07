@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 13 focused tests to pass with their exact markers.
+- Requires 14 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -144,9 +144,24 @@ The following **test-only** fixes now wait for `physics_frame` before stepping t
 - `tests/traffic_transaction_stress_test.gd`: preflight traffic spawning and repeated PREPARE/ABORT/COMMIT snapshots execute after physics-frame boundaries, so `footprint_blocked_at()` cannot be called from the original deferred test loop.
 - `tests/traffic_budget_test.gd`: replaces all bare `assert()` calls with descriptive `push_error()` and nonzero exits, guarding against disabled runtime assertions.
 
-This keeps live traffic, checkpoint schema, spawn policies and vehicle collision settings unchanged. The purpose is to remove test-harness artifacts and expose genuine traffic failures. The 93-fixture GAME-024 regression baseline is unchanged by these edits.
+This keeps live traffic, checkpoint schema, spawn policies and vehicle collision settings unchanged. The purpose is to remove test-harness artifacts and expose genuine traffic failures. The 94-fixture GAME-024 regression baseline is unchanged by these edits.
 
 **Important:** These fixes have not been run in Godot 4.7.2 here. They should be followed by targeted `traffic_spawner_test.gd`, `city_traffic_test.gd`, `traffic_transaction_stress_test.gd`, and `traffic_budget_test.gd` executions as well as the full local acceptance script. Any real physics lock error or throughput failure in that run must be investigated from its log, not presumed fixed.
+
+## AUD-001-R13 — Reject impossible restored traffic generations
+
+**Confirmed source-level bug:** `CivicTrafficSpawner.can_restore()` previously checked `completed_total <= spawned_total` and `cars.size() <= spawned_total` separately, but accepted a checkpoint whose completed and active cars **together** exceeded all spawned vehicles. It also allowed a checkpoint to restore an **active** car with its current route index at the end of its final lane. Such a car would have zero remaining travel, so `advance_fixed()` could never reach the `_travel()` branch that completes and removes it, leaving a permanent ghost vehicle and reducing throughput.
+
+Source fixes in `scripts/traffic/traffic_spawner.gd`:
+
+- Reject checkpoint generation if `completed_total + cars.size() > spawned_total`.
+- Reject a saved active car whose final-route `lane_distance` is at/past the final lane's endpoint; a legitimate car merely *approaching* the endpoint remains valid.
+- Reject nonfinite fixed-step durations and invalid zero/negative spawn intervals before advancing tick counters or using modulo.
+- Preserve the existing checkpoint format and accepted real gameplay snapshots; invalid restores are refused **before** any staged collision actors are allocated.
+
+`tests/traffic_checkpoint_invariants_test.gd` is a new pure validation fixture, covering a valid single active vehicle, forged active+completed accounting, overclaimed completions, terminal ghost car, past-end values, near-end valid car, unchanged live state after rejected validation, infinite delta and zero spawn interval. The marker is `CIVIC_CHAOS_TRAFFIC_CHECKPOINT_INVARIANTS_PASS`.
+
+The test is registered with the strict runner and focused gate, raising **mandatory Godot fixtures to 94** and **focused checks to 14**. No Godot binary was available in this authoring environment; source-level implementation is committed, but **runtime verification remains pending**.
 
 ## Local validation (Windows PowerShell)
 
@@ -160,7 +175,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_regression_runner.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 9 focused fixtures + 93+ full regressions.
+# Godot 4.7.2: import + 9 focused fixtures + 94+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
