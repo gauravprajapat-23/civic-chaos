@@ -17,6 +17,9 @@ func _run() -> void:
     lane.centerline = PackedVector3Array([Vector3.ZERO, Vector3(30, 0, 0)])
     graph.add_lane(lane)
     var car := VehicleScene.instantiate() as CivicVehicleAgent
+    if car == null:
+        _fail("vehicle scene failed to instantiate for player obstacle test")
+        return
     stage.add_child(car)
     if not car.configure(graph, PackedInt32Array([1]), Profile.new()):
         _fail("car configuration rejected")
