@@ -85,8 +85,12 @@ static func choose_site(instance_id: int, previous_site: String, usable: Variant
         var candidate: String = names[(offset + step) % names.size()]
         if candidate == previous_site:
             continue
-        if usable == null or usable is Callable and (usable as Callable).is_valid() and bool((usable as Callable).call(candidate)):
+        if usable == null:
             return candidate
+        if usable is Callable:
+            var check: Callable = usable
+            if check.is_valid() and bool(check.call(candidate)):
+                return candidate
     # A busy district can legitimately defer an incident instead of clipping.
     return ""
 
