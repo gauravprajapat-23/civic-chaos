@@ -26,6 +26,7 @@ func _environment() -> Dictionary:
         return {}
     var roam := FreeRoam.new() as CivicFreeRoamEvents
     stage.add_child(roam)
+    roam.set_physics_process(false)
     if not roam.configure(player, civic):
         stage.queue_free()
         return {}
@@ -33,6 +34,7 @@ func _environment() -> Dictionary:
 
 func _activate(roam: CivicFreeRoamEvents) -> void:
     for i in range(20):
+        await physics_frame
         roam._physics_process(0.25)
 
 func _act(roam: CivicFreeRoamEvents, player: Node3D,
@@ -50,7 +52,7 @@ func _run() -> void:
     var roam: CivicFreeRoamEvents = first["roam"]
     var civic: CivicGameplaySession = first["civic"]
     var player: Node3D = first["player"]
-    _activate(roam)
+    await _activate(roam)
     if roam.active_event.is_empty():
         _fail("no physical civic event available to checkpoint")
         return
