@@ -31,10 +31,27 @@ var current_tick: int = 0
 var _vehicle_delay: Dictionary = {}
 
 func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: bool = false) -> bool:
-	if restore_prepared():
-		abort_restore()
+	# Preflight *all* fallible inputs before touching the current traffic
+	# generation or an in-progress checkpoint transaction. A rejected city
+	# graph must never destroy the existing fleet or lose its RNG/counters.
 	if graph == null or not graph.validate().is_empty():
 		return false
+	if maximum_active < 1 or spawn_interval_ticks < 1 or not is_finite(spawn_clearance_m) or spawn_clearance_m <= 0.0:
+		return false
+	var proposed_entry_lanes := PackedInt32Array()
+	if expanded_city:
+		for lane_id in graph.sorted_lane_ids():
+			var lane: CivicLaneData = graph.get_lane(lane_id)
+			var origin: Vector3 = lane.centerline[0]
+			if (absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0) and lane.centerline[1].length_squared() < origin.length_squared():
+				proposed_entry_lanes.append(lane_id)
+		if proposed_entry_lanes.is_empty():
+			return false
+	# All validation succeeded. Now replace the old generation atomically
+	# with respect to configuration failure (and intentionally abort a
+	# previously prepared checkpoint for a successful reconfiguration).
+	if restore_prepared():
+		abort_restore()
 	for vehicle in active_vehicles:
 		if is_instance_valid(vehicle):
 			vehicle.queue_free()
@@ -43,15 +60,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	work_budget.configure(maximum_active, 8)
 	road_graph = graph
 	city_mode = expanded_city
-	city_entry_lanes = PackedInt32Array()
-	if city_mode:
-		for lane_id in road_graph.sorted_lane_ids():
-			var lane: CivicLaneData = road_graph.get_lane(lane_id)
-			var origin: Vector3 = lane.centerline[0]
-			if (absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0) and lane.centerline[1].length_squared() < origin.length_squared():
-				city_entry_lanes.append(lane_id)
-		if city_entry_lanes.is_empty():
-			return false
+	city_entry_lanes = proposed_entry_lanes
 	seed = random_seed
 	rng.seed = seed
 	spawned_total = 0
