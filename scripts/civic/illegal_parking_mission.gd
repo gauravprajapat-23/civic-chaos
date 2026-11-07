@@ -416,7 +416,7 @@ func _segment_at(progress: float) -> int:
     var passed: float = 0.0
     for index in range(_parking_route.size() - 1):
         passed += _parking_route[index].distance_to(_parking_route[index + 1])
-        if progress < passed - CHECKPOINT_EPSILON_M:
+        if progress < passed - 0.000001:
             return index
     return _parking_route.size() - 2
 
