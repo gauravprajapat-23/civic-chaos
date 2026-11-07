@@ -65,6 +65,25 @@ The five accelerated Free Roam tests now also disable automatic processing on th
 
 The verification gate now rejects **untracked new source and test files** as well as modified tracked files. Generated `build/` artifacts are excluded from that status check. A fresh attempt resets the acceptance JSON to `blocked` before launching Godot so an interrupted rerun cannot leave a stale `passed` report visible.
 
+## Follow-on stabilization batch — reliable negative-path acceptance (source only)
+
+### AUD-001-R07 — Deliberate failure is not a timeout or crash
+
+The strict Python runner previously treated **any** nonzero Godot exit with the intentional-failure marker as a successful negative-path test. If Godot printed the marker and then hung, the timeout returned `-1` and could be accepted as success. It now requires:
+
+- Exact **exit code 1** from the forced-failure smoke test, without timeout.
+- The `CIVIC_CHAOS_INTENTIONAL_FAILURE` marker in that run's output.
+- Recorded `negative_path_exit_code` and `negative_path_timed_out` report fields.
+- Separate `timed_out` and `nonzero_exit` failure reasons for ordinary tests.
+
+Godot subprocess output is decoded as UTF-8 with replacement instead of the system-specific Windows locale, protecting the local runner from Unicode decoding crashes. The Python unittest suite includes timeout/crash refusal, UTF-8 decoder options, and explicit timeout provenance.
+
+### AUD-001-R08 — One-command acceptance runs the Python self-tests
+
+`tools/verify_game024.ps1` now executes `python -m unittest discover -s tests -p test_regression_runner.py -v` itself and requires at least **nine** passing checks before Godot import. It writes `build/game-024-verification-logs/python-runner-tests.log` and records `python_runner_checks_passed` plus `python_runner_test_count` in the gate JSON. These checks are safe to run locally, without triggering Actions.
+
+**Verification remains OPEN.** Source code was updated, but no Python or Godot test was executed in this authoring environment. Passing tests must be confirmed on the exact Windows checkout and SHA.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
