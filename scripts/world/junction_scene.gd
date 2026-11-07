@@ -57,7 +57,7 @@ func checkpoint_state(pedestrians: Node3D) -> Dictionary:
         "signals": traffic_signals.snapshot(),
         "traffic": traffic_spawner.snapshot(),
         "reservations": intersection_reservations.snapshot(),
-        "pedestrians": pedestrians.checkpoint_state()
+        "pedestrians": pedestrians.call("checkpoint_state")
     }
 
 func checkpoint_valid(raw: Variant, pedestrians: Node3D) -> bool:
@@ -70,7 +70,7 @@ func checkpoint_valid(raw: Variant, pedestrians: Node3D) -> bool:
         return false
     if not traffic_spawner.can_restore(data.get("traffic")) or not intersection_reservations.can_restore(data.get("reservations")):
         return false
-    if not pedestrians.has_method("checkpoint_valid") or not pedestrians.checkpoint_valid(data.get("pedestrians"), data.get("reservations")):
+    if not pedestrians.has_method("checkpoint_valid") or not bool(pedestrians.call("checkpoint_valid", data.get("pedestrians"), data.get("reservations"))):
         return false
     var saved_clock: Dictionary = data["clock"]
     var saved_traffic: Dictionary = data["traffic"]
@@ -87,7 +87,7 @@ func restore_checkpoint(raw: Variant, pedestrians: Node3D) -> bool:
     var old_traffic: Dictionary = traffic_spawner.snapshot()
     if not traffic_spawner.restore(data["traffic"]):
         return false
-    if not pedestrians.restore_checkpoint(data["pedestrians"], data["reservations"]):
+    if not bool(pedestrians.call("restore_checkpoint", data["pedestrians"], data["reservations"])):
         # The pedestrian restore must reject before altering any walker; the
         # previous vehicle generation is reconstructed best-effort.
         if not traffic_spawner.restore(old_traffic):

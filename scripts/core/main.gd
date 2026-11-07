@@ -177,8 +177,8 @@ func _save_gameplay_checkpoint() -> bool:
     if city_junction == null or walkers == null:
         _on_interaction_message("Checkpoint refused: city simulation unavailable")
         return false
-    var world_state: Dictionary = city_junction.checkpoint_state(walkers)
-    if not city_junction.checkpoint_valid(world_state, walkers):
+    var world_state: Dictionary = city_junction.call("checkpoint_state", walkers)
+    if not bool(city_junction.call("checkpoint_valid", world_state, walkers)):
         _on_interaction_message("Checkpoint refused: unsafe or inconsistent traffic world state")
         return false
     payload["world_checkpoint"] = world_state
@@ -231,7 +231,7 @@ func _load_gameplay_checkpoint() -> bool:
             return false
     var has_world: bool = saved.has("world_checkpoint")
     var pedestrian_world: Node3D = get_node_or_null("DistrictPedestrians") as Node3D
-    if has_world and (junction == null or pedestrian_world == null or not junction.checkpoint_valid(saved["world_checkpoint"], pedestrian_world)):
+    if has_world and (junction == null or pedestrian_world == null or not bool(junction.call("checkpoint_valid", saved["world_checkpoint"], pedestrian_world))):
         _on_interaction_message("Checkpoint rejected: corrupted or incompatible city simulation")
         return false
     var restored_world: CivicWrongWayLiveMission = wrong_way_world
@@ -269,7 +269,7 @@ func _load_gameplay_checkpoint() -> bool:
         return false
     var old_world_state: Dictionary = {}
     if has_world:
-        old_world_state = junction.checkpoint_state(pedestrian_world)
+        old_world_state = junction.call("checkpoint_state", pedestrian_world)
     var old_civic: Dictionary = gameplay_session.snapshot()
     var old_live: Dictionary = wrong_way_world.snapshot() if is_instance_valid(wrong_way_world) else {}
     var old_parking: Dictionary = parking_world.snapshot() if is_instance_valid(parking_world) else {}
@@ -308,7 +308,7 @@ func _load_gameplay_checkpoint() -> bool:
     # The background world uses the same verified document and is also
     # restored under the director/pedestrian physics guard. Missing world
     # checkpoints are legacy saves: keep the current background simulation.
-    if has_world and not junction.restore_checkpoint(saved["world_checkpoint"], pedestrian_world):
+    if has_world and not bool(junction.call("restore_checkpoint", saved["world_checkpoint"], pedestrian_world)):
         gameplay_session.restore(old_civic)
         if newly_prepared:
             restored_world.queue_free()
@@ -333,7 +333,7 @@ func _load_gameplay_checkpoint() -> bool:
             restored_parking.queue_free()
         elif is_instance_valid(parking_world):
             parking_world.restore(old_parking)
-        if has_world and not junction.restore_checkpoint(old_world_state, pedestrian_world):
+        if has_world and not bool(junction.call("restore_checkpoint", old_world_state, pedestrian_world)):
             push_warning("Checkpoint rollback could not restore previous background world")
         restore_guard.finish()
         return false
