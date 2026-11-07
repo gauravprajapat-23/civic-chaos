@@ -47,6 +47,24 @@ Changed tests:
 
 These are targeted **test-time changes**, not claims that the physical placement logic has been verified.
 
+## Follow-on stabilization batch — test completeness and clock isolation
+
+### AUD-001-R04 — Automatic fixture discovery and actionable failure artifacts
+
+The hardened regression runner now includes every `tests/*_test.gd` file on disk in addition to the mandatory workflow/manual contract. A new fixture is therefore never accidentally skipped simply because the legacy registration tuple was not edited. A missing mandatory fixture still fails the inventory.
+
+Each run now writes `build/regression-logs/<test>.log`, embeds failure reasons and the final 4,000 characters of failing output in the JSON report, records deterministic replay output, and writes partial JSON after every test. A crash mid-suite can no longer leave no evidence of the tests already reached. New Python unittest cases check automatic fixture discovery, missing required names and engine-error rejection.
+
+### AUD-001-R05 — Isolate clocks during real-physics fixture stepping
+
+The five accelerated Free Roam tests now also disable automatic processing on the tutorial `CivicGameplaySession`. Without this, each awaited physics frame advances the tutorial incident clock independently while Free Roam is manually advanced by 0.25 logical seconds, creating false out-of-order incident transitions. The actual `CivicFreeRoamEvents` uses its own deliberately stepped logical time in these fixtures, matching the pre-existing test intent while executing physics-space queries on valid Godot frames.
+
+`free_roam_npc_reactions_test.gd` now runs its speech expiry on actual physics frames with the pedestrian controller's automatic processing disabled, avoiding double-processing or physics-space queries from the deferred test callback.
+
+### AUD-001-R06 — Acceptance must match complete source, not only tracked files
+
+The verification gate now rejects **untracked new source and test files** as well as modified tracked files. Generated `build/` artifacts are excluded from that status check. A fresh attempt resets the acceptance JSON to `blocked` before launching Godot so an interrupted rerun cannot leave a stale `passed` report visible.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -76,6 +94,7 @@ Generated reports and logs:
 - `build/game-024-verification.json` — source-bound acceptance gate.
 - `build/game-024-regression.json` — per-test identity, exit, runtime and marker.
 - `build/game-024-verification-logs/` — focused stdout/stderr and failure logs.
+- `build/regression-logs/` — full per-test logs, replay output, and the expected negative-path diagnostic.
 
 ## Remaining blockers
 
