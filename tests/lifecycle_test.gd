@@ -9,6 +9,12 @@ func _initialize() -> void:
 
 func _run() -> void:
     var path := "user://cc005_lifecycle_test.json"
+    # The new repository keeps a last-known-good backup; test fixtures must
+    # isolate all generations rather than inherit an older test's backup.
+    for suffix in ["", ".tmp", ".bak", ".bak.tmp"]:
+        var test_file: String = path + suffix
+        if FileAccess.file_exists(test_file):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(test_file))
     var player := Node3D.new()
     player.position = Vector3(3.25, 1.0, -7.5)
     player.rotation.y = 0.75
@@ -17,7 +23,7 @@ func _run() -> void:
         _fail("save write failed")
         return
     var loaded: Dictionary = Repo.read_save(path)
-    if loaded.get("version") != 1 or loaded.get("player", {}).get("x") != 3.25:
+    if loaded.get("version") != Repo.SAVE_VERSION or loaded.get("player", {}).get("x") != 3.25:
         _fail("round-trip mismatch")
         return
     var broken := FileAccess.open(path, FileAccess.WRITE)
@@ -59,7 +65,10 @@ func _run() -> void:
     root.remove_child(manager)
     manager.free()
     player.free()
-    DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+    for suffix in ["", ".tmp", ".bak", ".bak.tmp"]:
+        var test_file: String = path + suffix
+        if FileAccess.file_exists(test_file):
+            DirAccess.remove_absolute(ProjectSettings.globalize_path(test_file))
     print("CIVIC_CHAOS_LIFECYCLE_PASS")
     quit(0)
 
