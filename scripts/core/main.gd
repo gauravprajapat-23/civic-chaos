@@ -667,8 +667,14 @@ func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
         world.incident_card_requested.connect(_on_free_roam_card_requested)
         world.feedback_changed.connect(_on_interaction_message)
         world.incident_resolved.connect(_on_free_roam_event_resolved)
+        world.npc_reaction_requested.connect(_on_free_roam_npc_reaction)
     if not saved_state.is_empty() and not free_roam_world.restore_checkpoint(saved_state):
         push_warning("Free Roam event state could not be rehydrated; avoid overwriting the saved checkpoint")
+
+func _on_free_roam_npc_reaction(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
+    var walkers: Node = get_node_or_null("DistrictPedestrians")
+    if walkers != null and walkers.has_method("react_to_incident"):
+        walkers.call("react_to_incident", at, kind, phase, instance_id)
 
 func _on_free_roam_card_requested(state: Dictionary) -> void:
     _show_incident_card(state, free_roam_world)
