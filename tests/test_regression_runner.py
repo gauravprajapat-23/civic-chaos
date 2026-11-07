@@ -87,11 +87,13 @@ class RegressionRunnerTests(unittest.TestCase):
         with patch.object(run_regression.subprocess, "run", side_effect=run_regression.subprocess.TimeoutExpired("godot", 1)):
             result = run_regression.run("godot", ["--script", "x"], 1)
         self.assertEqual(result["returncode"], -1)
+        self.assertTrue(result["timed_out"])
 
     def test_missing_binary_is_failure(self):
         with patch.object(run_regression.subprocess, "run", side_effect=FileNotFoundError("godot")):
             result = run_regression.run("godot", ["--editor", "--quit"], 1)
         self.assertEqual(result["returncode"], -1)
+        self.assertFalse(result["timed_out"])
 
 
 if __name__ == "__main__":
