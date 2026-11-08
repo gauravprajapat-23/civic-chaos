@@ -70,6 +70,21 @@ func load_player_snapshot(player: Node3D, data: Dictionary) -> bool:
     lifecycle_message.emit("Checking saved position" if accepted else "Invalid saved position")
     return accepted
 
+## The full civic/world restore already runs on a physics tick. Unlike
+## load_player_snapshot(), this method reports ACTUAL safe placement before
+## the checkpoint transaction is allowed to commit.
+func restore_player_snapshot_now(player: Node3D, data: Dictionary) -> bool:
+    if not can_load_player_snapshot(player, data):
+        lifecycle_message.emit("Invalid saved player")
+        return false
+    var state: Dictionary = data["player"]
+    var target := Vector3(float(state["x"]), float(state["y"]), float(state["z"]))
+    var accepted: bool = (player as CivicPlayerController).restore_now_safe(
+        target, float(state["yaw"])
+    )
+    lifecycle_message.emit("Save loaded" if accepted else "Saved position unsafe; checkpoint not applied")
+    return accepted
+
 func _switch_scene(path: String) -> void:
     get_tree().paused = false
     var error := get_tree().change_scene_to_file(path)
