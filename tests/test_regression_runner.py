@@ -15,6 +15,31 @@ class RegressionRunnerTests(unittest.TestCase):
         self.assertIn("traffic_budget_test.gd", names)
         self.assertGreaterEqual(len(names), 30)
 
+    def test_source_commit_is_exact_sha(self):
+        sha = "a" * 40
+        good = run_regression.subprocess.CompletedProcess(
+            args=["git"], returncode=0, stdout=sha + "\n", stderr=""
+        )
+        with patch.object(run_regression.subprocess, "run", return_value=good) as mocked:
+            self.assertEqual(run_regression.source_commit(), sha)
+        self.assertEqual(mocked.call_args.args[0], ["git", "rev-parse", "HEAD"])
+
+        not_a_sha = run_regression.subprocess.CompletedProcess(
+            args=["git"], returncode=0, stdout="main\n", stderr=""
+        )
+        with patch.object(run_regression.subprocess, "run", return_value=not_a_sha):
+            self.assertEqual(run_regression.source_commit(), "")
+
+    def test_missing_git_cannot_claim_a_verified_source_commit(self):
+        for error in (FileNotFoundError("git"), run_regression.subprocess.TimeoutExpired(["git"], 10)):
+            with patch.object(run_regression.subprocess, "run", side_effect=error):
+                self.assertEqual(run_regression.source_commit(), "")
+        failed = run_regression.subprocess.CompletedProcess(
+            args=["git"], returncode=128, stdout="", stderr="not a work tree"
+        )
+        with patch.object(run_regression.subprocess, "run", return_value=failed):
+            self.assertEqual(run_regression.source_commit(), "")
+
     def test_marker_must_belong_to_executed_test(self):
         wrong_marker = {"returncode": 0, "output": "CIVIC_CHAOS_FREE_ROAM_CARD_PASS\n"}
         self.assertFalse(run_regression.test_passed("free_roam_live_events_test.gd", wrong_marker))
