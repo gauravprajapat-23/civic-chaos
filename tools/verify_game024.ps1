@@ -34,6 +34,7 @@ $gate = [ordered]@{
     full_regression_exit_code = -1
     regression_tests_run = 0
     regression_expected_tests = 0
+    regression_source_commit = ""
     source_unchanged = $false
     regression_report = "build/game-024-regression.json"
     reason = ""
@@ -168,7 +169,7 @@ try {
     if ($ranPattern.Success) {
         $gate.python_runner_test_count = [int]$ranPattern.Groups[1].Value
     }
-    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 18
+    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 20
     if (-not $gate.python_runner_checks_passed) {
         $gate.reason = "Python regression and resource-preflight unit tests failed; inspect python-runner-tests.log"
         Write-Gate
@@ -263,9 +264,11 @@ try {
         $regression = Get-Content -LiteralPath $fullPath -Raw | ConvertFrom-Json
         $gate.regression_tests_run = @($regression.tests).Count
         $gate.regression_expected_tests = [int]$regression.expected_test_count
+        $gate.regression_source_commit = [string]$regression.source_commit
         $allTestsPassed = @($regression.tests | Where-Object { -not $_.passed }).Count -eq 0
         $gate.full_regression_passed = (
             [bool]$regression.passed -and
+            ($gate.regression_source_commit -eq $gate.commit) -and
             [bool]$regression.negative_path_passed -and
             ($regression.import.returncode -eq 0) -and
             (@($regression.missing_tests).Count -eq 0) -and
@@ -275,7 +278,7 @@ try {
         )
     }
     if (-not $gate.full_regression_passed) {
-        $gate.reason = "Full local regression failed (exit $($gate.full_regression_exit_code), timeout $($gate.full_regression_timed_out)). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
+        $gate.reason = "Full local regression failed (exit $($gate.full_regression_exit_code), timeout $($gate.full_regression_timed_out), report SHA $($gate.regression_source_commit)). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
         Write-Gate
         exit 1
     }
