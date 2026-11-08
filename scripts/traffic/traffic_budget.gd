@@ -19,6 +19,15 @@ func configure(agent_limit: int, decisions_per_tick: int, sensor_interval: int =
     sensor_interval_ticks = sensor_interval
     return true
 
+## A new traffic generation starts its own fixed-tick budget and telemetry.
+## Do not call this on a rejected reconfiguration or an aborted restore:
+## they must preserve the running generation's scheduler and observations.
+func reset_runtime() -> void:
+    _cursor = 0
+    _last_tick = -1
+    _sensor_cache.clear()
+    _timings_us.clear()
+
 func select_decisions(tick: int, sorted_agent_ids: PackedInt32Array) -> PackedInt32Array:
     var selected := PackedInt32Array()
     if tick <= _last_tick:
