@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 15 focused tests to pass with their exact markers.
+- Requires 16 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -190,6 +190,17 @@ Registered in the strict full regression and GAME-024 focused gate: **95 mandato
 
 **Evidence boundary:** These are committed code-level improvements, not a completed Windows execution. PowerShell and Godot binaries are unavailable in the authoring environment; the 20 Python tests and Godot regression gate must still be executed on the exact Git checkout before this PR can be merged.
 
+## AUD-001-R16 — Reject signed but malformed nested checkpoints before mission restore
+
+**Source-level crash risk:** `scripts/core/main.gd` reads `saved["campaign_checkpoint"].get("finale_acknowledged", false)` when `free_roam_checkpoint` is present, before checking that `campaign_checkpoint` is a `Dictionary`. Other optional checkpoint records are also later dereferenced with `.get()`. The v2 checksum in `CivicSaveRepository` protects the file's *integrity*, but does not validate every optional gameplay record's *type*. A correctly checksummed but malformed save could therefore throw a Godot runtime error during loading instead of failing cleanly.
+
+- Added `static func checkpoint_record_types_valid(saved: Dictionary) -> bool` in `scripts/core/main.gd`. It rejects any present optional `civic_session`, `wrong_way_checkpoint`, `parking_checkpoint`, `cleanup_checkpoint`, `campaign_checkpoint`, `free_roam_checkpoint` or `world_checkpoint` that is not a Dictionary.
+- This preflight runs immediately after player eligibility checking, **before** any stage logic dereferences nested records or changes world actors. A player-only legacy save with none of those records remains eligible.
+- Added `tests/checkpoint_record_shapes_test.gd`: checks all seven optional record names with invalid null/boolean/integer/string/array values, accepts dictionary-valued entries and legacy absence, and verifies that a file **signed by the real SaveRepo writer** with a malformed campaign field is rejected by gameplay shape validation.
+- The new test is mandatory and focused: **96 Godot regression fixtures / 16 focused checks**. This does not bypass the existing deeper mission/world validators, which continue to check the contents of appropriately typed dictionaries.
+
+**Execution status:** Committed source and test coverage; Godot 4.7.2 and Windows PowerShell are absent from this environment, so runtime acceptance remains **PENDING**. The PR stays draft and GAME-025 remains disabled.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -202,7 +213,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_*.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 15 focused fixtures + 95+ full regressions.
+# Godot 4.7.2: import + 16 focused fixtures + 96+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
@@ -231,4 +242,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 15 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 16 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
