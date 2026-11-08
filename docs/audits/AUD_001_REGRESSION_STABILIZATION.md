@@ -237,6 +237,19 @@ Registered in the strict full regression and GAME-024 focused gate: **95 mandato
 
 **Important:** Actual success/rollback behavior still needs verification with Godot 4.7.2 in a full campaign scene. This source-level fix was committed without running the engine; PR #49 stays draft and unmerged.
 
+## AUD-001-R20 — Reset traffic scheduling state after generation replacement
+
+**Confirmed source-level lifecycle leak:** `CivicTrafficSpawner.configure()` resets `current_tick`, RNG seed, vehicle inventory and traffic counters, but previously reused `CivicTrafficBudget` with its old `_last_tick`, round-robin `_cursor`, `_sensor_cache` and `_timings_us`. A new generation starting at tick 1 could therefore receive no budgeted decisions until it overtook the old generation's tick. Even when budgeted selection is not used by a particular caller, the `metrics().timing` field still represented stale history from the previous city. Committing an earlier checkpoint could also rewind the clock without resetting the budget scheduler.
+
+- New `CivicTrafficBudget.reset_runtime()` clears only the runtime decision cursor, last decision tick, cached observations and timing samples. It **preserves** configured agent limits, decision limits and sensor cadence.
+- A **successful** `CivicTrafficSpawner.configure()` now calls `reset_runtime()` when accepting the new generation; a rejected proposed graph or invalid spawning settings leave the existing budget untouched.
+- `CivicTrafficSpawner.commit_restore()` also resets the runtime budget after a prepared checkpoint is accepted. Rejected or aborted restores preserve their running generation.
+- Extended **existing** `traffic_budget_test.gd` to verify a fresh tick-1 decision after reset, empty caches/timing metrics, configured limits retained, and duplicate-tick protection still enabled.
+- Extended **existing** `traffic_reconfigure_atomicity_test.gd` to validate that a rejected reconfiguration preserves a seeded sensor reading, timings and cursor, while a successful reconfiguration or checkpoint commit clears them.
+- Test inventory remains **99 mandatory Godot fixtures / 19 focused acceptance checks**, with 20 Python QA unit checks; no new fixture was added.
+
+**Verification:** Source patches and test assertions are committed. The repository has not been imported or executed in Godot 4.7.2 in this environment; traffic gameplay remains unverified until the local Windows gate runs.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
