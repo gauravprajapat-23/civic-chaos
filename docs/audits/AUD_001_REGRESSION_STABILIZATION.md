@@ -178,6 +178,18 @@ New `tests/traffic_reconfigure_atomicity_test.gd` checks a rejected expanded-cit
 
 Registered in the strict full regression and GAME-024 focused gate: **95 mandatory Godot tests / 15 focused tests**. Status: code committed, **Godot 4.7.2 runtime not executed here**.
 
+## AUD-001-R15 — Reliable Windows full-suite logs and commit-bound evidence
+
+**Confirmed QA-path risk:** `tools/verify_game024.ps1` previously captured `python tools/run_regression.py ... 2>&1 | Out-String` while setting `$ErrorActionPreference = "Stop"`. Native stderr emitted by a failing Godot/Python fixture can be surfaced as a terminating PowerShell error on Windows PowerShell 5.1 before the combined `full-regression.log` is saved. The focused tests already used redirected subprocess files; the full 95-test suite did not.
+
+- The PowerShell gate now launches the full Python runner through `Run-Local` using redirected stdout/stderr files and a separate bounded **suite deadline**, in addition to the existing per-Godot-fixture timeout. The gate records full-run exit code and timeout in `game-024-verification.json`, and retains the full runner log on failure.
+- On a Windows timeout, the script attempts to terminate the whole child process tree with `taskkill.exe /PID ... /T /F` before falling back to direct process termination.
+- The Python runner now obtains the **actual `git rev-parse HEAD`** (40 hexadecimal digits), records it as `source_commit` in all JSON reports, and fails closed if no valid SHA is available. New Python self-tests cover the real 40-digit SHA, invalid revision text, nonzero Git exit, missing Git executable and timeout.
+- The PowerShell acceptance gate rejects a full regression report whose `source_commit` does not equal the exact checked-out `$gate.commit`; it records the report SHA for troubleshooting. This blocks reusing a passing report from another revision.
+- The mandatory Python self-test minimum is now **20**; the GAME-024 Godot inventory remains **95** and focused test list remains **15**.
+
+**Evidence boundary:** These are committed code-level improvements, not a completed Windows execution. PowerShell and Godot binaries are unavailable in the authoring environment; the 20 Python tests and Godot regression gate must still be executed on the exact Git checkout before this PR can be merged.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -187,7 +199,7 @@ git switch fix/aud-001-game024-gate-hardening
 git pull --ff-only origin fix/aud-001-game024-gate-hardening
 
 # Pure Python QA infrastructure checks; no Godot required for this step.
-python -m unittest discover -s tests -p "test_regression_runner.py" -v
+python -m unittest discover -s tests -p "test_*.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
 # Godot 4.7.2: import + 15 focused fixtures + 95+ full regressions.
