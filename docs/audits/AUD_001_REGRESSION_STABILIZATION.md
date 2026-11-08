@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 18 focused tests to pass with their exact markers.
+- Requires 19 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -225,6 +225,18 @@ Registered in the strict full regression and GAME-024 focused gate: **95 mandato
 
 **Execution status:** Source changes have been committed to the stabilization branch. No Godot 4.7.2 binary or Windows PowerShell is available in this environment; full runtime verification and actual playable campaign acceptance are still outstanding. PR #49 must remain draft.
 
+## AUD-001-R19 — Player placement must be part of checkpoint acceptance
+
+**Confirmed source-level integrity gap:** The full civic/world loader in `main.gd` previously committed the restored traffic and pedestrian world, then called `CivicGameLifecycle.load_player_snapshot()`. That API only queued player placement for the *next* physics tick, returning `true` even if the saved position later failed ground or collision checks. Consequently the game could announce a successful complete checkpoint while the player stayed behind or fell back to spawn, out of sync with newly restored mission actors.
+
+- Added `CivicPlayerController.restore_now_safe(requested, yaw)`: execute the existing world-floor, wall/car/NPC overlap checks and actual placement **synchronously on a physics tick**, return `false` without moving or scheduling a delayed teleport if the candidate is unsafe.
+- Added `CivicGameLifecycle.restore_player_snapshot_now(player, data)`, keeping `load_player_snapshot()` unchanged for existing player-only saves and standalone recovery tests.
+- Updated the full-campaign restoration branch in `main.gd` to call the immediate validated method **after** staging incoming actors but **before** accepting the checkpoint. A failed collision/ground check now enters the existing civic and background-world rollback branch, rather than silently committing a mismatched player/world state.
+- New mandatory and focused `tests/player_checkpoint_atomicity_test.gd` creates a real player, ground collider and blocking building; it tests successful physical placement and yaw, refusal of blocked/out-of-world saves without position change or delayed teleport, and preservation of the legacy deferred player-only API.
+- Local acceptance inventory: **99 Godot fixtures and 19 focused tests**, with 20 Python QA checks.
+
+**Important:** Actual success/rollback behavior still needs verification with Godot 4.7.2 in a full campaign scene. This source-level fix was committed without running the engine; PR #49 stays draft and unmerged.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -237,7 +249,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_*.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 18 focused fixtures + 98+ full regressions.
+# Godot 4.7.2: import + 19 focused fixtures + 99+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
@@ -266,4 +278,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 18 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 19 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
