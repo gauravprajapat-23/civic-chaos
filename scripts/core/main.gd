@@ -265,6 +265,26 @@ static func checkpoint_record_types_valid(saved: Dictionary) -> bool:
             return false
     return true
 
+## Legacy player-only saves are valid, but they cannot also contain orphaned
+## civic, campaign, traffic or Free Roam records. Such fields would otherwise
+## be silently skipped by the no-civic-session early return in the loader.
+static func checkpoint_envelope_valid(saved: Dictionary) -> bool:
+    if not checkpoint_record_types_valid(saved):
+        return false
+    if saved.has("civic_session"):
+        return true
+    for record in [
+        "wrong_way_checkpoint",
+        "parking_checkpoint",
+        "cleanup_checkpoint",
+        "campaign_checkpoint",
+        "free_roam_checkpoint",
+        "world_checkpoint"
+    ]:
+        if saved.has(record):
+            return false
+    return true
+
 func _load_gameplay_checkpoint(selected: Dictionary = {}) -> bool:
     # Callers from F9 and the mission guide provide the already-read
     # document; legacy direct calls may still select the latest save.
@@ -276,8 +296,8 @@ func _load_gameplay_checkpoint(selected: Dictionary = {}) -> bool:
     if not lifecycle.can_load_player_snapshot(player, saved):
         _on_interaction_message("Checkpoint rejected: player cannot safely accept this save")
         return false
-    if not checkpoint_record_types_valid(saved):
-        _on_interaction_message("Checkpoint rejected: malformed nested save record")
+    if not checkpoint_envelope_valid(saved):
+        _on_interaction_message("Checkpoint rejected: malformed or orphaned save record")
         return false
     if str(checkpoint.get("source", "primary")) == "backup":
         _on_interaction_message("Primary checkpoint is invalid or missing. Recovering the verified backup.")
