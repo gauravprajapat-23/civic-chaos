@@ -21,6 +21,7 @@ const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const CheckpointTransaction = preload("res://scripts/core/checkpoint_transaction.gd")
+const CheckpointLoadQueue = preload("res://scripts/core/checkpoint_load_queue.gd")
 var graphics_lod: CivicGraphicsLOD
 var debug_overlay: CivicDebugOverlay
 var civic_hud: CivicStatusHUD
@@ -38,6 +39,7 @@ var mission_guide: CivicMissionGuide
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
 var _wrong_way_retry_elapsed: float = 0.0
+var _checkpoint_load_queue: CivicCheckpointLoadQueue = CheckpointLoadQueue.new()
 
 func _enter_tree() -> void:
     _bind_key("move_forward", KEY_W)
@@ -157,11 +159,30 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif event.is_action_pressed("load_game"):
         if incident_card != null and incident_card.is_open():
             incident_card.dismiss()
-        _load_gameplay_checkpoint()
+        _queue_gameplay_checkpoint_load()
     elif event.is_action_pressed("restart_game"):
         lifecycle.restart_game()
     elif event.is_action_pressed("return_to_menu"):
         lifecycle.return_to_menu()
+
+## Input and guide callbacks are not guaranteed to run with an unlocked
+## PhysicsDirectSpaceState3D. Snapshot the document once at request time,
+## then stage cars/walkers only on this node's next physics tick.
+func _queue_gameplay_checkpoint_load() -> bool:
+    if _checkpoint_load_queue.has_pending():
+        _on_interaction_message("A checkpoint load is already queued.")
+        return false
+    var chosen: Dictionary = SaveRepo.read_save_detail()
+    if not _checkpoint_load_queue.request(chosen):
+        return false
+    _on_interaction_message("Checking checkpoint on the next physics tick...")
+    return true
+
+func _physics_process(_delta: float) -> void:
+    if not _checkpoint_load_queue.has_pending():
+        return
+    var chosen: Dictionary = _checkpoint_load_queue.consume()
+    _load_gameplay_checkpoint(chosen)
 
 ## GAME-014: F5/F9 saves one coherent player+civic+wrong-way document.
 ## Restore is preflighted before the live game world is changed.
@@ -244,8 +265,10 @@ static func checkpoint_record_types_valid(saved: Dictionary) -> bool:
             return false
     return true
 
-func _load_gameplay_checkpoint() -> bool:
-    var checkpoint: Dictionary = SaveRepo.read_save_detail()
+func _load_gameplay_checkpoint(selected: Dictionary = {}) -> bool:
+    # Callers from F9 and the mission guide provide the already-read
+    # document; legacy direct calls may still select the latest save.
+    var checkpoint: Dictionary = selected if not selected.is_empty() else SaveRepo.read_save_detail()
     var saved: Dictionary = checkpoint.get("data", {})
     if saved.is_empty():
         _on_interaction_message("No valid checkpoint found")
@@ -802,8 +825,8 @@ func _on_mission_recovery_action(action: String) -> void:
         "reload_checkpoint":
             if incident_card != null and incident_card.is_open():
                 incident_card.dismiss()
-            if not _load_gameplay_checkpoint():
-                _on_interaction_message("Checkpoint unavailable or unsafe. You can restart the level instead.")
+            if not _queue_gameplay_checkpoint_load():
+                _on_interaction_message("Checkpoint load already pending. You can restart the level instead.")
         "restart_level":
             # Confirmation is handled by the guide's ConfirmationDialog.
             lifecycle.restart_game()
