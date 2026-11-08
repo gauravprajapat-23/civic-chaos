@@ -48,6 +48,25 @@ func _initialize() -> void:
     if metrics["average_us"] <= 60.0:
         _fail("traffic average work time metric incorrect")
         return
+
+    # A fresh generation uses tick 1 again. Without a reset, an older
+    # _last_tick silently starves every decision until the old clock catches
+    # up; stale observations and timing samples also survive incorrectly.
+    budget.update_sensor(30, {"gap": 1.0})
+    budget.select_decisions(100, ids)
+    budget.reset_runtime()
+    if not budget.cached_sensor(30).is_empty() or budget.metrics()["sample_count"] != 0:
+        _fail("new generation inherited sensor cache or timing samples")
+        return
+    if budget.maximum_agents != 12 or budget.maximum_decisions_per_tick != 2 or budget.sensor_interval_ticks != 4:
+        _fail("runtime reset destroyed configured work limits")
+        return
+    if budget.select_decisions(1, ids) != PackedInt32Array([10, 20]):
+        _fail("new generation did not restart decision cursor at first tick")
+        return
+    if not budget.select_decisions(1, ids).is_empty():
+        _fail("reset weakened duplicate-tick protection")
+        return
     print("CIVIC_CHAOS_TRAFFIC_BUDGET_PASS")
     quit(0)
 
