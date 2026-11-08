@@ -58,6 +58,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	active_vehicles.clear()
 	_vehicle_delay.clear()
 	work_budget.configure(maximum_active, 8)
+	work_budget.reset_runtime()
 	road_graph = graph
 	city_mode = expanded_city
 	city_entry_lanes = proposed_entry_lanes
@@ -447,6 +448,10 @@ func commit_restore() -> bool:
 		new_generation.append(car as CivicVehicleAgent)
 	active_vehicles = new_generation
 	_vehicle_delay = prepared["staged_delay"]
+	# A committed checkpoint changes the authoritative traffic generation
+	# and may move the logical clock backwards. Never retain a future decision
+	# cursor or sensor observations from the generation that was replaced.
+	work_budget.reset_runtime()
 	current_tick = int(data["current_tick"])
 	spawned_total = int(data["spawned_total"])
 	completed_total = int(data["completed_total"])
