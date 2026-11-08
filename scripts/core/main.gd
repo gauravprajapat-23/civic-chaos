@@ -226,6 +226,24 @@ func _save_gameplay_checkpoint() -> bool:
     payload["world_checkpoint"] = world_state
     return lifecycle.save_player(player, "", payload)
 
+## Reject malformed but otherwise checksum-valid nested records before any
+## branch reads `.get()` or passes data to mission/resource validators.
+## A shape check is deliberately separate from stage-specific validation:
+## legacy player-only saves may legitimately omit all these fields.
+static func checkpoint_record_types_valid(saved: Dictionary) -> bool:
+    for record in [
+        "civic_session",
+        "wrong_way_checkpoint",
+        "parking_checkpoint",
+        "cleanup_checkpoint",
+        "campaign_checkpoint",
+        "free_roam_checkpoint",
+        "world_checkpoint"
+    ]:
+        if saved.has(record) and not (saved[record] is Dictionary):
+            return false
+    return true
+
 func _load_gameplay_checkpoint() -> bool:
     var checkpoint: Dictionary = SaveRepo.read_save_detail()
     var saved: Dictionary = checkpoint.get("data", {})
@@ -234,6 +252,9 @@ func _load_gameplay_checkpoint() -> bool:
         return false
     if not lifecycle.can_load_player_snapshot(player, saved):
         _on_interaction_message("Checkpoint rejected: player cannot safely accept this save")
+        return false
+    if not checkpoint_record_types_valid(saved):
+        _on_interaction_message("Checkpoint rejected: malformed nested save record")
         return false
     if str(checkpoint.get("source", "primary")) == "backup":
         _on_interaction_message("Primary checkpoint is invalid or missing. Recovering the verified backup.")
