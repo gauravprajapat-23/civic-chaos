@@ -17,6 +17,11 @@ func _run() -> void:
         _fail("initial four-arm traffic setup was rejected")
         return
     var initial: Dictionary = spawner.snapshot()
+    # Seed work from the old generation. A rejected reconfiguration must
+    # preserve this state alongside the live fleet and prepared restore.
+    spawner.work_budget.update_sensor(222, {"gap": 3.0})
+    spawner.work_budget.record_duration_us(17)
+    spawner.work_budget.select_decisions(50, PackedInt32Array([222]))
     if not spawner.prepare_restore(initial) or not spawner.restore_prepared():
         _fail("could not prepare empty-generation checkpoint")
         return
@@ -26,6 +31,12 @@ func _run() -> void:
         return
     if not spawner.restore_prepared() or spawner.snapshot() != initial or spawner.road_graph != graph:
         _fail("rejected reconfiguration aborted the pending checkpoint or mutated traffic")
+        return
+    if spawner.work_budget.cached_sensor(222).get("gap", -1.0) != 3.0 or spawner.work_budget.metrics()["sample_count"] != 1:
+        _fail("rejected reconfiguration cleared the running work budget")
+        return
+    if not spawner.work_budget.select_decisions(1, PackedInt32Array([222])).is_empty():
+        _fail("rejected reconfiguration reset the running generation's tick cursor")
         return
     spawner.abort_restore()
     if spawner.restore_prepared():
@@ -70,6 +81,28 @@ func _run() -> void:
         return
     if not spawner.city_entry_lanes.is_empty() or spawner.restore_prepared():
         _fail("successful reconfiguration retained stale city entrances or restore state")
+        return
+    if not spawner.work_budget.cached_sensor(222).is_empty() or spawner.work_budget.metrics()["sample_count"] != 0:
+        _fail("accepted reconfiguration retained obsolete cache or performance samples")
+        return
+    if spawner.work_budget.select_decisions(1, PackedInt32Array([11, 22])) != PackedInt32Array([11, 22]):
+        _fail("new generation inherited an old traffic decision clock")
+        return
+
+    # A checkpoint COMMIT is another generation replacement. Check that it
+    # retires the scheduler from later ticks, without changing the snapshot.
+    var committed_snapshot: Dictionary = spawner.snapshot()
+    spawner.work_budget.update_sensor(11, {"gap": 0.5})
+    spawner.work_budget.record_duration_us(99)
+    spawner.work_budget.select_decisions(900, PackedInt32Array([11, 22]))
+    if not spawner.prepare_restore(committed_snapshot) or not spawner.commit_restore():
+        _fail("valid checkpoint commit was rejected during budget reset test")
+        return
+    if not spawner.work_budget.cached_sensor(11).is_empty() or spawner.work_budget.metrics()["sample_count"] != 0:
+        _fail("committed checkpoint retained previous generation sensor or timings")
+        return
+    if spawner.work_budget.select_decisions(1, PackedInt32Array([11, 22])) != PackedInt32Array([11, 22]):
+        _fail("committed checkpoint kept a future work-budget tick")
         return
     # A successful configuration is allowed to invalidate a prepared
     # checkpoint, unlike a rejected configuration.
