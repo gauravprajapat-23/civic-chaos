@@ -511,9 +511,10 @@ func _load_gameplay_checkpoint(selected: Dictionary = {}) -> bool:
         restore_guard.finish()
         _on_interaction_message("Checkpoint rejected: background vehicles or pedestrians cannot be staged safely")
         return false
-    # The player controller performs collision/floor checks and applies
-    # accepted positions on the next physics frame.
-    if not lifecycle.load_player_snapshot(player, saved):
+    # This method is running on the physics tick. Validate and place the
+    # player against the newly restored physical world *before* accepting
+    # the checkpoint; failure takes the existing civic/world rollback path.
+    if not lifecycle.restore_player_snapshot_now(player, saved):
         gameplay_session.restore(old_civic)
         if newly_prepared:
             restored_world.queue_free()
