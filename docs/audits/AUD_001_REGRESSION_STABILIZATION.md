@@ -29,7 +29,7 @@ Previously `tools/run_regression.py` silently discarded registered tests whose f
 - Runs each focused Godot invocation with a bounded timeout and separate stdout/stderr files.
 - Checks for the exact Godot version, expected branch, 40-character commit SHA and clean tracked worktree.
 - Accepts an explicit `-ExpectedBranch` for this reviewed fix branch; it never silently treats that as the main GAME-024 branch.
-- Requires 16 focused tests to pass with their exact markers.
+- Requires 17 focused tests to pass with their exact markers.
 - Requires the full regression report to contain **at least 90 completed tests**, no missing fixtures, no failed cases, passing import and passing deliberate negative-path check.
 - Records full test inventory size in the acceptance report and rejects a changed source revision while testing.
 
@@ -201,6 +201,18 @@ Registered in the strict full regression and GAME-024 focused gate: **95 mandato
 
 **Execution status:** Committed source and test coverage; Godot 4.7.2 and Windows PowerShell are absent from this environment, so runtime acceptance remains **PENDING**. The PR stays draft and GAME-025 remains disabled.
 
+## AUD-001-R17 — F9/recovery loads run on the physics tick with an exact snapshot
+
+**Confirmed source-level timing risk:** F9 in `scripts/core/main.gd::_unhandled_key_input()` and the mission-guide reload button invoked `_load_gameplay_checkpoint()` synchronously from input/UI callbacks. The restore path prepares background cars and physical pedestrians, which perform `PhysicsDirectSpaceState3D` overlap/ray checks. Godot collision-space operations must be carried out on a safe physics tick; previously, input delivery had no such guarantee.
+
+- Added `scripts/core/checkpoint_load_queue.gd` as a one-request deep-copy queue. It captures the **verified document selected when the player presses F9**, rather than rereading the file later and accidentally choosing a newer generation written by an intervening F5.
+- Both F9 and the mission-guide `reload_checkpoint` action now call `_queue_gameplay_checkpoint_load()`, which records the chosen `SaveRepo.read_save_detail()` and prevents duplicate pending requests. Neither input callback directly stages world colliders.
+- Added `_physics_process()` in the main scene script: it consumes exactly one queued document then calls `_load_gameplay_checkpoint(selected)` within Godot's physics frame. Existing direct internal invocation remains supported when no selected snapshot is supplied.
+- Added `tests/checkpoint_load_queue_test.gd`: generates a real checksum-valid save A, queues it, mutates the original Dictionary, writes save B, refuses a second F9, then asserts consumption still yields A and cannot repeat. It next selects B, and verifies pending cancellation leaves no stale data.
+- This test is registered both in the strict runner and focused gate, bringing the required inventory to **97 Godot fixtures / 17 focused checks**. The Python harness minimum remains 20.
+
+**Runtime status:** Source changes have been committed. Actual Godot 4.7.2 input-to-physics integration, scene import and full regressions have not been executed in this environment; these remain required before AUD-001 acceptance. This is not an engine-verified fix.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -213,7 +225,7 @@ git pull --ff-only origin fix/aud-001-game024-gate-hardening
 python -m unittest discover -s tests -p "test_*.py" -v
 if ($LASTEXITCODE -ne 0) { throw "Regression runner unit tests failed" }
 
-# Godot 4.7.2: import + 16 focused fixtures + 96+ full regressions.
+# Godot 4.7.2: import + 17 focused fixtures + 97+ full regressions.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 `
   -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 
@@ -242,4 +254,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 16 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 17 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
