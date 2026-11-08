@@ -35,6 +35,19 @@ PASS_MARKER_OVERRIDES = {
 }
 
 
+def source_commit(root=ROOT):
+    """Identify the actual checkout, never infer a SHA from a stale report."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True,
+            text=True, encoding="utf-8", errors="replace", timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    revision = result.stdout.strip().lower()
+    return revision if result.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", revision) else ""
+
+
 def expected_pass_marker(name):
     return PASS_MARKER_OVERRIDES.get(
         name, "CIVIC_CHAOS_" + name.removesuffix("_test.gd").upper() + "_PASS"
@@ -122,15 +135,17 @@ def main():
     tests = discover_test_files(tests)
     # Never silently turn missing regression files into a green run.
     missing = missing_test_files(tests)
-    report = {"schema_version": 1, "godot": args.godot, "tests": [],
+    report = {"schema_version": 1, "godot": args.godot,
+              "source_commit": source_commit(), "tests": [],
               "expected_test_count": len(tests), "missing_tests": missing,
               "passed": False}
     destination = ROOT / args.report
     logs = ROOT / "build" / "regression-logs"
     logs.mkdir(parents=True, exist_ok=True)
-    if not tests or missing:
-        print("FAIL regression inventory: %s missing test(s): %s" %
-              (len(missing), ", ".join(missing)), file=sys.stderr)
+    if not tests or missing or not report["source_commit"]:
+        print("FAIL regression inventory: %s missing test(s): %s; source_commit=%s" %
+              (len(missing), ", ".join(missing), report["source_commit"] or "<unavailable>"),
+              file=sys.stderr)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         return 1
