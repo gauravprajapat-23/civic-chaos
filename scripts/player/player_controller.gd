@@ -122,6 +122,21 @@ func request_safe_restore(requested: Vector3, yaw: float) -> bool:
     _restore_pending = true
     return true
 
+## Called only from the game's checkpoint transaction on a physics tick.
+## Unlike request_safe_restore(), success means the saved position was actually
+## placed and checked against the *restored* traffic and pedestrian colliders.
+## On failure do not teleport to the fallback spawn: the caller must roll
+## back the civic/world transaction and leave the player in place.
+func restore_now_safe(requested: Vector3, yaw: float) -> bool:
+    _restore_pending = false
+    if not requested.is_finite() or not is_finite(yaw) or not is_inside_tree():
+        return false
+    if not _try_place_on_ground(requested):
+        return false
+    rotation.y = yaw
+    interaction_message.emit("Save loaded")
+    return true
+
 ## Recovery uses only nearby, grounded and unoccupied points, never arbitrary
 ## teleportation across the city. Current location is retained if all fail.
 func _recover_near_spawn() -> bool:
