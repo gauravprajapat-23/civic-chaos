@@ -30,6 +30,8 @@ $gate = [ordered]@{
     static_resources_checked = 0
     focused_tests = @()
     full_regression_passed = $false
+    full_regression_timed_out = $false
+    full_regression_exit_code = -1
     regression_tests_run = 0
     regression_expected_tests = 0
     source_unchanged = $false
@@ -55,7 +57,12 @@ function Get-SourceChanges {
 }
 
 function Run-Local {
-    param([string[]]$Arguments, [string]$LogName, [string]$Executable = $Godot)
+    param(
+        [string[]]$Arguments,
+        [string]$LogName,
+        [string]$Executable = $Godot,
+        [int]$ProcessTimeoutSeconds = $Timeout
+    )
     # Redirect streams to files so verbose or hung fixtures cannot deadlock.
     $stdoutPath = Join-Path $logs ($LogName + ".stdout")
     $stderrPath = Join-Path $logs ($LogName + ".stderr")
@@ -67,10 +74,22 @@ function Run-Local {
             if ($_ -match '\s') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
         })
         $process = Start-Process -FilePath $Executable -ArgumentList $quotedArguments -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-        if (-not $process.WaitForExit($Timeout * 1000)) {
+        if (-not $process.WaitForExit($ProcessTimeoutSeconds * 1000)) {
             $timedOut = $true
-            try { $process.Kill() } catch { }
-            $process.WaitForExit()
+            # On Windows, terminate the complete Python -> Godot process
+            # tree, not only the Python parent, before collecting logs.
+            try {
+                $killer = Start-Process -FilePath "taskkill.exe" -ArgumentList @(
+                    "/PID", [string]$process.Id, "/T", "/F"
+                ) -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $logs ($LogName + ".kill.stdout")) -RedirectStandardError (Join-Path $logs ($LogName + ".kill.stderr"))
+                $killer.WaitForExit(10000) | Out-Null
+            } catch {
+                # A process can disappear between timeout and taskkill.
+            }
+            if (-not $process.HasExited) {
+                try { $process.Kill() } catch { }
+            }
+            $process.WaitForExit(10000) | Out-Null
         } else {
             $exitCode = $process.ExitCode
         }
@@ -84,7 +103,7 @@ function Run-Local {
         $output += Get-Content -LiteralPath $stderrPath -Raw
     }
     if ($timedOut) {
-        $output += [Environment]::NewLine + "GAME-024 TEST TIMEOUT after $Timeout seconds"
+        $output += [Environment]::NewLine + "GAME-024 TEST TIMEOUT after $ProcessTimeoutSeconds seconds"
     }
     $output | Set-Content -Path (Join-Path $logs $LogName) -Encoding UTF8
     $hasEngineError = $output -match '(?m)^\s*(SCRIPT ERROR:|ERROR:)'
@@ -226,11 +245,21 @@ try {
     }
 
     # The strict Python suite owns replay and negative-path verification.
-    $pythonOutput = (& $Python "tools/run_regression.py" "--godot" $Godot "--timeout" "$Timeout" "--report" "build/game-024-regression.json" 2>&1 | Out-String)
-    $pythonExit = $LASTEXITCODE
-    $pythonOutput | Set-Content -Path (Join-Path $logs "full-regression.log") -Encoding UTF8
+    # Never pipe native stderr through PowerShell 5.1 with
+    # ErrorActionPreference=Stop: one failing fixture can throw before its
+    # diagnostic stdout/stderr and JSON report are processed.
+    # Each Godot fixture has its own timeout; this is a separate bounded
+    # deadline for the *whole* runner, including import and replay.
+    $suiteTimeout = [int][Math]::Min(14400, [Math]::Max(300,
+        ([double]($MinimumTestCount + 6) * [double]($Timeout + 5))))
+    $fullResult = Run-Local -Executable $Python -Arguments @(
+        "tools/run_regression.py", "--godot", $Godot, "--timeout",
+        [string]$Timeout, "--report", "build/game-024-regression.json"
+    ) -LogName "full-regression.log" -ProcessTimeoutSeconds $suiteTimeout
+    $gate.full_regression_timed_out = $fullResult.timed_out
+    $gate.full_regression_exit_code = $fullResult.exit_code
     $fullPath = Join-Path $root "build\game-024-regression.json"
-    if ($pythonExit -eq 0 -and (Test-Path -LiteralPath $fullPath)) {
+    if ($fullResult.passed -and (Test-Path -LiteralPath $fullPath)) {
         $regression = Get-Content -LiteralPath $fullPath -Raw | ConvertFrom-Json
         $gate.regression_tests_run = @($regression.tests).Count
         $gate.regression_expected_tests = [int]$regression.expected_test_count
@@ -246,7 +275,7 @@ try {
         )
     }
     if (-not $gate.full_regression_passed) {
-        $gate.reason = "Full local regression failed. Inspect build/game-024-regression.json and full-regression.log"
+        $gate.reason = "Full local regression failed (exit $($gate.full_regression_exit_code), timeout $($gate.full_regression_timed_out)). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
         Write-Gate
         exit 1
     }
