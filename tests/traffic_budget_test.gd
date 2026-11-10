@@ -67,6 +67,13 @@ func _initialize() -> void:
     if not budget.select_decisions(1, ids).is_empty():
         _fail("reset weakened duplicate-tick protection")
         return
+    print("CIVIC_CHAOS_REPLAY_STATE traffic_budget=" + JSON.stringify({
+        "window": metrics["sample_count"],
+        "peak_us": metrics["peak_us"],
+        "average_us": metrics["average_us"],
+        "post_reset_samples": budget.metrics()["sample_count"],
+        "limits": [budget.maximum_agents, budget.maximum_decisions_per_tick, budget.sensor_interval_ticks]
+    }))
     print("CIVIC_CHAOS_TRAFFIC_BUDGET_PASS")
     quit(0)
 
