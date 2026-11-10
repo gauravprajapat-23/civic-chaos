@@ -13,8 +13,8 @@ import sys
 
 REPLAYS = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd")
 STATE_PREFIX = "CIVIC_CHAOS_REPLAY_STATE "
-MIN_GODOT = 99
-MIN_FOCUSED = 19
+MIN_GODOT = 100
+MIN_FOCUSED = 20
 MIN_PYTHON = 30
 
 
