@@ -250,6 +250,16 @@ Registered in the strict full regression and GAME-024 focused gate: **95 mandato
 
 **Verification:** Source patches and test assertions are committed. The repository has not been imported or executed in Godot 4.7.2 in this environment; traffic gameplay remains unverified until the local Windows gate runs.
 
+## AUD-001-R21 — Exact F9 selection and spawnable traffic entry preflight
+
+Two source-level consistency cases were identified and addressed without adding new fixtures to the 99-test acceptance inventory.
+
+**Explicitly empty checkpoint selection:** The full loader previously used `selected if not selected.is_empty() else SaveRepo.read_save_detail()`. An explicitly selected empty Dictionary therefore acted like a request to re-read disk, potentially selecting a save written after an earlier F9 request. Normal `read_save_detail()` failure returns a nonempty status wrapper, but the loader's public/internal API still permitted the empty-snapshot ambiguity. `main.gd` now has `checkpoint_selected_document(selected: Variant = null)`: only **null** means a direct caller should read the latest save; an explicit Dictionary, even empty, is a deep-copied fixed selection. The existing `checkpoint_load_queue_test.gd` now covers a queued empty selection followed by a new F5, as well as the direct latest-save path.
+
+**Traffic graph with no legal entrance:** `CivicTrafficSpawner.configure()` previously validated road geometry but unconditionally accepted a non-city graph even if none of fixed entry lanes 1/3/5/7 existed or had usable car exits; `try_spawn()` then kept rejecting every generated route. Expanded-city entrance selection likewise did not require legal onward routes. The configuration preflight now builds a verified `normal_entry_lanes` or `city_entry_lanes` pool, filters out nonexistent, wrong-way, car-restricted or exit-less entrances, and rejects the proposed graph **before touching the running fleet** if no spawnable entrance remains. `try_spawn()` uses the verified pool and refuses an empty pool without indexing it. Legacy test-junction entrance ordering (1,3,5,7) and save schema remain unchanged. Extended `traffic_reconfigure_atomicity_test.gd` confirms that a valid-but-unspawnable standalone graph is rejected without removing an active car, and a partially disconnected graph uses only remaining entrances.
+
+**Test evidence boundary:** Source and fixture changes are committed; these tests have **not been executed in Godot 4.7.2** here. The local acceptance gate still requires **99 mandatory GDScript tests, 19 focused checks, and 20 Python QA self-tests**. PR #49 stays draft, and no GitHub Actions were dispatched.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
