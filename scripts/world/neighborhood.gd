@@ -2,6 +2,8 @@
 class_name CivicNeighborhood
 extends Node3D
 ## Reusable deterministic district around the existing four-way junction.
+## The playable traffic graph and district roads share one set of city axes.
+const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -16,6 +18,8 @@ func rebuild() -> void:
     if district_extent < 20.0 or road_width < 4.0 or sidewalk_width < 1.0:
         push_warning("Invalid neighborhood dimensions")
         return
+    if not CityRoadLayout.valid_district_dimensions(district_extent, road_width):
+        push_warning("This district preset differs from the playable city traffic grid; road alignment requires matching axes/width")
     var half := district_extent
     var road_half := road_width * 0.5
     var terrain_half: float = half + 24.0
@@ -73,15 +77,20 @@ func rebuild() -> void:
         add_child(info)
 
 func _outer_blocks(half: float) -> void:
-    # Secondary cross streets form walkable city blocks beyond the junction.
-    # Traffic simulation still uses the original central road graph.
-    var secondary_offset: float = 46.0
-    for side in [-1, 1]:
-        var offset: float = float(side) * secondary_offset
-        _block("SecondaryRoad_NS_%d" % side,
-            Vector3(offset, -0.018, 0), Vector3(road_width, 0.08, half * 2.0))
-        _block("SecondaryRoad_EW_%d" % side,
-            Vector3(0, -0.026, offset), Vector3(half * 2.0, 0.08, road_width))
+    # The 5x5 city graph drives on x/z = 0, +/-46 and +/-120. Paint *every*
+    # noncentral axis, including perimeter streets, using the graph's
+    # shared grid. Keep historical SecondaryRoad_* names for scene contracts.
+    # Road caps extend beyond the far junctions to support lane turns.
+    var span: float = CityRoadLayout.road_span_m(road_width)
+    for axis in CityRoadLayout.coordinates():
+        if is_zero_approx(axis):
+            continue # Existing North/South/East/West roads form axis zero.
+        var side: int = -1 if axis < 0.0 else 1
+        var category: String = "PerimeterRoad" if CityRoadLayout.is_perimeter_axis(axis) else "SecondaryRoad"
+        _block("%s_NS_%d" % [category, side],
+            Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, span))
+        _block("%s_EW_%d" % [category, side],
+            Vector3(0, -0.026, axis), Vector3(span, 0.08, road_width))
     var coordinates := [-72.0, -24.0, 24.0, 72.0]
     for row in range(coordinates.size()):
         for column in range(coordinates.size()):
@@ -144,7 +153,7 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
         mesh.material_override = _material(Color(0.25, 0.48, 0.25))
     elif block_name == "TerrainGround":
         mesh.material_override = _material(Color(0.30, 0.39, 0.28))
-    elif block_name.ends_with("Road") or block_name.begins_with("SecondaryRoad_"):
+    elif block_name.ends_with("Road") or block_name.begins_with("SecondaryRoad_") or block_name.begins_with("PerimeterRoad_"):
         mesh.material_override = _material(Color(0.15, 0.18, 0.21))
     elif block_name.begins_with("Sidewalk"):
         mesh.material_override = _material(Color(0.64, 0.65, 0.61))
