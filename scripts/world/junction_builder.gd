@@ -4,6 +4,7 @@ extends RefCounted
 
 const Lane = preload("res://scripts/traffic/lane_data.gd")
 const Graph = preload("res://scripts/traffic/road_graph.gd")
+const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 
 static func make_test_graph() -> CivicRoadGraph:
     var graph := Graph.new()
@@ -40,12 +41,13 @@ static func make_road_visuals(parent: Node3D) -> void:
         road.end_point = direction * 20.0
         parent.add_child(road)
 
-## Road centers match neighborhood.gd: main axes 0 and secondary axes +/-46.
+## Road centers come from the same grid used for the neighborhood mesh:
+## center 0, secondary +/-46 and perimeter +/-120.
 ## Each adjacent pair of intersections has directed lanes in both directions.
 ## Road segments are routed through intersections; no U-turns are permitted.
 static func make_city_graph() -> CivicRoadGraph:
     var graph := Graph.new()
-    var coordinates := [-120.0, -46.0, 0.0, 46.0, 120.0]
+    var coordinates: Array[float] = CityRoadLayout.coordinates()
     var lane_id := 100
     var arrivals: Dictionary = {}
     var departures: Dictionary = {}
