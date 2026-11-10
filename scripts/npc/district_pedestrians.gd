@@ -32,6 +32,29 @@ const SIDESTEP_SPEED: float = 1.5
 var _sidestep_offsets: Array[float] = []
 var _blocked_frames: Array[int] = []
 
+## PERF-01: opt-in local profiling; false in all normal gameplay scenes.
+## Measurements are microseconds per complete pedestrian physics update.
+@export var profile_movement_enabled: bool = false
+const PROFILE_WINDOW: int = 120
+var _movement_samples_us: Array[int] = []
+
+func reset_movement_profile() -> void:
+    _movement_samples_us.clear()
+
+func movement_profile() -> Dictionary:
+    var total: int = 0
+    var peak: int = 0
+    for duration in _movement_samples_us:
+        total += duration
+        peak = maxi(peak, duration)
+    var count: int = _movement_samples_us.size()
+    return {
+        "sample_count": count,
+        "average_us": float(total) / float(maxi(count, 1)),
+        "peak_us": peak,
+        "walkers": _walkers.size()
+    }
+
 func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner, reservations: CivicIntersectionReservations = null) -> void:
     _signal_controller = signals
     _traffic_spawner = spawner
@@ -166,6 +189,7 @@ func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vec
 func _physics_process(delta: float) -> void:
     if delta <= 0.0:
         return
+    var profile_start_us: int = Time.get_ticks_usec() if profile_movement_enabled else 0
     _elapsed += delta
     if is_instance_valid(_reaction_label) and _elapsed >= _reaction_end:
         _reaction_label.visible = false
@@ -232,6 +256,10 @@ func _physics_process(delta: float) -> void:
         arms[1].rotation.x = -swing
         legs[0].rotation.x = -swing
         legs[1].rotation.x = swing
+    if profile_movement_enabled:
+        _movement_samples_us.append(maxi(0, Time.get_ticks_usec() - profile_start_us))
+        if _movement_samples_us.size() > PROFILE_WINDOW:
+            _movement_samples_us.remove_at(0)
 
 ## When somebody is already embedded, create small local separation.
 ## A separate fallback is needed because planning from overlapping positions
