@@ -4,7 +4,7 @@ extends RefCounted
 ## No performance claim is made from synthetic fixture inputs.
 const SCHEMA_VERSION: int = 1
 const MAX_SAMPLES: int = 3600
-const FIELDS: Array[String] = [
+const FIELDS := [
     "frame_interval_ms", "process_ms", "physics_ms",
     "pedestrian_update_us", "traffic_update_us",
     "draw_calls", "static_memory_bytes", "cars", "walkers"
