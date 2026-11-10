@@ -110,9 +110,9 @@ func can_restore(raw: Variant) -> bool:
     var action: String = data["current_action"]
     if not action.is_empty() and not Utility.ACTIONS.has(action):
         return false
-    var npc: int = data["npc_id"]
-    var tick: int = data["last_tick"]
-    var switched: int = data["last_switch_tick"]
+    var npc: int = int(data["npc_id"])
+    var tick: int = int(data["last_tick"])
+    var switched: int = int(data["last_switch_tick"])
     if npc < -1 or tick < -1 or switched < -1 or switched > tick:
         return false
     if npc == -1:
