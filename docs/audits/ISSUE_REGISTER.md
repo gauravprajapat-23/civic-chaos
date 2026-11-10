@@ -1,3 +1,5 @@
+> **Current branch update — 2026-11-10:** For current findings and exact revision evidence, use [AUD-002 Complete Game Source Audit](AUD_002_COMPLETE_GAME_SOURCE_AUDIT.md), not the historical November 6 statuses below. New tracked work: [#53 perimeter road + outer intersection safety](https://github.com/gauravprajapat-23/civic-chaos/issues/53) (P1), [#54 18 bare-assert headless fixtures](https://github.com/gauravprajapat-23/civic-chaos/issues/54) (P2), existing [#51 responsive UI](https://github.com/gauravprajapat-23/civic-chaos/issues/51), [#50 opt-in NPC AI](https://github.com/gauravprajapat-23/civic-chaos/issues/50), and [#52 performance baseline](https://github.com/gauravprajapat-23/civic-chaos/issues/52). Current release gate: **102 mandatory Godot, 22 focused, 30 Python QA, 4 matching state replays**; no current engine pass evidence. BUG-001 street-prop roots, BUG-007 missing far LOD fallback, BUG-008 secondary-road material and BUG-005 duplicate ground are source-addressed in the current branch, but still need runtime evidence for closure.
+
 # Civic Chaos — Prioritized Issue Register
 Date: 2026-11-06 · Branch: `fix/regression-nov05`
 
