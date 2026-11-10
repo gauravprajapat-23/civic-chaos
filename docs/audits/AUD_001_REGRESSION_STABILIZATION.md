@@ -297,6 +297,21 @@ Per the uploaded `ai-behavior-trees-utility-ai` and Godot headless-testing skill
 
 **Verification boundary:** This is committed source plus executable test definitions; the Godot 4.7.2 editor import and tests have **not run** here. Do not merge PR #49, enable the NPC policy or move to UI/performance behavior until the exact-SHA acceptance gate passes. No GitHub Actions were triggered or workflow files modified.
 
+## AUD-001-R25 — Staged responsive touch geometry, no live UI activation
+
+Using the uploaded `game-ui-ux`, `godot-ui-control` and headless-testing skills, the second post-gate milestone now has a **pure, unconnected layout calculator**. The live `scripts/ui/touch_controls.gd` was intentionally not changed while the Godot stabilization gate is unverified.
+
+- `scripts/ui/touch_layout.gd` introduces `CivicTouchLayout.plan(viewport, safe_rect)`. It computes eight separate `Rect2` hitboxes for an anchored directional cross, action cluster and top-right pause, scaling square targets between 44 and 72 viewport units.
+- The planner validates the safe-area intersection, rejects invalid or too-small viewports, requires every hitbox to remain inside its usable rect and rejects any overlap with a 2-unit expansion.
+- `tests/touch_layout_test.gd` adds landscape/portrait phone, tablet, fullscreen and notched-safe-area cases, deterministic geometry comparison and invalid-input checks.
+- The existing `tests/touch_controls_test.gd` was rewritten to use explicit `_fail() / quit(1)` instead of dangerous bare `assert()`. This tests the unchanged live baseline without enabling the new placement algorithm.
+- New gate count: **101 mandatory Godot fixtures, 21 focused Godot tests, 30 Python QA checks and four deterministic state replays**. The independent `tools/check_game024_gate.py` now requires 101/21.
+- A separate Python reproduction of the geometry formula passed seven viewport/safe-area configurations; this **does not verify GDScript execution or Android touch behavior**.
+
+Full activation plan and real-device checklist: `docs/development/UI_01_RESPONSIVE_TOUCH_LAYOUT.md` and [issue #51](https://github.com/gauravprajapat-23/civic-chaos/issues/51). The existing controls, HUD, mobile touch behavior, and game save schema remain unchanged. Performance milestone #52 remains blocked pending real CPU/physics/GPU profiles.
+
+**Gate remains PENDING:** No Godot 4.7.2 binary or Windows PowerShell is available here; do not merge PR #49 or activate the layout until exact-SHA import, regression and Android playtests succeed. No GitHub Actions or workflow changes.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -338,4 +353,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all 30 Python QA tests, Godot 4.7.2 import, 20 focused tests, all 100 full regression fixtures and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all 30 Python QA tests, Godot 4.7.2 import, 21 focused tests, all 101 full regression fixtures and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
