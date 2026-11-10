@@ -67,7 +67,8 @@ func _verify_case(viewport: Vector2, safe_input: Rect2) -> bool:
     if up.position.y >= down.position.y or left.position.x >= right.position.x:
         return _fail("directional cross has incorrect orientation")
     var pause: Rect2 = rects["pause_game"]
-    if pause.position.y >= (rects["interact"] as Rect2).position.y:
+    var interact: Rect2 = rects["interact"]
+    if pause.position.y >= interact.position.y:
         return _fail("pause overlapped the bottom-right action cluster")
     return true
 
