@@ -11,7 +11,7 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/godot-validation.yml"
-REPLAY = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd")
+REPLAY = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd", "npc_decision_stability_test.gd")
 REPLAY_STATE_PREFIX = "CIVIC_CHAOS_REPLAY_STATE "
 # Legacy fixture names are preserved; aliases are accepted ONLY for their
 # specific test, never as proof that a different test completed.
