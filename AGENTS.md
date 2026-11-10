@@ -28,6 +28,12 @@ Use the catalog's `router/SKILL.md` when the area is unclear. The optional local
 - Measure performance with Godot's profiler before optimization; distinguish CPU logic/physics from GPU rendering and maintain mobile budgets.
 - Never claim import, Godot regression, Android build or manual playtest success without the actual logs/results. Static source inspection is not runtime acceptance.
 
+## Post-stabilization gameplay development gate
+
+**Do not begin or enable gameplay changes** in utility-AI decision stability, responsive Android touch/HUD layout or crowd/traffic performance optimization while AUD-001 is unverified. Their ordered, executable requirements are in `docs/development/POST_AUD001_IMPLEMENTATION_PLAN.md` and GitHub issues #50, #51 and #52.
+
+After running the full Windows Godot 4.7.2 gate on an exact clean commit, run `python tools/check_game024_gate.py`. It must return `ready: true` with exit code 0 before starting the new milestones. The checker validates matching commit evidence, 99 Godot fixtures (including three state replays), 19 focused checks, 30 Python QA tests, import, preflight and negative path. A report left over from another commit is **not** proof. The game remains unchanged until the gate actually passes.
+
 ## Local verification (never launch CI)
 
 On the Windows checkout, first import with Godot 4.7.2, then run `tools/verify_game024.ps1 -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120` while AUD-001 is active. The gate owns focused tests, discovered full regressions, deterministic replay traces, deliberate failure-path verification and revision-matched evidence. Do not merge draft PR #49 until all required local evidence passes.
