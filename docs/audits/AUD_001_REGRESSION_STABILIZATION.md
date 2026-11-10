@@ -325,6 +325,18 @@ Based on the uploaded `performance-optimization` skill and its profiling/budgets
 
 **Pending:** Godot import, full 102-test local gate, manual campaign/save acceptance, and target-device baseline performance profiles. The source changes cannot establish measured FPS or gains. PR #49 remains draft; no GitHub Actions or workflow modifications.
 
+## AUD-001-R27 — AUD2-MAP-01 paved perimeter graph alignment
+
+Source audit [AUD-002](AUD_002_COMPLETE_GAME_SOURCE_AUDIT.md) found that the 5×5 city graph uses X/Z axes `[-120, -46, 0, 46, 120]` but only 0 and ±46 were painted. Road/graph disagreement can send vehicles over bare terrain.
+
+**Source change:** New `CivicCityRoadLayout` defines the five shared road axes and 8 m paved width. `CivicJunctionBuilder.make_city_graph()` consumes it. `CivicNeighborhood._outer_blocks()` now draws four `PerimeterRoad_NS/EW_±1` paved StaticBody3D + BoxMesh road strips at x/z ±120 (alongside the four secondary road strips), extending road caps beyond the far junction endpoints. It retains existing central/secondary road names and mission coordinates.
+
+**Evidence authored:** `tests/city_road_alignment_test.gd` checks every generated lane against the *actual* neighborhood road bodies (2,160 sampled polyline points over 80 city lanes), expected perimeter meshes/colliders, and a known unpaved off-road negative case. Exact shared panel boundaries get only a 2 cm numerical tolerance. `tests/neighborhood_test.gd` now checks perimeter road bodies and fails with explicit `quit(1)` instead of bare `assert()`.
+
+**Source-model check:** A separate reproduction of the graph/raster geometry measured 12 road bodies, **2,160/2,160 covered points** and a negative off-road control that remained uncovered. This is **not** a Godot/Windows/device pass.
+
+**Required gate:** **103 mandatory Godot fixtures, 23 focused tests, 30 Python QA tests, four deterministic replays**, current Git SHA, deliberate negative path, import and full manual campaign/device verification. Actual Godot and Android checks are **pending**, and PR #49 stays draft. The outer-junction right-of-way portion of [#53](https://github.com/gauravprajapat-23/civic-chaos/issues/53) is not implemented or accepted. The bare-assert QA backlog [#54](https://github.com/gauravprajapat-23/civic-chaos/issues/54) is now 17 remaining fixtures after neighborhood test hardening. No GitHub Actions run.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
