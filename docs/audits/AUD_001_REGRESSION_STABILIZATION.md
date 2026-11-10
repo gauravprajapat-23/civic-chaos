@@ -270,10 +270,20 @@ The uploaded `awesome-gamedev-agent-skills-main.zip` is an Apache-2.0 catalog, *
 - The three replay fixtures now emit stable `CIVIC_CHAOS_REPLAY_STATE ` lines from their actual **clock/RNG sequence, wrong-way incident/queue/reward state, and traffic-budget metrics**.
 - `tools/run_regression.py` now requires at least one gameplay-state line and checks exact equality between both runs (plus exact expected PASS marker, zero exit code and absence of engine errors). Differences are written to the JSON failure report.
 - `wrong_way_mission_test.gd` no longer relies on bare `assert()` statements, which the headless-testing skill warns may abort before `quit(1)`; instead it gives detailed failures and nonzero exits.
-- `tests/test_regression_runner.py` now tests missing traces, different states with the same PASS marker, matching state and engine errors. The local Python self-test minimum is raised from 20 to **22**; the Godot inventory remains **99 mandatory fixtures / 19 focused tests**.
+- `tests/test_regression_runner.py` now tests missing traces, different states with the same PASS marker, matching state and engine errors. The local Python self-test minimum is raised from 20 to **30**; the Godot inventory remains **99 mandatory fixtures / 19 focused tests**.
 - No assertions of replay determinism or Godot test pass are made without actual Windows engine execution. Physical Android testing and campaign playthrough remain pending.
 
 See `AGENTS.md` and the adoption guide for the project-specific use of AI, physics, save systems, UI/UX, and profiling skills in upcoming work.
+
+## AUD-001-R23 — Exact-evidence gate before AI/UI/performance gameplay work
+
+The uploaded game-dev skills identify the next three workstreams: deterministic NPC utility stability, responsive mobile UI, and profile-first crowd/traffic optimization. They remain **blocked** until Godot 4.7.2 acceptance of PR #49, not merely source inspection.
+
+- Added `tools/check_game024_gate.py`, an independent, read-only gate. It validates local Git branch and clean HEAD, full gate JSON, full regression JSON, precise SHA equality, Godot 4.7.2, 19 focused checks, 99 mandatory tests, 3 nonempty replay state traces, intentional negative path and Python unit-test count. It exits nonzero on absent or stale evidence.
+- Added `tests/test_game024_gate_readiness.py` with 8 Python scenarios, executed successfully in an isolated local Python environment. Together with 15 existing runner tests and 7 source-preflight tests, the Windows acceptance script now requires **at least 30 Python QA tests**. The full 30 tests on the repository checkout and Godot regressions are **not yet run**.
+- `tools/verify_game024.ps1` invokes this checker after the normal gate has provisionally passed, then returns to **blocked** if independent evidence fails. It records `readiness_evidence_passed` in the gate report. No GitHub Actions are used.
+- Follow-on issues: [NPC utility stability #50](https://github.com/gauravprajapat-23/civic-chaos/issues/50), [responsive Android UI #51](https://github.com/gauravprajapat-23/civic-chaos/issues/51), [measured crowd/traffic performance #52](https://github.com/gauravprajapat-23/civic-chaos/issues/52), in that order. Implementation plan: `docs/development/POST_AUD001_IMPLEMENTATION_PLAN.md`.
+- No NPC utility behavior, mobile control geometry, or crowd/traffic algorithm was changed by R23. The feature order is explicitly gated until actual engine logs exist.
 
 ## Local validation (Windows PowerShell)
 
