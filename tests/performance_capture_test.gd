@@ -84,13 +84,13 @@ func _run() -> void:
         return
     walkers.set("profile_movement_enabled", true)
     for i in range(5):
-        walkers._physics_process(0.05)
+        walkers.call("_physics_process", 0.05)
     var enabled: Dictionary = walkers.call("movement_profile")
     if enabled["sample_count"] != 5 or enabled["walkers"] != 0:
         _fail("opt-in pedestrian profiler failed to record update timings")
         return
     walkers.set("profile_movement_enabled", false)
-    walkers._physics_process(0.05)
+    walkers.call("_physics_process", 0.05)
     if walkers.call("movement_profile")["sample_count"] != 5:
         _fail("disabling pedestrian profiling did not stop samples")
         return
