@@ -312,6 +312,19 @@ Full activation plan and real-device checklist: `docs/development/UI_01_RESPONSI
 
 **Gate remains PENDING:** No Godot 4.7.2 binary or Windows PowerShell is available here; do not merge PR #49 or activate the layout until exact-SHA import, regression and Android playtests succeed. No GitHub Actions or workflow changes.
 
+## AUD-001-R26 — PERF-01 profile-first instrumentation, without optimization
+
+Based on the uploaded `performance-optimization` skill and its profiling/budgets reference, the third post-gate task is staged as **instrumentation only**. No crowd, physics, traffic, LOD, AI, texture or renderer optimization has been attempted without real device measurements.
+
+- Added `CivicPerformanceCapture` in `scripts/core/performance_capture.gd`: bounded, validated observations for frame interval, Godot CPU process and physics counters, pedestrian/traffic timing, draw calls, static memory and active actor counts. Reports nearest-rank median/p95, min/max/mean, sample count and explicitly mark GPU timing unavailable and FPS target verification false.
+- `scripts/npc/district_pedestrians.gd` now offers `profile_movement_enabled` (default **false**), `movement_profile()` and `reset_movement_profile()`, collecting a 120-sample rolling microsecond duration only when explicitly enabled. Existing pathing/collision/animation behavior is unchanged.
+- `tools/profile_city_baseline.gd` launches `scenes/core/main.tscn` **only when requested** and samples the live city via engine `Performance` monitors and the existing traffic metrics. It writes an isolated `user://civic-chaos-perf-baseline.json`, including runtime, viewport, seed, counts and evidence caveats. Headless output is explicitly flagged **not comparable to real graphics FPS**.
+- `tests/performance_capture_test.gd` verifies synthetic nearest-rank statistics, fail-closed corrupted/nonfinite readings, bounded samples, absence of fabricated GPU evidence, and the pedestrian timing hook being default-off, opt-in and resettable.
+- Required local gate is now **102 mandatory Godot fixtures, 22 focused GDScript tests, 30 Python QA checks and 4 deterministic state replays**. No engine-run pass is claimed.
+- Full protocol: `docs/development/PERF_01_CITY_BASELINE.md`. Measured hotspot triage and any algorithmic changes await actual Godot 4.7.2 + Windows/Android reports; [issue #52](https://github.com/gauravprajapat-23/civic-chaos/issues/52) remains open.
+
+**Pending:** Godot import, full 102-test local gate, manual campaign/save acceptance, and target-device baseline performance profiles. The source changes cannot establish measured FPS or gains. PR #49 remains draft; no GitHub Actions or workflow modifications.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -353,4 +366,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all 30 Python QA tests, Godot 4.7.2 import, 21 focused tests, all 101 full regression fixtures and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all 30 Python QA tests, Godot 4.7.2 import, 22 focused tests, all 102 full regression fixtures and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
