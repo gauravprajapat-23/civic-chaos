@@ -285,10 +285,21 @@ static func checkpoint_envelope_valid(saved: Dictionary) -> bool:
             return false
     return true
 
-func _load_gameplay_checkpoint(selected: Dictionary = {}) -> bool:
-    # Callers from F9 and the mission guide provide the already-read
-    # document; legacy direct calls may still select the latest save.
-    var checkpoint: Dictionary = selected if not selected.is_empty() else SaveRepo.read_save_detail()
+## Null means "select latest from disk" for explicit legacy callers.
+## An empty Dictionary is a completed selection of *no* checkpoint, not an
+## instruction to reread. This protects the queued generation boundary even
+## when a caller supplies an empty/unavailable selected document.
+static func checkpoint_selected_document(selected: Variant = null) -> Dictionary:
+    if selected == null:
+        return SaveRepo.read_save_detail()
+    if selected is Dictionary:
+        return (selected as Dictionary).duplicate(true)
+    return {}
+
+func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
+    # F9 and mission-guide callers supply the already-read document. Never
+    # select a newer file based on whether that document happens to be empty.
+    var checkpoint: Dictionary = checkpoint_selected_document(selected)
     var saved: Dictionary = checkpoint.get("data", {})
     if saved.is_empty():
         _on_interaction_message("No valid checkpoint found")
