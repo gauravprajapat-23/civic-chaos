@@ -73,6 +73,17 @@ def test_passed(name, result):
             not has_engine_error(result["output"]))
 
 
+def deterministic_replay_passed(name, first, second):
+    """Two PASS markers are insufficient: require nonempty identical state."""
+    return (
+        test_passed(name, first)
+        and test_passed(name, second)
+        and extract_pass_markers(first["output"]) == extract_pass_markers(second["output"])
+        and bool(extract_replay_evidence(first["output"]))
+        and extract_replay_evidence(first["output"]) == extract_replay_evidence(second["output"])
+    )
+
+
 def missing_test_files(tests, root=ROOT):
     return [name for name in tests if not (root / "tests" / name).is_file()]
 
@@ -200,12 +211,7 @@ def main():
                     logfile.write("\n=== DETERMINISTIC REPLAY ===\n" + second["output"] + "\n")
                 second_markers = extract_pass_markers(second["output"])
                 second_evidence = extract_replay_evidence(second["output"])
-                entry["replay_passed"] = (
-                    test_passed(name, second)
-                    and second_markers == markers
-                    and bool(first_evidence)
-                    and first_evidence == second_evidence
-                )
+                entry["replay_passed"] = deterministic_replay_passed(name, first, second)
                 ok = ok and entry["replay_passed"]
                 entry["passed"] = ok
                 if not ok:
