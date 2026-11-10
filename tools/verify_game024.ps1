@@ -169,7 +169,7 @@ try {
     if ($ranPattern.Success) {
         $gate.python_runner_test_count = [int]$ranPattern.Groups[1].Value
     }
-    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 22
+    $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 30
     if (-not $gate.python_runner_checks_passed) {
         $gate.reason = "Python regression and resource-preflight unit tests failed; inspect python-runner-tests.log"
         Write-Gate
