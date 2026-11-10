@@ -4,6 +4,7 @@ extends SceneTree
 ## overwrite the first selection or create a second restore transaction.
 const Queue = preload("res://scripts/core/checkpoint_load_queue.gd")
 const Repo = preload("res://scripts/core/save_repository.gd")
+const Main = preload("res://scripts/core/main.gd")
 const PATH: String = "user://aud001_checkpoint_load_queue.json"
 
 func _initialize() -> void:
@@ -65,6 +66,24 @@ func _run() -> void:
     queue.clear()
     if queue.has_pending() or not queue.consume().is_empty():
         _fail("clearing pending load left stale checkpoint data")
+        return
+
+    # An explicit empty F9 selection must remain empty, even when F5
+    # creates a new checkpoint before the next physics tick. Only a truly
+    # omitted selection (null) is allowed to read the latest file.
+    _clean()
+    if not queue.request({}):
+        _fail("could not queue explicit unavailable document")
+        return
+    if not Repo.write_save(_payload(3.0), PATH):
+        _fail("could not create newer save after missing F9 snapshot")
+        return
+    if not Main.checkpoint_selected_document(queue.consume()).is_empty():
+        _fail("empty selected F9 document silently loaded later F5 save")
+        return
+    var direct: Dictionary = Main.checkpoint_selected_document()
+    if float(direct.get("data", {}).get("player", {}).get("x", -1.0)) != 3.0:
+        _fail("legacy direct load could not select current save")
         return
     _clean()
     print("CIVIC_CHAOS_CHECKPOINT_LOAD_QUEUE_PASS")
