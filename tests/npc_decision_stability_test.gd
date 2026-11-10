@@ -79,20 +79,23 @@ func _test_help_safety_and_invalid_inputs() -> bool:
     if stable.decide(personality, board).get("action") != "wait":
         return _fail("unsafe help persisted because of decision inertia")
     for invalid in [
-        {"urgency": "high"}, {"urgency": INF}, {"urgency": -0.2},
-        {"social_influence": NAN}, {"pedestrian_green": "yes"}
+        {"urgency": "high"}, {"urgency": -0.2},
+        {"pedestrian_green": "yes"}
     ]:
-        board.update_snapshot(20, 2, invalid) # NaN and INF are rejected by the blackboard itself.
-        if invalid.has("urgency") and invalid["urgency"] == INF:
-            continue
-        if invalid.has("social_influence"):
-            continue
+        if not board.update_snapshot(20, 2, invalid):
+            return _fail("test fixture wrongly rejected JSON-safe invalid utility observation")
         if stable.decide(personality, board).get("ok", true):
             return _fail("invalid observation was accepted: " + str(invalid))
+    # The blackboard itself must reject nonfinite observations.
+    for invalid in [{"urgency": INF}, {"social_influence": NAN}]:
+        if board.update_snapshot(20, 2, invalid):
+            return _fail("nonfinite blackboard observation was accepted")
+
     # Validation should fail without advancing the decision clock or dropping state.
     var state: Dictionary = stable.snapshot()
-    board.update_snapshot(20, 1, {"urgency": 0.1})
-    if stable.decide(personality, board).get("ok", true):
+    var old_board := Blackboard.new()
+    old_board.update_snapshot(20, 0, {"urgency": 0.1})
+    if stable.decide(personality, old_board).get("ok", true):
         return _fail("stale blackboard tick was accepted")
     if stable.snapshot() != state:
         return _fail("invalid input modified persisted policy state")
