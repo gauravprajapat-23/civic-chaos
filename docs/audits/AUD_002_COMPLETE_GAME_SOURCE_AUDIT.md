@@ -7,6 +7,19 @@
 **Godot target:** 4.7.2, GL Compatibility, PC + Android, offline-first  
 **Decision: NO-GO for public release.** This is a **repository/source audit**, not successful engine, Android, gameplay or performance verification. The source revision changes as this report is committed; local test evidence must always match the **latest** commit, not the SHA above.
 
+## AUD2-MAP-01 implementation update — source fixed, engine verification pending
+
+The confirmed road-coverage problem (AUD2-002 / [issue #53](https://github.com/gauravprajapat-23/civic-chaos/issues/53)) has a first source-level fix:
+
+- `scripts/world/city_road_layout.gd` defines the shared five street axes `-120, -46, 0, 46, 120` and the 8 m playable road width.
+- `scripts/world/junction_builder.gd` now obtains its city grid from this shared definition rather than maintaining a second independent list.
+- `scripts/world/neighborhood.gd` now builds paved and collidable **PerimeterRoad_NS/EW_±1** bodies along both ±120 m axes, preserving the historic secondary road names, existing core streets and district building layout. New roads extend half a road-width beyond the outer node endpoints.
+- `tests/city_road_alignment_test.gd` instantiates the actual neighborhood, inspects every road mesh/BoxShape3D, verifies all four perimeter roads and samples **2,160 points across all 80 city lane centerlines** against the physical paved bounds. A negative off-road point must remain uncovered. The existing neighborhood fixture now checks all secondary/perimeter roads with explicit nonzero failure exits instead of bare assertions.
+- Required local gate: **103 mandatory Godot fixtures, 23 focused tests, 30 Python QA checks, four deterministic replays**, all tied to the exact committed SHA. **No Godot test was run in the authoring environment**; physical alignment and rendering must be verified on Windows.
+- **Still open:** AUD2-003 outer intersection right-of-way/signalling and visual city playthrough. Fixing road meshes does not establish safe intersections or close issue #53. AUD2-006 has **17 remaining bare-assert fixtures** after hardening `neighborhood_test.gd`, versus 18 at the initial audited SHA.
+
+The original findings below are retained as a historical record of the pre-fix revision, **not a claim that AUD2-002 is still unfixed in source**. The release verdict remains **NO-GO** until engine acceptance.
+
 ## 1. Audit scope, methodology and evidence
 
 Inspected the current GitHub branch's complete recursive tree: **400 tracked tree entries**, **69 GDScript files under `scripts/`**, **102 mandatory `tests/*_test.gd` fixtures**, Godot scene inventory, `project.godot`, `export_presets.cfg`, entry flow, major systems, prior full-game audit, issue register, audit-based implementation roadmap and all new AUD-001/AI-01/UI-01/PERF-01 components.
