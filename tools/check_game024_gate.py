@@ -11,7 +11,7 @@ import re
 import subprocess
 import sys
 
-REPLAYS = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd")
+REPLAYS = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd", "npc_decision_stability_test.gd")
 STATE_PREFIX = "CIVIC_CHAOS_REPLAY_STATE "
 MIN_GODOT = 100
 MIN_FOCUSED = 20
