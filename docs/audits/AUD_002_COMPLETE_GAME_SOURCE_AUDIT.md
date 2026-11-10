@@ -74,6 +74,7 @@ Evidence vocabulary below: **Confirmed source** means the specific source behavi
 **Acceptance:** Responsive safe-area layouts for all UI layers, minimum 44-unit independently reachable targets, orientation/resizing tests, HUD/guide/pause nonoverlap, screenshots at 320/360/720px portrait, 740/1280/1920px landscape, and real Android multitouch playtest.
 
 ### AUD2-006 — P2 / CONFIRMED QA DEBT: 18 legacy fixtures still contain bare `assert()`
+[Tracked remediation: issue #54](https://github.com/gauravprajapat-23/civic-chaos/issues/54)
 **Evidence:** All 102 Godot test files were scanned for direct `assert(...)` lines. **18** still use them, including `incident_lifecycle_test.gd`, `mission_framework_test.gd`, `neighborhood_test.gd`, `deadlock_recovery_test.gd`, `vehicle_behavior_test.gd` and `wrong_way_scenario_test.gd`. Several have a final `quit(0)` but **no explicit failure `quit(1)`**. `traffic_stop_line_test.gd` is NOT a missing-exit case: it correctly routes both outcomes through `_finish(exit_code)`.
 
 **Impact:** Assertions behave differently depending on Godot build/assert settings; a failing assertion can abort before explicit quit or may be disabled in optimized builds. The strict runner catches script errors when printed, but this doesn't replace reliable explicit exits.
@@ -128,7 +129,7 @@ Evidence vocabulary below: **Confirmed source** means the specific source behavi
 | --- | --- | --- | --- |
 | 0 | **Freeze source SHA and run actual Godot 4.7.2 local gate** | AUD-001 / PR #49 | 30 Python checks, import, 22 focused, 102 full, 4 state replays, intentional negative path; `ready: true` for exact SHA |
 | 1 | Resolve first real import/physics/test failure from the logs | AUD-001 regression stabilization | No open engine parser/runtime errors; evidence linked |
-| 2 | Fix graph-to-visible-road coverage and outer-intersection policy | AUD2-002/003 | Every driven lane visibly supported; deterministic priority tests |
+| 2 | Fix graph-to-visible-road coverage and outer-intersection policy | [Issue #53](https://github.com/gauravprajapat-23/civic-chaos/issues/53), AUD2-002/003 | Every driven lane visibly supported; deterministic priority tests |
 | 3 | Validate full real-player campaign, rewards, F5/F9 and Free Roam | AUD-002 campaign playthrough | No duplicate rewards, lost progress, ghost props or unsafe restores |
 | 4 | Responsive Android HUD, guide, touch and finale | UI-01 / issue #51 | On-device screen-size and multitouch acceptance; no cropped/overlapping UI |
 | 5 | Activate NPC utility only behind a tested feature toggle | AI-01 / issue #50 | Stable 120+ ticks, instant safety overrides, fixed-seed replay, no civic regression |
