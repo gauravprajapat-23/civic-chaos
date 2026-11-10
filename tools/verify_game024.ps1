@@ -36,6 +36,7 @@ $gate = [ordered]@{
     regression_expected_tests = 0
     regression_source_commit = ""
     source_unchanged = $false
+    readiness_evidence_passed = $false
     regression_report = "build/game-024-regression.json"
     reason = ""
 }
@@ -295,8 +296,22 @@ try {
         Write-Gate
         exit 1
     }
+    # Mark provisional success for the independent, read-only readiness
+    # checker, which rejects stale SHA, missing state replays, or incomplete
+    # focused/full results. A failed checker immediately restores BLOCKED.
     $gate.status = "passed"
     $gate.reason = "Exact source revision passed import, focused tests, full suite and negative-path checks."
+    Write-Gate
+    $readiness = Run-Local -Executable $Python -Arguments @(
+        "tools/check_game024_gate.py"
+    ) -LogName "postgate-evidence.log"
+    if (-not $readiness.passed) {
+        $gate.status = "blocked"
+        $gate.reason = "Independent evidence validation failed. Inspect build/game-024-verification-logs/postgate-evidence.log"
+        Write-Gate
+        exit 1
+    }
+    $gate.readiness_evidence_passed = $true
     Write-Gate
     exit 0
 } catch {
