@@ -12,6 +12,7 @@ import time
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/godot-validation.yml"
 REPLAY = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_test.gd")
+REPLAY_STATE_PREFIX = "CIVIC_CHAOS_REPLAY_STATE "
 # Legacy fixture names are preserved; aliases are accepted ONLY for their
 # specific test, never as proof that a different test completed.
 PASS_MARKER_OVERRIDES = {
@@ -56,6 +57,14 @@ def expected_pass_marker(name):
 
 def extract_pass_markers(output):
     return re.findall(r"CIVIC_CHAOS_[A-Z0-9_]+_PASS", output)
+
+
+def extract_replay_evidence(output):
+    """Stable gameplay-state traces; PASS markers alone prove no determinism."""
+    return [
+        line.strip() for line in output.splitlines()
+        if line.startswith(REPLAY_STATE_PREFIX)
+    ]
 
 
 def test_passed(name, result):
@@ -184,17 +193,27 @@ def main():
                     ) if condition
                 ]
             if name in REPLAY and ok:
+                first_evidence = extract_replay_evidence(first["output"])
+                entry["replay_state"] = first_evidence
                 second = run(args.godot, command, args.timeout)
                 with log_path.open("a", encoding="utf-8") as logfile:
                     logfile.write("\n=== DETERMINISTIC REPLAY ===\n" + second["output"] + "\n")
                 second_markers = extract_pass_markers(second["output"])
-                entry["replay_passed"] = (test_passed(name, second) and
-                                          second_markers == markers)
+                second_evidence = extract_replay_evidence(second["output"])
+                entry["replay_passed"] = (
+                    test_passed(name, second)
+                    and second_markers == markers
+                    and bool(first_evidence)
+                    and first_evidence == second_evidence
+                )
                 ok = ok and entry["replay_passed"]
                 entry["passed"] = ok
                 if not ok:
                     entry["replay_output_tail"] = second["output"][-4000:]
-                    entry.setdefault("failure_reasons", []).append("deterministic_replay_failed")
+                    entry["replay_state_second"] = second_evidence
+                    entry.setdefault("failure_reasons", []).append(
+                        "deterministic_state_missing_or_mismatch"
+                    )
             report["tests"].append(entry)
             report["passed"] = False
             # Write incrementally: a later crash leaves evidence of completed
