@@ -32,7 +32,7 @@ Use the catalog's `router/SKILL.md` when the area is unclear. The optional local
 
 **Do not begin or enable gameplay changes** in utility-AI decision stability, responsive Android touch/HUD layout or crowd/traffic performance optimization while AUD-001 is unverified. Their ordered, executable requirements are in `docs/development/POST_AUD001_IMPLEMENTATION_PLAN.md` and GitHub issues #50, #51 and #52.
 
-After running the full Windows Godot 4.7.2 gate on an exact clean commit, run `python tools/check_game024_gate.py`. It must return `ready: true` with exit code 0 before starting the new milestones. The checker validates matching commit evidence, 100 Godot fixtures (including four state replays), 20 focused checks, 30 Python QA tests, import, preflight and negative path. A report left over from another commit is **not** proof. Live game systems remain unchanged until the gate actually passes; isolated opt-in AI logic and its tests may be staged but must not be wired to pedestrians.
+After running the full Windows Godot 4.7.2 gate on an exact clean commit, run `python tools/check_game024_gate.py`. It must return `ready: true` with exit code 0 before starting the new milestones. The checker validates matching commit evidence, 101 Godot fixtures (including four state replays), 21 focused checks, 30 Python QA tests, import, preflight and negative path. A report left over from another commit is **not** proof. Live game systems remain unchanged until the gate actually passes; isolated opt-in NPC policy and responsive touch layout calculators/tests may be staged, but must not be wired into live pedestrians or controls.
 
 ## Local verification (never launch CI)
 
