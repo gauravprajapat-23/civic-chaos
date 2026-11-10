@@ -11,7 +11,7 @@ class GateReadinessTests(unittest.TestCase):
             "commit": self.sha, "godot_version": "4.7.2.stable.official",
             "import_passed": True, "python_runner_checks_passed": True,
             "source_preflight_passed": True, "full_regression_passed": True,
-            "source_unchanged": True, "python_runner_test_count": 22,
+            "source_unchanged": True, "python_runner_test_count": 30,
             "focused_tests": [{"name": f"focused_{i}", "passed": True} for i in range(MIN_FOCUSED)],
             "regression_tests_run": MIN_GODOT, "regression_expected_tests": MIN_GODOT,
         }
@@ -66,7 +66,7 @@ class GateReadinessTests(unittest.TestCase):
         self.assertIn("regression_test_missing_or_failed", self.check())
 
     def test_missing_python_checks_is_rejected(self):
-        self.gate["python_runner_test_count"] = 21
+        self.gate["python_runner_test_count"] = 29
         self.assertIn("python_checks_incomplete", self.check())
 
 
