@@ -2,6 +2,7 @@ extends SceneTree
 ## PERF-01: validates observation math using synthetic fixtures only.
 ## No synthetic numbers may ever be labelled a real hardware baseline.
 const Capture = preload("res://scripts/core/performance_capture.gd")
+const Pedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -72,6 +73,32 @@ func _run() -> void:
     if limited.add_observation(_sample(16.0)) or limited.count() != Capture.MAX_SAMPLES:
         _fail("bounded frame capture silently overflowed")
         return
+    # The live pedestrian timing hook is opt-in. Test it with zero
+    # walkers so the instrumentation path has no physics dependencies.
+    var walkers: Node3D = Pedestrians.new() as Node3D
+    walkers.set("pedestrian_count", 0)
+    root.add_child(walkers)
+    var off: Dictionary = walkers.call("movement_profile")
+    if off["sample_count"] != 0:
+        _fail("pedestrian profiling was unexpectedly active by default")
+        return
+    walkers.set("profile_movement_enabled", true)
+    for i in range(5):
+        walkers._physics_process(0.05)
+    var enabled: Dictionary = walkers.call("movement_profile")
+    if enabled["sample_count"] != 5 or enabled["walkers"] != 0:
+        _fail("opt-in pedestrian profiler failed to record update timings")
+        return
+    walkers.set("profile_movement_enabled", false)
+    walkers._physics_process(0.05)
+    if walkers.call("movement_profile")["sample_count"] != 5:
+        _fail("disabling pedestrian profiling did not stop samples")
+        return
+    walkers.call("reset_movement_profile")
+    if walkers.call("movement_profile")["sample_count"] != 0:
+        _fail("pedestrian profiling reset left old samples")
+        return
+    walkers.queue_free()
     print("CIVIC_CHAOS_PERFORMANCE_CAPTURE_PASS")
     quit(0)
 
