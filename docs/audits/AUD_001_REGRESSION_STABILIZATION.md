@@ -285,6 +285,18 @@ The uploaded game-dev skills identify the next three workstreams: deterministic 
 - Follow-on issues: [NPC utility stability #50](https://github.com/gauravprajapat-23/civic-chaos/issues/50), [responsive Android UI #51](https://github.com/gauravprajapat-23/civic-chaos/issues/51), [measured crowd/traffic performance #52](https://github.com/gauravprajapat-23/civic-chaos/issues/52), in that order. Implementation plan: `docs/development/POST_AUD001_IMPLEMENTATION_PLAN.md`.
 - No NPC utility behavior, mobile control geometry, or crowd/traffic algorithm was changed by R23. The feature order is explicitly gated until actual engine logs exist.
 
+## AUD-001-R24 — Skill-based NPC utility stability, opt-in and unconnected
+
+Per the uploaded `ai-behavior-trees-utility-ai` and Godot headless-testing skills, the first post-gate milestone has been prepared as **standalone, nonactivated code**. No live pedestrian, mission or checkpoint wiring was changed while AUD-001 remains blocked.
+
+- Added `scripts/npc/npc_decision_stability.gd` as a per-agent policy wrapper around the unchanged `CivicNpcUtilityEngine.choose()`. It uses 6-tick minimum action hold, a 0.08 improvement margin on near-ties, deterministic simulation ticks, no wall-clock RNG and immediate overrides when a candidate action becomes ineligible (red/blocked crossing or unsafe help).
+- The new `CivicNpcDecisionStability` fails closed for stale ticks, wrong NPC identities, malformed observations and invalid settings, and supports strictly validated schema-v1 policy `snapshot()`/`restore()` including JSON numeric conversion. It does **not** modify the game's save schema.
+- Added `tests/npc_decision_stability_test.gd` checking 120 alternating near-tie ticks, urgent action switching after the hold, **same-tick** red-signal interruption, safe-to-help interruption, NPC identity isolation, invalid inputs, JSON snapshot validation and replay of identical seeded 40-tick decisions.
+- Registered the new test in the mandatory and focused local gate. Inventory is now **100 mandatory Godot fixtures**, **20 focused Godot checks** and **30 Python QA checks**. The independent evidence checker in `tools/check_game024_gate.py` now requires all three counts.
+- Activation and real-world Android/playthrough verification are explicitly deferred. See `docs/development/AI_01_NPC_DECISION_STABILITY.md`, `docs/development/POST_AUD001_IMPLEMENTATION_PLAN.md` and [#50](https://github.com/gauravprajapat-23/civic-chaos/issues/50).
+
+**Verification boundary:** This is committed source plus executable test definitions; the Godot 4.7.2 editor import and tests have **not run** here. Do not merge PR #49, enable the NPC policy or move to UI/performance behavior until the exact-SHA acceptance gate passes. No GitHub Actions were triggered or workflow files modified.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
@@ -326,4 +338,4 @@ Generated reports and logs:
 
 ## Acceptance boundary
 
-`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all runner tests, Godot 4.7.2 import, 19 focused tests, full suite and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
+`AUD-001` is **not completed** by these code commits alone. It is completed only after a verified clean commit passes all 30 Python QA tests, Godot 4.7.2 import, 20 focused tests, all 100 full regression fixtures and negative-path check. Follow-on work should address the first real failing engine log instead of beginning an unrelated feature.
