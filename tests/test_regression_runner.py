@@ -108,6 +108,36 @@ class RegressionRunnerTests(unittest.TestCase):
         self.assertEqual(call.call_args.kwargs["encoding"], "utf-8")
         self.assertEqual(call.call_args.kwargs["errors"], "replace")
 
+    def test_replay_state_extraction_ignores_unrelated_output(self):
+        output = (
+            "Godot Engine\n"
+            "CIVIC_CHAOS_REPLAY_STATE clock=[1,2,3]\n"
+            "CIVIC_CHAOS_DETERMINISM_PASS\n"
+            "CIVIC_CHAOS_REPLAY_STATE rng=[0.25,0.75]\n"
+        )
+        self.assertEqual(
+            run_regression.extract_replay_evidence(output),
+            [
+                "CIVIC_CHAOS_REPLAY_STATE clock=[1,2,3]",
+                "CIVIC_CHAOS_REPLAY_STATE rng=[0.25,0.75]",
+            ],
+        )
+        self.assertEqual(run_regression.extract_replay_evidence(
+            "CIVIC_CHAOS_DETERMINISM_PASS\n"), [])
+
+    def test_replay_state_must_match_even_with_identical_pass_markers(self):
+        marker = run_regression.expected_pass_marker("determinism_test.gd")
+        before = marker + "\nCIVIC_CHAOS_REPLAY_STATE clock=[1,2]\n"
+        after = marker + "\nCIVIC_CHAOS_REPLAY_STATE clock=[1,3]\n"
+        self.assertEqual(
+            run_regression.extract_pass_markers(before),
+            run_regression.extract_pass_markers(after),
+        )
+        self.assertNotEqual(
+            run_regression.extract_replay_evidence(before),
+            run_regression.extract_replay_evidence(after),
+        )
+
     def test_command_timeout_is_failure(self):
         with patch.object(run_regression.subprocess, "run", side_effect=run_regression.subprocess.TimeoutExpired("godot", 1)):
             result = run_regression.run("godot", ["--script", "x"], 1)
