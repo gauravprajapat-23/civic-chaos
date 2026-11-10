@@ -59,7 +59,6 @@ func _run() -> void:
     for index in range(int(options["warmup"])):
         await process_frame
     pedestrians.call("reset_movement_profile")
-    spawner.work_budget._timings_us.clear()
     var previous_us: int = Time.get_ticks_usec()
     for frame_index in range(int(options["frames"])):
         await process_frame
@@ -77,8 +76,8 @@ func _run() -> void:
             "physics_ms": float(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)) * 1000.0,
             "pedestrian_update_us": float(movement.get("average_us", 0.0)),
             "traffic_update_us": float(timing.get("average_us", 0.0)),
-            "draw_calls": int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
-            "static_memory_bytes": int(Performance.get_monitor(Performance.MEMORY_STATIC)),
+            "draw_calls": maxi(0, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))),
+            "static_memory_bytes": maxi(0, int(Performance.get_monitor(Performance.MEMORY_STATIC))),
             "cars": int(traffic.get("active", 0)),
             "walkers": int(movement.get("walkers", 0))
         }
