@@ -6,8 +6,8 @@ This sequence applies the uploaded **utility-AI**, **game UI/UX/input**, and **p
 
 PR [#49](https://github.com/gauravprajapat-23/civic-chaos/pull/49) is draft. Do not enable any of the three following gameplay changes until its precise branch SHA passes:
 
-1. Godot 4.7.2 headless import and all 19 focused checks.
-2. All 99 mandatory GDScript tests, three nonempty matching deterministic state replays and the deliberate negative-path failure.
+1. Godot 4.7.2 headless import and all 20 focused checks.
+2. All 100 mandatory GDScript tests, three nonempty matching deterministic state replays and the deliberate negative-path failure.
 3. At least 30 Python QA tests, static resource preflight, clean source tree and matching `source_commit`/Git HEAD.
 4. Manual district playthrough, F5/F9 and Free Roam checkpoint acceptance before releasing to users.
 
@@ -40,4 +40,4 @@ If either command exits nonzero, **resolve the first actual log failure on this 
 - **Performance:** Profile representative desktop and Android devices **before** changing `district_pedestrians.gd`, `traffic_spawner.gd`, physics layers, asset LOD or node pooling. Suggested design targets (not achieved): 60 FPS desktop (~16.7ms/frame), 30 FPS mobile (~33.3ms/frame). Report hardware, viewport, release/debug build, count and seed. Optimize one identified hotspot, then repeat the measurement.
 - Keep each milestone's code/tests/docs separate and committed `[skip ci]` on its requested branch. Do not edit/dispatch GitHub workflows. Do not merge a PR until its own regressions and target-device acceptance pass.
 
-**Status as of this document:** Gate tooling and follow-up issues prepared; game AI, mobile UI behavior and performance optimization have **not** been activated. No measured FPS claims are made.
+**Status as of this document:** Gate tooling and follow-up issues prepared; a standalone NPC stability policy and headless regression are staged, but live NPC AI, mobile UI behavior and performance optimization have **not** been activated. See `AI_01_NPC_DECISION_STABILITY.md`. No measured FPS claims are made.
