@@ -88,7 +88,10 @@ static func _covered_by_road(point: Vector3, roads: Array[Dictionary]) -> bool:
     for road in roads:
         var center: Vector3 = road["center"]
         var half: Vector3 = road["half_size"]
-        if absf(point.x - center.x) <= half.x - 0.02 and absf(point.z - center.z) <= half.z - 0.02:
+        # A lane endpoint may land precisely on the shared boundary of two
+        # touching center-road slabs. Accept a 2 cm numerical edge tolerance,
+        # but still reject uncovered interior blocks.
+        if absf(point.x - center.x) <= half.x + 0.02 and absf(point.z - center.z) <= half.z + 0.02:
             return true
     return false
 
