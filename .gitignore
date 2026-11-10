@@ -4,3 +4,6 @@
 *.log
 .DS_Store
 Thumbs.db
+
+# Read-only external game-dev skill reference pack, installed locally
+.agent-skills/
