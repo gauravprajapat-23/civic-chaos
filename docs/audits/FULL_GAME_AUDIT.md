@@ -1,3 +1,5 @@
+> **November 10, 2026 update:** This November 6 historical audit has been **superseded** for the current `fix/aud-001-game024-gate-hardening` branch by [AUD-002 Complete Game Source Audit](AUD_002_COMPLETE_GAME_SOURCE_AUDIT.md). Do not repeat outdated BUG-001/005/007/008 conclusions as current without checking the newer source. AUD-002 includes the complete source/102-fixture QA inventory, current release blockers, confirmed perimeter-road mismatch, mobile layout overflow, four deterministic replay requirements, and Android/performance gaps. **Actual Godot/Android acceptance remains unverified.**
+
 # Civic Chaos — Full Game Audit
 Date: 2026-11-06 · Branch: `fix/regression-nov05` · Engine target: Godot 4.7.2
 
