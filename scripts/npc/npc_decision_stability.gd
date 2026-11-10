@@ -97,9 +97,12 @@ func can_restore(raw: Variant) -> bool:
     if not (raw is Dictionary):
         return false
     var data: Dictionary = raw
-    for key in ["schema_version", "npc_id", "last_tick", "last_switch_tick"]:
-        if not (data.get(key) is int):
-            return false
+    if not _whole(data.get("schema_version"), SCHEMA_VERSION, SCHEMA_VERSION):
+        return false
+    if not _whole(data.get("npc_id"), -1, 1000000000):
+        return false
+    if not _whole(data.get("last_tick"), -1, 1000000000) or not _whole(data.get("last_switch_tick"), -1, 1000000000):
+        return false
     if int(data["schema_version"]) != SCHEMA_VERSION:
         return false
     if not (data.get("current_action") is String):
@@ -125,6 +128,12 @@ func restore(raw: Variant) -> bool:
     _last_tick = int(data["last_tick"])
     _last_switch_tick = int(data["last_switch_tick"])
     return true
+
+static func _whole(value: Variant, minimum: int, maximum: int) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= float(minimum) and number <= float(maximum) and number == floorf(number)
 
 static func _observations_valid(obs: Dictionary) -> bool:
     for key in ["urgency", "social_influence"]:
