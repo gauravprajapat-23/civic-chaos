@@ -260,6 +260,21 @@ Two source-level consistency cases were identified and addressed without adding 
 
 **Test evidence boundary:** Source and fixture changes are committed; these tests have **not been executed in Godot 4.7.2** here. The local acceptance gate still requires **99 mandatory GDScript tests, 19 focused checks, and 20 Python QA self-tests**. PR #49 stays draft, and no GitHub Actions were dispatched.
 
+## AUD-001-R22 — Apply uploaded game-development skills to Civic Chaos
+
+The uploaded `awesome-gamedev-agent-skills-main.zip` is an Apache-2.0 catalog, **not** a runtime Godot plugin. The project's `AGENTS.md` now routes tasks to appropriate Godot and cross-engine skills; `docs/development/GAMEDEV_SKILLS_ADOPTION.md` maps the selected skills to actual Civic Chaos milestones, explicit acceptance criteria and required engine evidence. `tools/install_gamedev_skills.ps1` optionally installs only 18 selected skills' Markdown/reference files plus LICENSE/NOTICE into gitignored `.agent-skills/`. It does not execute third-party source, trigger workflows or alter game scenes.
+
+**Immediate headless test application:**
+
+- Previously, the deterministic replay gate compared `CIVIC_CHAOS_*_PASS` markers alone. A different mission, RNG or budget result could pass unnoticed if both runs printed success.
+- The three replay fixtures now emit stable `CIVIC_CHAOS_REPLAY_STATE ` lines from their actual **clock/RNG sequence, wrong-way incident/queue/reward state, and traffic-budget metrics**.
+- `tools/run_regression.py` now requires at least one gameplay-state line and checks exact equality between both runs (plus exact expected PASS marker, zero exit code and absence of engine errors). Differences are written to the JSON failure report.
+- `wrong_way_mission_test.gd` no longer relies on bare `assert()` statements, which the headless-testing skill warns may abort before `quit(1)`; instead it gives detailed failures and nonzero exits.
+- `tests/test_regression_runner.py` now tests missing traces, different states with the same PASS marker, matching state and engine errors. The local Python self-test minimum is raised from 20 to **22**; the Godot inventory remains **99 mandatory fixtures / 19 focused tests**.
+- No assertions of replay determinism or Godot test pass are made without actual Windows engine execution. Physical Android testing and campaign playthrough remain pending.
+
+See `AGENTS.md` and the adoption guide for the project-specific use of AI, physics, save systems, UI/UX, and profiling skills in upcoming work.
+
 ## Local validation (Windows PowerShell)
 
 ```powershell
