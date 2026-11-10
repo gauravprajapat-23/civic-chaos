@@ -15,7 +15,7 @@ REPLAYS = ("determinism_test.gd", "wrong_way_mission_test.gd", "traffic_budget_t
 STATE_PREFIX = "CIVIC_CHAOS_REPLAY_STATE "
 MIN_GODOT = 99
 MIN_FOCUSED = 19
-MIN_PYTHON = 22
+MIN_PYTHON = 30
 
 
 def validate(gate, regression, branch, commit):
