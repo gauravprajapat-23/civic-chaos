@@ -126,17 +126,21 @@ class RegressionRunnerTests(unittest.TestCase):
             "CIVIC_CHAOS_DETERMINISM_PASS\n"), [])
 
     def test_replay_state_must_match_even_with_identical_pass_markers(self):
-        marker = run_regression.expected_pass_marker("determinism_test.gd")
-        before = marker + "\nCIVIC_CHAOS_REPLAY_STATE clock=[1,2]\n"
-        after = marker + "\nCIVIC_CHAOS_REPLAY_STATE clock=[1,3]\n"
-        self.assertEqual(
-            run_regression.extract_pass_markers(before),
-            run_regression.extract_pass_markers(after),
-        )
-        self.assertNotEqual(
-            run_regression.extract_replay_evidence(before),
-            run_regression.extract_replay_evidence(after),
-        )
+        name = "determinism_test.gd"
+        marker = run_regression.expected_pass_marker(name)
+        first = {"returncode": 0, "output":
+                 "CIVIC_CHAOS_REPLAY_STATE clock=[1,2]\n" + marker + "\n"}
+        matching = {"returncode": 0, "output": first["output"]}
+        divergent = {"returncode": 0, "output":
+                     "CIVIC_CHAOS_REPLAY_STATE clock=[1,3]\n" + marker + "\n"}
+        no_state = {"returncode": 0, "output": marker + "\n"}
+        with_error = {"returncode": 0, "output":
+                      first["output"] + "SCRIPT ERROR: failed\n"}
+        self.assertTrue(run_regression.deterministic_replay_passed(name, first, matching))
+        self.assertFalse(run_regression.deterministic_replay_passed(name, first, divergent))
+        self.assertFalse(run_regression.deterministic_replay_passed(name, first, no_state))
+        self.assertFalse(run_regression.deterministic_replay_passed(name, no_state, no_state))
+        self.assertFalse(run_regression.deterministic_replay_passed(name, first, with_error))
 
     def test_command_timeout_is_failure(self):
         with patch.object(run_regression.subprocess, "run", side_effect=run_regression.subprocess.TimeoutExpired("godot", 1)):
