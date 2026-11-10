@@ -15,6 +15,7 @@ var work_budget: CivicTrafficBudget = Budget.new()
 var road_graph: CivicRoadGraph
 var city_mode: bool = false
 var city_entry_lanes: PackedInt32Array = PackedInt32Array()
+var normal_entry_lanes: PackedInt32Array = PackedInt32Array()
 var traffic_signals: CivicTrafficSignalController
 var crossing_reservations: CivicIntersectionReservations
 
@@ -39,14 +40,22 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	if maximum_active < 1 or spawn_interval_ticks < 1 or not is_finite(spawn_clearance_m) or spawn_clearance_m <= 0.0:
 		return false
 	var proposed_entry_lanes := PackedInt32Array()
+	var proposed_normal_lanes := PackedInt32Array()
 	if expanded_city:
 		for lane_id in graph.sorted_lane_ids():
 			var lane: CivicLaneData = graph.get_lane(lane_id)
 			var origin: Vector3 = lane.centerline[0]
-			if (absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0) and lane.centerline[1].length_squared() < origin.length_squared():
+			if (absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0) and lane.centerline[1].length_squared() < origin.length_squared() and lane.is_vehicle_allowed(1) and not lane.is_wrong_way_connector and not graph.outgoing_legal_lanes(lane_id, 1).is_empty():
 				proposed_entry_lanes.append(lane_id)
-		if proposed_entry_lanes.is_empty():
-			return false
+	else:
+		# A graph may validate geometrically without the legacy 1/3/5/7
+		# entrances. Never "succeed" with a fleet that cannot spawn a route.
+		for lane_id in [1, 3, 5, 7]:
+			var lane: CivicLaneData = graph.get_lane(lane_id)
+			if lane != null and not lane.is_wrong_way_connector and lane.is_vehicle_allowed(1) and not graph.outgoing_legal_lanes(lane_id, 1).is_empty():
+				proposed_normal_lanes.append(lane_id)
+	if proposed_entry_lanes.is_empty() and proposed_normal_lanes.is_empty():
+		return false
 	# All validation succeeded. Now replace the old generation atomically
 	# with respect to configuration failure (and intentionally abort a
 	# previously prepared checkpoint for a successful reconfiguration).
@@ -62,6 +71,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	road_graph = graph
 	city_mode = expanded_city
 	city_entry_lanes = proposed_entry_lanes
+	normal_entry_lanes = proposed_normal_lanes
 	seed = random_seed
 	rng.seed = seed
 	spawned_total = 0
@@ -146,7 +156,9 @@ static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -
 func try_spawn() -> bool:
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
 		return false
-	var entry_lanes := city_entry_lanes if city_mode else PackedInt32Array([1, 3, 5, 7])
+	var entry_lanes := city_entry_lanes if city_mode else normal_entry_lanes
+	if entry_lanes.is_empty():
+		return false
 	var entry: int = entry_lanes[rng.randi_range(0, entry_lanes.size() - 1)]
 	var exits: Array[int] = road_graph.outgoing_legal_lanes(entry, 1)
 	if exits.is_empty():
