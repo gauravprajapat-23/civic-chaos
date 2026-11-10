@@ -9,7 +9,7 @@
 - Existing `CivicTrafficSpawner.work_budget.metrics()` already records bounded traffic work microseconds; its fleet size and throughput are sampled without modifying the spawner.
 - `tools/profile_city_baseline.gd`: **explicit opt-in** `SceneTree` runner that loads `scenes/core/main.tscn`, warms up, samples actual Godot engine monitors and the two systems, and writes `user://civic-chaos-perf-baseline.json`. It does not patch the main scene, game save schema, visuals, physics, traffic or NPC pathfinding. The runner is for local performance observation only.
 - `tests/performance_capture_test.gd`: checks numeric percentiles (nearest-rank median/p95), count and bounds, malformed sample rejection, metadata copy/immutability, max 3600 samples, absence of falsely claimed GPU/target data, and default-off/opt-in/disabled/reset pedestrian timing. Fixture numbers are explicitly **synthetic test data**, never an actual gameplay baseline.
-- Required acceptance inventory rises to **102 mandatory Godot tests, 22 focused tests, 30 Python checks and 4 deterministic state replays**.
+- Required acceptance inventory rises to **103 mandatory Godot tests, 23 focused tests, 30 Python checks and 4 deterministic state replays**.
 
 ## Running the opt-in benchmark locally
 
