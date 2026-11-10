@@ -26,7 +26,7 @@ This milestone retains `CivicNpcUtilityEngine.choose()` as the original scoring 
 4. Cross-agent isolation and explicit reset.
 5. A 40-tick identical-seed replay, JSON snapshot round-trip, rejection of malformed future-tick/unknown-action saved state, and continuation from restored policy.
 
-Registered as **fixture #100** in the mandatory regression runner and **focused check #20** in the Windows gate. `tools/check_game024_gate.py` now requires both counts. These are executable test definitions, **not successful Godot results**.
+Registered as **fixture #100** in the mandatory regression runner and **focused check #20** in the Windows gate. `tools/check_game024_gate.py` now requires both counts. Its 40-tick trace also runs as **the fourth cross-process deterministic replay**, validated through the strict Python harness. These are executable test definitions, **not successful Godot results**.
 
 ## Activation after AUD-001
 
