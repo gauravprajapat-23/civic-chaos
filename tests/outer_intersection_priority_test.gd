@@ -96,6 +96,15 @@ func _run() -> void:
     spawner.active_vehicles.append(north_car)
     spawner.active_vehicles.append(other_north)
     same_lane.free()
+    # A mission/tow-stopped car at the entrance cannot starve unrelated
+    # approaches; physical sweeps still protect it as a real obstacle.
+    first.stop_requested = true
+    first.lane_distance_m += 2.0
+    if _stops(spawner, second):
+        _fail("stopped approach monopolized the junction despite no entry")
+        return
+    first.stop_requested = false
+    first.lane_distance_m -= 2.0
     # Distance dominates lane-ID when both arrivals are approaching one zone.
     second.lane_distance_m += 1.0
     if _stops(spawner, second) or not _stops(spawner, first):
