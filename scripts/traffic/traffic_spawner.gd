@@ -5,6 +5,7 @@ extends Node3D
 const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Budget = preload("res://scripts/traffic/traffic_budget.gd")
+const OuterPriority = preload("res://scripts/traffic/outer_intersection_priority.gd")
 var work_budget: CivicTrafficBudget = Budget.new()
 
 @export_range(1, 100, 1) var maximum_active: int = 20
@@ -116,28 +117,63 @@ func advance_fixed(tick: int, delta: float) -> void:
 
 func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation: Dictionary) -> Dictionary:
 	var observation: Dictionary = initial_observation.duplicate()
-	# Signal membership is geometric. Legacy IDs 1/3/5/7 do not identify
-	# expanded-city lanes (IDs >= 100), and city cars cross multiple segments.
-	if traffic_signals == null or road_graph == null or vehicle.route.is_empty():
+	# The central junction keeps its original signal + crossing reservation
+	# contract. Outer junctions use a fixed-tick stateless priority policy,
+	# independent of the one central signal and safe across F5/F9 restores.
+	if road_graph == null or vehicle == null or vehicle.route.is_empty():
 		return observation
 	if not city_mode and vehicle.current_route_index != 0:
 		return observation
-	if vehicle.current_route_index >= vehicle.route.size():
+	if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
 		return observation
 	var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
-	var approach: String = signal_approach_for_lane(lane, city_mode)
-	if approach.is_empty():
-		return observation # Outer intersections have no central-junction signal.
+	if lane == null:
+		return observation
 	var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
 	var gap: float = stop_distance - vehicle.lane_distance_m
+	if city_mode and OuterPriority.is_controlled(lane):
+		var decision: Dictionary = OuterPriority.disposition(vehicle, road_graph, active_vehicles, current_tick)
+		var must_yield: bool = bool(decision.get("yield", false))
+		# A pedestrian in the road's crossing conflict zone receives the
+		# same priority. Check only when the approaching car can enter soon;
+		# cars already past the stopline must clear instead of freezing.
+		if not must_yield and gap >= 0.0 and gap <= 12.0:
+			must_yield = _outer_pedestrian_occupied(OuterPriority.junction_for_lane(lane))
+		if must_yield and gap >= 0.0:
+			return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+		return observation
+	if traffic_signals == null:
+		return observation
+	var approach: String = signal_approach_for_lane(lane, city_mode)
+	if approach.is_empty():
+		return observation
 	var pedestrian_occupied: bool = false
 	if crossing_reservations != null:
 		pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
 	if gap >= 0.0 and (traffic_signals.aspect_for_approach(approach) != "green" or pedestrian_occupied):
-		var safe_gap: float = maxf(0.0, gap + vehicle.minimum_gap_m)
-		if not observation.get("detected", false) or safe_gap < float(observation["gap_m"]):
-			observation = {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
+		return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
 	return observation
+
+static func _merge_stop_line(observation: Dictionary, gap: float, minimum_gap: float) -> Dictionary:
+	var safe_gap: float = maxf(0.0, gap + minimum_gap)
+	if not observation.get("detected", false) or safe_gap < float(observation.get("gap_m", INF)):
+		return {"detected": true, "gap_m": safe_gap, "lead_speed_mps": 0.0}
+	return observation
+
+func _outer_pedestrian_occupied(junction: Vector3) -> bool:
+	# The actual pedestrian collider uses collision layer 8. A small central
+	# probe avoids permanent blockage by pedestrians waiting on sidewalks.
+	# Pure junction policy and headless unit tests do not need this query.
+	if not is_inside_tree():
+		return false
+	var probe := SphereShape3D.new()
+	probe.radius = 2.75
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = probe
+	query.transform = Transform3D(Basis.IDENTITY, junction + Vector3.UP * 0.85)
+	query.collision_mask = 8
+	query.collide_with_bodies = true
+	return not get_world_3d().direct_space_state.intersect_shape(query, 8).is_empty()
 
 ## A single signal controller currently represents the center junction.
 ## Derive direction from geometry, never from numeric lane IDs.
