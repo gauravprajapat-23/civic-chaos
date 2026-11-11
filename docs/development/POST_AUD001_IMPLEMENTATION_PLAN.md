@@ -6,8 +6,8 @@ This sequence applies the uploaded **utility-AI**, **game UI/UX/input**, and **p
 
 PR [#49](https://github.com/gauravprajapat-23/civic-chaos/pull/49) is draft. Do not enable any of the three following gameplay changes until its precise branch SHA passes:
 
-1. Godot 4.7.2 headless import and all 23 focused checks.
-2. All 103 mandatory GDScript tests, four nonempty matching deterministic state replays and the deliberate negative-path failure.
+1. Godot 4.7.2 headless import and all 24 focused checks.
+2. All 104 mandatory GDScript tests, four nonempty matching deterministic state replays and the deliberate negative-path failure.
 3. At least 30 Python QA tests, static resource preflight, clean source tree and matching `source_commit`/Git HEAD.
 4. Manual district playthrough, F5/F9 and Free Roam checkpoint acceptance before releasing to users.
 
