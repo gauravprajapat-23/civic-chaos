@@ -58,7 +58,6 @@ func _run() -> void:
     var north_car := _car(ns[0], 7.0)
     var other_north := _car(ns[1], 7.0)
     var east_car := _car(ew[0], 7.0)
-    var fleet: Array[CivicVehicleAgent] = [north_car, east_car]
     spawner.active_vehicles.append(north_car)
     spawner.active_vehicles.append(east_car)
     spawner.current_tick = 1
@@ -84,6 +83,19 @@ func _run() -> void:
     if _stops(spawner, first) or not _stops(spawner, second):
         _fail("opposite-direction tie did not select a single stable lane-ID winner")
         return
+    # If two cars share the same lane and stop-line distance, saved fleet
+    # order is the final tie-breaker; both must not enter in one fixed tick.
+    var same_lane := _car(ns[0], 7.0)
+    spawner.active_vehicles.clear()
+    spawner.active_vehicles.append(north_car)
+    spawner.active_vehicles.append(same_lane)
+    if _stops(spawner, north_car) or not _stops(spawner, same_lane):
+        _fail("same-lane tied vehicles received overlapping entrance rights")
+        return
+    spawner.active_vehicles.clear()
+    spawner.active_vehicles.append(north_car)
+    spawner.active_vehicles.append(other_north)
+    same_lane.free()
     # Distance dominates lane-ID when both arrivals are approaching one zone.
     second.lane_distance_m += 1.0
     if _stops(spawner, second) or not _stops(spawner, first):
