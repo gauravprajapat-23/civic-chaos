@@ -3,6 +3,7 @@ extends SceneTree
 const Builder = preload("res://scripts/world/junction_builder.gd")
 const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
 const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
+const OuterPriority = preload("res://scripts/traffic/outer_intersection_priority.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -42,6 +43,8 @@ func _run() -> void:
     var outer_car := CivicVehicleAgent.new()
     outer_car.route = PackedInt32Array([outer.lane_id])
     outer_car.lane_distance_m = outer.length_m() - 7.0
+    outer_car.active = true
+    spawner.current_tick = 1
     var empty := {"detected": false}
     if spawner.apply_stop_line_observation(north_car, empty).get("detected", false):
         _fail("north green wrongly stopped")
@@ -49,8 +52,11 @@ func _run() -> void:
     if not spawner.apply_stop_line_observation(east_car, empty).get("detected", false):
         _fail("east red failed to stop")
         return
-    if spawner.apply_stop_line_observation(outer_car, empty).get("detected", false):
-        _fail("central signal incorrectly controls outer intersection")
+    # Outer city nodes have their OWN fixed-tick right-of-way, independent
+    # of the central signal. It is no longer correct to expect no stop.
+    var outer_red: bool = OuterPriority.aspect(OuterPriority.axis_for_lane(outer), 1) != "green"
+    if bool(spawner.apply_stop_line_observation(outer_car, empty).get("detected", false)) != outer_red:
+        _fail("outer fixed-tick priority does not match its approach signal")
         return
     signals.advance_fixed(7.0)
     if not spawner.apply_stop_line_observation(north_car, empty).get("detected", false):
