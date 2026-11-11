@@ -5,7 +5,7 @@ param(
     [string]$Python = "python",
     [int]$Timeout = 120,
     [string]$ExpectedBranch = "feat/game-024-dynamic-free-roam",
-    [int]$MinimumTestCount = 103
+    [int]$MinimumTestCount = 104
 )
 
 $ErrorActionPreference = "Stop"
@@ -130,8 +130,8 @@ try {
         Write-Gate
         exit 1
     }
-    if ($MinimumTestCount -lt 103 -or $Timeout -lt 1) {
-        $gate.reason = "Unsafe acceptance configuration: require at least 103 tests and a positive timeout."
+    if ($MinimumTestCount -lt 104 -or $Timeout -lt 1) {
+        $gate.reason = "Unsafe acceptance configuration: require at least 104 tests and a positive timeout."
         Write-Gate
         exit 1
     }
@@ -226,6 +226,7 @@ try {
         "touch_layout_test.gd",
         "performance_capture_test.gd",
         "city_road_alignment_test.gd",
+        "outer_intersection_priority_test.gd",
         "free_roam_legacy_migration_test.gd",
         "free_roam_card_test.gd",
         "free_roam_live_events_test.gd",
