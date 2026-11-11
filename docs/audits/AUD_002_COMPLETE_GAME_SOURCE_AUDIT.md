@@ -20,6 +20,18 @@ The confirmed road-coverage problem (AUD2-002 / [issue #53](https://github.com/g
 
 The original findings below are retained as a historical record of the pre-fix revision, **not a claim that AUD2-002 is still unfixed in source**. The release verdict remains **NO-GO** until engine acceptance.
 
+## AUD2-MAP-02 implementation update — outer intersection right-of-way staged
+
+The previously identified unsignalled outer-intersection risk (AUD2-003 / [issue #53](https://github.com/gauravprajapat-23/civic-chaos/issues/53)) now has **source-level collision-prevention rules**, pending Godot runtime acceptance:
+
+- New `scripts/traffic/outer_intersection_priority.gd` evaluates noncentral city junctions from the validated five-axis road graph. Each runs a deterministic 320-fixed-tick cycle at the current 20 Hz simulation: **120 ticks NS green, 40 all-red, 120 EW green, 40 all-red**. Perpendicular approaches are never both green.
+- A conflicting junction admits only one approaching car by distance-to-stopline, then stable lane ID, then saved fleet order. A car already past the stopline or within 7 m of the outbound lane's origin keeps the conflict zone protected until clear; entrants must yield. Mission/tow-stopped cars that have **not entered** don't monopolize it. There is no additional persisted arbitration state, so F5/F9 can derive decisions from restored tick, route and lane distance.
+- `scripts/traffic/traffic_spawner.gd` applies the new policy only at noncentral city intersections, preserving the old central signal/crossing-reservation handler and legacy test-junction behavior. When a green approach is close to the stopline, a local collision-layer-8 sphere query yields to pedestrians physically within the crossing zone. Existing vehicle swept-footprint collision checks remain as a second line of defence.
+- New mandatory/focused `tests/outer_intersection_priority_test.gd` checks the full green/all-red cycle, no perpendicular greens, one-car arbitration (including opposite/same-lane ties), closer-first priority, stopped-vehicle fairness, committed inbound/outbound zone occupancy, deterministic tick replay and a *real* `AnimatableBody3D` pedestrian collision query. `tests/city_signal_stop_line_test.gd` was updated to verify the separate outer policy instead of expecting unsignalled outer lanes.
+- Acceptance now requires **104 Godot fixtures, 24 focused tests, 30 Python QA checks and four nonempty matching replay traces** on the exact committed SHA. None of the new Godot tests or real Android playtests ran in this environment. This is **not yet a demonstrated collision-free city**.
+
+**Remain open:** Godot 4.7.2 parser/import/physical acceptance, real two-car dynamic movement through outer intersections (including resumed checkpoints), traffic-signal visual cues at unsignalled outer nodes, Android visuals, and full campaign/Free Roam F5/F9. Issue #53 stays open until those are verified; PR #49 stays draft.
+
 ## 1. Audit scope, methodology and evidence
 
 Inspected the current GitHub branch's complete recursive tree: **400 tracked tree entries**, **69 GDScript files under `scripts/`**, **102 mandatory `tests/*_test.gd` fixtures**, Godot scene inventory, `project.godot`, `export_presets.cfg`, entry flow, major systems, prior full-game audit, issue register, audit-based implementation roadmap and all new AUD-001/AI-01/UI-01/PERF-01 components.
