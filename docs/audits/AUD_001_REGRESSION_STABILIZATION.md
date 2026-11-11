@@ -335,7 +335,19 @@ Source audit [AUD-002](AUD_002_COMPLETE_GAME_SOURCE_AUDIT.md) found that the 5×
 
 **Source-model check:** A separate reproduction of the graph/raster geometry measured 12 road bodies, **2,160/2,160 covered points** and a negative off-road control that remained uncovered. This is **not** a Godot/Windows/device pass.
 
-**Required gate:** **103 mandatory Godot fixtures, 23 focused tests, 30 Python QA tests, four deterministic replays**, current Git SHA, deliberate negative path, import and full manual campaign/device verification. Actual Godot and Android checks are **pending**, and PR #49 stays draft. The outer-junction right-of-way portion of [#53](https://github.com/gauravprajapat-23/civic-chaos/issues/53) is not implemented or accepted. The bare-assert QA backlog [#54](https://github.com/gauravprajapat-23/civic-chaos/issues/54) is now 17 remaining fixtures after neighborhood test hardening. No GitHub Actions run.
+**Required gate:** **104 mandatory Godot fixtures, 24 focused tests, 30 Python QA tests, four deterministic replays**, current Git SHA, deliberate negative path, import and full manual campaign/device verification. Actual Godot and Android checks are **pending**, and PR #49 stays draft. The outer-junction right-of-way portion of [#53](https://github.com/gauravprajapat-23/civic-chaos/issues/53) is not implemented or accepted. The bare-assert QA backlog [#54](https://github.com/gauravprajapat-23/civic-chaos/issues/54) is now 17 remaining fixtures after neighborhood test hardening. No GitHub Actions run.
+
+## AUD-001-R28 — Outer intersection right-of-way safety (AUD2-MAP-02)
+
+Based on the uploaded `godot-physics`, `physics-tuning` and `godot-gdscript-headless-testing` skills, the next AUD-002 repair adds deterministic fixed-tick traffic priority without altering the campaign or save schema.
+
+- `scripts/traffic/outer_intersection_priority.gd` defines a pure policy for 24 noncentral grid nodes (6-second NS green, 2-second all-red, 6-second EW green, 2-second all-red, 20 Hz). Perpendicular approaches cannot both be released.
+- Entering cars are serialized at each node with deterministic nearest-stopline priority and stable lane-ID/fleet-slot ties. A car inside the 5-m incoming stopline or first 7 m of an outgoing segment protects the same conflict zone until clear, including when the opposing signal switches. Stationary, mission-stopped cars outside the zone do not retain exclusive priority forever.
+- `scripts/traffic/traffic_spawner.gd` now consumes the outer policy and a short-range physics-layer-8 pedestrian occupancy probe at approaching outer junctions. The central `CivicTrafficSignalController` and existing crossing reservations remain authoritative for the central square. Existing vehicle swept-footprint tests still handle physical collision.
+- No new serialized reservation or checkpoint fields were introduced. The policy reconstructs from the saved logical tick and car route/distance.
+- Added `tests/outer_intersection_priority_test.gd` as **mandatory fixture #104 and focused #24**; updated `city_signal_stop_line_test.gd` to distinguish central and outer controllers. Expected local gate: **104 Godot fixtures, 24 focused, 30 Python QA and 4 deterministic state replays**. The headless fixture includes a real pedestrian collider and checks exclusion from the intersection.
+
+**Status:** Committed, static review only. Actual Godot 4.7.2 import, collision dynamics, manual PC/Android driving, F5/F9 restoration and performance checks are **pending**; PR #49 remains draft and issue #53 remains open. No Actions have run.
 
 ## Local validation (Windows PowerShell)
 
