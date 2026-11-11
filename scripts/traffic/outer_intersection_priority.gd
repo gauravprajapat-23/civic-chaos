@@ -31,7 +31,8 @@ static func _on_axis(value: float) -> bool:
     return false
 
 static func is_controlled(lane: CivicLaneData) -> bool:
-    return junction_for_lane(lane).x != INF
+    var junction: Vector3 = junction_for_lane(lane)
+    return is_finite(junction.x) and is_finite(junction.z)
 
 static func axis_for_lane(lane: CivicLaneData) -> String:
     if lane == null or lane.centerline.size() < 2:
@@ -102,7 +103,10 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
     var own_gap: float = stop_line - vehicle.lane_distance_m
     var own_index: int = cars.find(vehicle)
     for other in cars:
-        if other == null or other == vehicle or not other.active or other.route.is_empty():
+        # A stationary mission/tow vehicle outside the conflict zone
+        # cannot monopolize the entrance indefinitely. A stopped car
+        # INSIDE the zone was already handled by the occupancy pass.
+        if other == null or other == vehicle or not other.active or other.route.is_empty() or other.stop_requested:
             continue
         if other.current_route_index < 0 or other.current_route_index >= other.route.size():
             continue
