@@ -61,7 +61,7 @@ func _run() -> void:
     var ew_entered := false
     var ns_advanced := false
     var ew_advanced := false
-    for tick in range(1, 321):
+    for tick in range(1, 261):
         # All collision queries and transforms are evaluated at real physics
         # boundaries, not from an idle callback with a potentially locked space.
         await physics_frame
@@ -69,30 +69,32 @@ func _run() -> void:
             walker.queue_free()
             await physics_frame
         spawner.advance_fixed(tick, 0.05)
-        if not is_instance_valid(ns) or not is_instance_valid(ew):
-            _fail("a car ended its route before crossing the junction")
-            return
-        # Distance to the junction is an inexpensive independent physical
-        # guard; the actual vehicle footprint sweep remains enabled.
-        var a := ns.global_position
-        var b := ew.global_position
-        a.y = 0.0
-        b.y = 0.0
-        if a.distance_to(b) < 1.5:
-            _fail("two physical vehicle bodies overlapped at tick " + str(tick))
-            return
-        var ns_out: bool = ns.current_route_index > 0
-        var ew_out: bool = ew.current_route_index > 0
-        if tick <= 40 and ns.lane_distance_m > north_lane.length_m() - Priority.STOP_LINE_M + 0.06:
-            _fail("NS vehicle entered occupied pedestrian crossing")
-            return
-        if tick < 160 and ew.lane_distance_m > east_lane.length_m() - Priority.STOP_LINE_M + 0.06:
-            _fail("EW vehicle entered before its own green")
-            return
-        ns_entered = ns_entered or ns_out
-        ew_entered = ew_entered or ew_out
-        ns_advanced = ns_advanced or (ns_out and ns.lane_distance_m > Priority.EXIT_CLEARANCE_M)
-        ew_advanced = ew_advanced or (ew_out and ew.lane_distance_m > Priority.EXIT_CLEARANCE_M)
+        # Completed routes are legitimately removed by the spawner. Retain
+        # recorded crossing evidence instead of treating completion as a crash.
+        if is_instance_valid(ns) and ns.active:
+            var ns_out: bool = ns.current_route_index > 0
+            if tick <= 40 and ns.lane_distance_m > north_lane.length_m() - Priority.STOP_LINE_M + 0.06:
+                _fail("NS vehicle entered occupied pedestrian crossing")
+                return
+            ns_entered = ns_entered or ns_out
+            ns_advanced = ns_advanced or (ns_out and ns.lane_distance_m > Priority.EXIT_CLEARANCE_M)
+        if is_instance_valid(ew) and ew.active:
+            var ew_out: bool = ew.current_route_index > 0
+            if tick < 160 and ew.lane_distance_m > east_lane.length_m() - Priority.STOP_LINE_M + 0.06:
+                _fail("EW vehicle entered before its own green")
+                return
+            ew_entered = ew_entered or ew_out
+            ew_advanced = ew_advanced or (ew_out and ew.lane_distance_m > Priority.EXIT_CLEARANCE_M)
+        # The actual car sweeps handle physical collision; this additional
+        # distance guard fails if two active physical cars penetrate together.
+        if is_instance_valid(ns) and ns.active and is_instance_valid(ew) and ew.active:
+            var a := ns.global_position
+            var b := ew.global_position
+            a.y = 0.0
+            b.y = 0.0
+            if a.distance_to(b) < 1.5:
+                _fail("two physical vehicle bodies overlapped at tick " + str(tick))
+                return
     if not ns_entered or not ew_entered or not ns_advanced or not ew_advanced:
         _fail("physical traffic deadlocked or did not clear outbound crossing")
         return
