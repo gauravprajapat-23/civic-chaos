@@ -136,7 +136,7 @@ func _run() -> void:
                 var other_lane: CivicLaneData = graph.get_lane(int(prior["route"][int(prior["route_index"])]))
                 var other_pos: Vector3 = CivicVehicleAgent.sample_centerline(other_lane.centerline, float(prior["lane_distance"]))["position"]
                 min_gap = minf(min_gap, pos.distance_to(other_pos))
-        _fail("background traffic physical restoration rejected: min_car_spacing=%.3f cars=%s" % [min_gap, "; ".join(placements)])
+        _fail("background traffic physical restoration rejected: min_car_spacing=%.3f cars=%s" % [min_gap, "; ".join(PackedStringArray(placements))])
         return
     var round_trip: Dictionary = resumed.snapshot()
     if round_trip["rng_state"] != saved["rng_state"] or round_trip["current_tick"] != saved["current_tick"] or round_trip["spawned_total"] != saved["spawned_total"]:
