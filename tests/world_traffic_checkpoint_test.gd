@@ -61,7 +61,14 @@ func _run() -> void:
     if not first.configure(graph, 3411):
         _fail("background traffic could not configure")
         return
+    # Physical restore refuses overlapping fleets. This fixture must drive
+    # the actual center-junction signal, just as the playable world does;
+    # otherwise perpendicular cars enter together and the generated
+    # "checkpoint" is already unsafe before serialization.
+    var junction_signals := Signals.new()
+    first.configure_intersection(junction_signals, null)
     for tick in range(1, 90):
+        junction_signals.advance_fixed(0.05)
         first.advance_fixed(tick, 0.05)
     if first.active_vehicles.is_empty():
         _fail("no real cars available for checkpoint test")
