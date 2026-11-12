@@ -63,3 +63,13 @@ Run directly:
 & "C:\Godot\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/outer_intersection_movement_test.gd
 ```
 Then run the full exact-commit local verification gate. Any Godot error or failing fixture blocks acceptance; do not close #53 or merge PR #49 based on source inspection.
+
+## AUD2-MAP-04 — checkpoint occupancy and visual signals (source committed; engine pending)
+
+**Startup repair:** Godot 4.7.2 reports that `CivicIllegalParkingMission.owner` redeclares the native `Node3D.owner` member. Renamed the actor field to `parking_owner` and updated two referencing regression fixtures. This field was an in-memory node reference, not a serialized checkpoint key, so no save schema migration is required.
+
+**Checkpoint safety:** `tests/outer_intersection_restore_test.gd` captures an occupied outer crossing with two actual collidable car scenes and a waiting perpendicular car, JSON-round-trips the current fleet slot order and tick, reconstructs into an empty scene, checks the exact post-restore priority decision, exercises continued outbound conflict-zone ownership and release, and verifies fixed-phase color replay. In particular, it confirms no mutable reservation state is required beyond vehicle lane progress and current tick.
+
+**Visible indicators:** `scripts/traffic/outer_traffic_lights.gd` constructs 48 non-colliding NS/EW signal heads at the 24 noncentral city nodes. Each visual red/green lamp is selected from `CivicOuterIntersectionPriority.aspect(axis, tick)`; the existing `junction_scene.gd` synchronizes these heads on every simulation tick and immediately after restoring the world clock. The central junction's original signal system remains separate, and indicators do not affect car collision masks or traffic authority. Lighting is intentionally emissive-looking unshaded colored mesh rather than additional real lights, to avoid unmeasured GPU load.
+
+**Local verification:** This adds one automatically discovered Godot fixture after AUD2-MAP-03 (expected total at least 106). Neither authoring-time code changes nor a clean GitHub commit prove runtime acceptance. Run Godot import and `illegal_parking_live_test.gd`, `parking_checkpoint_test.gd`, `outer_intersection_restore_test.gd`, `outer_intersection_movement_test.gd`, `world_junction_checkpoint_test.gd`, then the full strict verification gate on the identical SHA. Keep issue #53 open and PR #49 draft until the actual engine and Android evidence passes. No Actions runs.
