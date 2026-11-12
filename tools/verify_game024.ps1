@@ -65,45 +65,70 @@ function Run-Local {
         [string]$Executable = $Godot,
         [int]$ProcessTimeoutSeconds = $Timeout
     )
-    # Redirect streams to files so verbose or hung fixtures cannot deadlock.
+    # Use a real .NET Process, not Start-Process -PassThru. On Windows
+    # PowerShell 5.1 the latter has returned a blank ExitCode for successful
+    # Godot/Python subprocesses, incorrectly blocking the acceptance gate.
+    # Drain BOTH redirected streams asynchronously to prevent pipe deadlocks.
     $stdoutPath = Join-Path $logs ($LogName + ".stdout")
     $stderrPath = Join-Path $logs ($LogName + ".stderr")
     $exitCode = -1
     $timedOut = $false
     $output = ""
+    $stdout = ""
+    $stderr = ""
+    $process = $null
     try {
         $quotedArguments = @($Arguments | ForEach-Object {
             if ($_ -match '\s') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
         })
-        $process = Start-Process -FilePath $Executable -ArgumentList $quotedArguments -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $Executable
+        $startInfo.Arguments = ($quotedArguments -join " ")
+        $startInfo.WorkingDirectory = $root
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $startInfo
+        if (-not $process.Start()) {
+            throw "Process did not start: $Executable"
+        }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($ProcessTimeoutSeconds * 1000)) {
             $timedOut = $true
-            # On Windows, terminate the complete Python -> Godot process
-            # tree, not only the Python parent, before collecting logs.
+            # Kill Python and any child Godot fixtures, not just the runner.
             try {
                 $killer = Start-Process -FilePath "taskkill.exe" -ArgumentList @(
                     "/PID", [string]$process.Id, "/T", "/F"
-                ) -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $logs ($LogName + ".kill.stdout")) -RedirectStandardError (Join-Path $logs ($LogName + ".kill.stderr"))
-                $killer.WaitForExit(10000) | Out-Null
+                ) -Wait -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $logs ($LogName + ".kill.stdout")) -RedirectStandardError (Join-Path $logs ($LogName + ".kill.stderr"))
             } catch {
-                # A process can disappear between timeout and taskkill.
+                # Child may already have exited before taskkill starts.
             }
             if (-not $process.HasExited) {
                 try { $process.Kill() } catch { }
             }
             $process.WaitForExit(10000) | Out-Null
         } else {
-            $exitCode = $process.ExitCode
+            $process.WaitForExit()
+            $exitCode = [int]$process.ExitCode
+        }
+        # WaitForExit drains the asynchronous readers before accessing Result.
+        if ($stdoutTask.IsCompleted) {
+            $stdout = $stdoutTask.GetAwaiter().GetResult()
+        }
+        if ($stderrTask.IsCompleted) {
+            $stderr = $stderrTask.GetAwaiter().GetResult()
         }
     } catch {
         $output = ($_ | Out-String)
+    } finally {
+        if ($null -ne $process) { $process.Dispose() }
     }
-    if (Test-Path -LiteralPath $stdoutPath) {
-        $output += Get-Content -LiteralPath $stdoutPath -Raw
-    }
-    if (Test-Path -LiteralPath $stderrPath) {
-        $output += Get-Content -LiteralPath $stderrPath -Raw
-    }
+    $stdout | Set-Content -Path $stdoutPath -Encoding UTF8
+    $stderr | Set-Content -Path $stderrPath -Encoding UTF8
+    $output += $stdout + $stderr
     if ($timedOut) {
         $output += [Environment]::NewLine + "GAME-024 TEST TIMEOUT after $ProcessTimeoutSeconds seconds"
     }
