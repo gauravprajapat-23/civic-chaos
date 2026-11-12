@@ -40,6 +40,12 @@ func _run() -> void:
     if not parking.configure(stage, player, civic):
         _fail("illegal parking could not stage")
         return
+    if not is_instance_valid(parking.parking_owner) or parking.parking_owner.name != "ParkingOwner":
+        _fail("parking owner was not created and named correctly")
+        return
+    if parking.owner != null:
+        _fail("native Node3D scene owner was accidentally assigned instead of parking actor")
+        return
     var car_body := parking.parked_vehicle.get_node_or_null("CollisionBody") as CollisionObject3D
     if car_body == null or car_body.collision_layer != 4:
         _fail("parked car is not physical world traffic geometry")
