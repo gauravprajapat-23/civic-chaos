@@ -124,7 +124,15 @@ func _run() -> void:
             resolved = true
             break
     if not observed_movement or not resolved:
-        _fail("owner relocation or real pedestrian path recovery did not finish")
+        _fail("parking timed out: moved=%s, owner_agreed=%s, intervention=%d, relocating=%s, car_progress=%.3f/%.3f, car_pos=%s, blocker=%s, parked=%s, witness_x=%.3f, cleared_frames=%d, recovered=%s, incident=%s" % [
+            str(observed_movement), str(parking.owner_agreed), parking.intervention_tick,
+            str(parking.relocation_started), parking._car_route_progress_m,
+            parking._route_total_length(), str(parking.parked_vehicle.global_position),
+            parking.relocation_blocker, str(parking.relocation_complete),
+            parking.witness.global_position.x, parking._clearance_frames,
+            str(parking.pedestrian_recovered),
+            str(civic.incidents.incidents[parking.incident_id].get("state", "missing"))
+        ])
         return
     if parking.parked_vehicle.position.distance_to(Parking.PARKING_BAY) > 0.05:
         _fail("vehicle did not reach its marked relocation bay")
