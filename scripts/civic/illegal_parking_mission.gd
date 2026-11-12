@@ -50,6 +50,8 @@ var _car_route_progress_m: float = 0.0
 var _walking_distance: float = 0.0
 var _walking_before_block: bool = false
 var _clearance_frames: int = 0
+## Transient diagnostics only; deliberately excluded from checkpoint snapshots.
+var relocation_blocker: String = ""
 
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -356,6 +358,7 @@ func _relocation_clear(from_pose: Transform3D, to_pose: Transform3D) -> bool:
     var collider: CollisionShape3D = body.get_node_or_null("CollisionShape3D") as CollisionShape3D
     if collider == null or collider.shape == null:
         return false
+    relocation_blocker = ""
     var distance_m: float = from_pose.origin.distance_to(to_pose.origin)
     var samples: int = maxi(1, int(ceil(distance_m / 0.18)))
     for index in range(1, samples + 1):
@@ -371,6 +374,7 @@ func _relocation_clear(from_pose: Transform3D, to_pose: Transform3D) -> bool:
             var obstacle: CollisionObject3D = hit.get("collider") as CollisionObject3D
             if obstacle == null or _is_walk_support(obstacle):
                 continue
+            relocation_blocker = "%s (layer %d) near %s" % [str(obstacle.name), obstacle.collision_layer, str(to_pose.origin)]
             return false
     return true
 
