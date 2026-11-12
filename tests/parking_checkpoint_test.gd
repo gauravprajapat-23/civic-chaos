@@ -101,7 +101,7 @@ func _run() -> void:
         _fail("physical owner and car did not begin moving")
         return
     var old_car_progress: float = parking._car_route_progress_m
-    var old_owner_pos: Vector3 = parking.owner.global_position
+    var old_owner_pos: Vector3 = parking.parking_owner.global_position
     var old_witness_pos: Vector3 = parking.witness.global_position
     if not SaveRepo.write_save(_document(civic, parking, player), SAVE_PATH):
         _fail("moving car checkpoint failed to save")
@@ -142,7 +142,7 @@ func _run() -> void:
     if absf(next_parking._car_route_progress_m - old_car_progress) > 0.025:
         _fail("car lost relocation progress after JSON restart")
         return
-    if next_parking.owner.global_position.distance_to(old_owner_pos) > 0.025:
+    if next_parking.parking_owner.global_position.distance_to(old_owner_pos) > 0.025:
         _fail("cooperating owner moved unexpectedly on resume")
         return
     if next_parking.witness.global_position.distance_to(old_witness_pos) > 0.025:
