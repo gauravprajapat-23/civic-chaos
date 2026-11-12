@@ -1,0 +1,28 @@
+﻿{
+    "milestone":  "GAME-024",
+    "status":  "blocked",
+    "verified_at_utc":  "2026-11-12T05:34:56.3280707Z",
+    "expected_branch":  "fix/aud-001-game024-gate-hardening",
+    "branch":  "fix/aud-001-game024-gate-hardening",
+    "commit":  "00fc6ffcd3da3cc60bbba1282bdfff1fb4eb4f33",
+    "godot_version":  "",
+    "import_passed":  false,
+    "python_runner_checks_passed":  false,
+    "python_runner_test_count":  0,
+    "source_preflight_passed":  false,
+    "source_files_checked":  0,
+    "static_resources_checked":  0,
+    "focused_tests":  [
+
+                      ],
+    "full_regression_passed":  false,
+    "full_regression_timed_out":  false,
+    "full_regression_exit_code":  -1,
+    "regression_tests_run":  0,
+    "regression_expected_tests":  0,
+    "regression_source_commit":  "",
+    "source_unchanged":  false,
+    "readiness_evidence_passed":  false,
+    "regression_report":  "build/game-024-regression.json",
+    "reason":  "Uncommitted tracked or untracked source changes: commit or stash before acceptance."
+}

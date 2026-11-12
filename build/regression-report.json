@@ -2,339 +2,427 @@
   "schema_version": 1,
   "godot": "C:\\Godot\\Godot_v4.7.2-stable_win64_console.exe",
   "tests": [
-    {
-      "test": "smoke_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	{
+	  "test": "smoke_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_SMOKE_PASS"
-      ],
-      "duration_seconds": 1.357
-    },
-    {
-      "test": "determinism_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.493
+	},
+	{
+	  "test": "determinism_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_DETERMINISM_PASS"
-      ],
-      "duration_seconds": 1.244,
-      "replay_passed": true
-    },
-    {
-      "test": "player_controller_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.209,
+	  "replay_passed": true
+	},
+	{
+	  "test": "player_controller_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_PLAYER_PASS"
-      ],
-      "duration_seconds": 0.883
-    },
-    {
-      "test": "lifecycle_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.314
+	},
+	{
+	  "test": "lifecycle_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_LIFECYCLE_PASS"
-      ],
-      "duration_seconds": 0.902
-    },
-    {
-      "test": "lane_graph_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.304
+	},
+	{
+	  "test": "lane_graph_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_LANE_GRAPH_PASS"
-      ],
-      "duration_seconds": 0.589
-    },
-    {
-      "test": "lane_routing_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.208
+	},
+	{
+	  "test": "lane_routing_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_ROUTING_PASS"
-      ],
-      "duration_seconds": 0.551
-    },
-    {
-      "test": "junction_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.311
+	},
+	{
+	  "test": "junction_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_JUNCTION_PASS"
-      ],
-      "duration_seconds": 0.628
-    },
-    {
-      "test": "vehicle_agent_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.299
+	},
+	{
+	  "test": "vehicle_agent_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_VEHICLE_PASS"
-      ],
-      "duration_seconds": 0.374
-    },
-    {
-      "test": "car_following_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.305
+	},
+	{
+	  "test": "car_following_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_FOLLOWING_PASS"
-      ],
-      "duration_seconds": 0.346
-    },
-    {
-      "test": "signal_phases_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.302
+	},
+	{
+	  "test": "signal_phases_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_SIGNAL_PASS"
-      ],
-      "duration_seconds": 0.333
-    },
-    {
-      "test": "intersection_reservations_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.208
+	},
+	{
+	  "test": "intersection_reservations_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_RESERVATIONS_PASS"
-      ],
-      "duration_seconds": 0.331
-    },
-    {
-      "test": "traffic_spawner_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.207
+	},
+	{
+	  "test": "traffic_spawner_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_SPAWNER_PASS"
-      ],
-      "duration_seconds": 0.885
-    },
-    {
-      "test": "npc_personality_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.585
+	},
+	{
+	  "test": "npc_personality_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_NPC_PERSONALITY_PASS"
-      ],
-      "duration_seconds": 0.331
-    },
-    {
-      "test": "vehicle_behavior_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.209
+	},
+	{
+	  "test": "vehicle_behavior_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_VEHICLE_BEHAVIOR_PASS"
-      ],
-      "duration_seconds": 0.447
-    },
-    {
-      "test": "pedestrian_navigation_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.302
+	},
+	{
+	  "test": "pedestrian_navigation_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_PASS"
-      ],
-      "duration_seconds": 0.371
-    },
-    {
-      "test": "social_influence_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.206
+	},
+	{
+	  "test": "social_influence_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_SOCIAL_INFLUENCE_PASS"
-      ],
-      "duration_seconds": 0.579
-    },
-    {
-      "test": "ai_lod_scheduler_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.316
+	},
+	{
+	  "test": "ai_lod_scheduler_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_AI_LOD_PASS"
-      ],
-      "duration_seconds": 0.331
-    },
-    {
-      "test": "incident_lifecycle_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.208
+	},
+	{
+	  "test": "incident_lifecycle_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_INCIDENT_PASS"
-      ],
-      "duration_seconds": 0.348
-    },
-    {
-      "test": "wrong_way_scenario_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.208
+	},
+	{
+	  "test": "wrong_way_scenario_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_WRONG_WAY_PASS"
-      ],
-      "duration_seconds": 0.646
-    },
-    {
-      "test": "parking_capacity_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.301
+	},
+	{
+	  "test": "parking_capacity_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_PARKING_PASS"
-      ],
-      "duration_seconds": 0.35
-    },
-    {
-      "test": "deadlock_detector_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.207
+	},
+	{
+	  "test": "deadlock_detector_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_DEADLOCK_PASS"
-      ],
-      "duration_seconds": 0.585
-    },
-    {
-      "test": "deadlock_recovery_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.206
+	},
+	{
+	  "test": "deadlock_recovery_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_DEADLOCK_RECOVERY_PASS"
-      ],
-      "duration_seconds": 0.332
-    },
-    {
-      "test": "mission_framework_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.313
+	},
+	{
+	  "test": "mission_framework_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_MISSIONS_PASS"
-      ],
-      "duration_seconds": 0.415
-    },
-    {
-      "test": "city_metrics_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.317
+	},
+	{
+	  "test": "city_metrics_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_CITY_METRICS_PASS"
-      ],
-      "duration_seconds": 0.351
-    },
-    {
-      "test": "player_civic_interactions_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.206
+	},
+	{
+	  "test": "player_civic_interactions_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_PLAYER_INTERACTIONS_PASS"
-      ],
-      "duration_seconds": 0.367
-    },
-    {
-      "test": "wrong_way_mission_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.318
+	},
+	{
+	  "test": "wrong_way_mission_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_WRONG_WAY_MISSION_PASS"
-      ],
-      "duration_seconds": 0.599,
-      "replay_passed": true
-    },
-    {
-      "test": "event_director_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.309,
+	  "replay_passed": true
+	},
+	{
+	  "test": "event_director_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_EVENT_DIRECTOR_PASS"
-      ],
-      "duration_seconds": 0.425
-    },
-    {
-      "test": "neighborhood_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.209
+	},
+	{
+	  "test": "neighborhood_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_NEIGHBORHOOD_PASS"
-      ],
-      "duration_seconds": 0.33
-    },
-    {
-      "test": "civic_hud_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.303
+	},
+	{
+	  "test": "civic_hud_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_HUD_PASS"
-      ],
-      "duration_seconds": 0.339
-    },
-    {
-      "test": "agent_feedback_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.219
+	},
+	{
+	  "test": "agent_feedback_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_AGENT_FEEDBACK_PASS"
-      ],
-      "duration_seconds": 0.344
-    },
-    {
-      "test": "debug_telemetry_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.363
+	},
+	{
+	  "test": "debug_telemetry_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_DEBUG_TELEMETRY_PASS"
-      ],
-      "duration_seconds": 0.352
-    },
-    {
-      "test": "touch_controls_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.335
+	},
+	{
+	  "test": "touch_controls_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_TOUCH_CONTROLS_PASS"
-      ],
-      "duration_seconds": 0.373
-    },
-    {
-      "test": "graphics_lod_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.206
+	},
+	{
+	  "test": "graphics_lod_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_GRAPHICS_LOD_PASS"
-      ],
-      "duration_seconds": 0.387
-    },
-    {
-      "test": "traffic_budget_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.207
+	},
+	{
+	  "test": "traffic_budget_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_TRAFFIC_BUDGET_PASS"
-      ],
-      "duration_seconds": 0.42,
-      "replay_passed": true
-    },
-    {
-      "test": "traffic_stop_line_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.225,
+	  "replay_passed": true
+	},
+	{
+	  "test": "traffic_stop_line_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_TRAFFIC_STOP_LINE_PASS"
-      ],
-      "duration_seconds": 0.485
-    },
-    {
-      "test": "traffic_braking_test.gd",
-      "passed": true,
-      "exit_code": 0,
-      "markers": [
+	  ],
+	  "duration_seconds": 0.318
+	},
+	{
+	  "test": "traffic_braking_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
         "CIVIC_CHAOS_TRAFFIC_BRAKING_PASS"
-      ],
-      "duration_seconds": 0.454
-    }
+	  ],
+	  "duration_seconds": 0.306
+	},
+	{
+	  "test": "world_collision_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_WORLD_COLLISION_PASS"
+	  ],
+	  "duration_seconds": 0.41
+	},
+	{
+	  "test": "pedestrian_collision_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_COLLISION_PASS"
+	  ],
+	  "duration_seconds": 6.253
+	},
+	{
+	  "test": "vehicle_obstacle_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_VEHICLE_OBSTACLE_PASS"
+	  ],
+	  "duration_seconds": 4.097
+	},
+	{
+	  "test": "city_traffic_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_CITY_TRAFFIC_PASS"
+	  ],
+	  "duration_seconds": 0.305
+	},
+	{
+	  "test": "surface_player_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_SURFACE_AND_PLAYER_PASS"
+	  ],
+	  "duration_seconds": 0.493
+	},
+	{
+	  "test": "player_pedestrian_contact_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_PLAYER_PEDESTRIAN_CONTACT_PASS"
+	  ],
+	  "duration_seconds": 4.199
+	},
+	{
+	  "test": "player_vehicle_contact_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_PLAYER_VEHICLE_CONTACT_PASS"
+	  ],
+	  "duration_seconds": 4.605
+	},
+	{
+	  "test": "player_safe_restore_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_PLAYER_SAFE_RESTORE_PASS"
+	  ],
+	  "duration_seconds": 0.501
+	},
+	{
+	  "test": "pedestrian_crowd_avoidance_test.gd",
+	  "passed": true,
+	  "exit_code": 0,
+	  "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_CROWD_AVOIDANCE_PASS"
+	  ],
+	  "duration_seconds": 14.298
+	},
+	{
+	  "test": "pedestrian_spawn_separation_test.gd",
+	  "passed": false,
+	  "exit_code": 1,
+	  "markers": [],
+	  "duration_seconds": 5.076
+	}
   ],
-  "passed": true,
+  "passed": false,
   "import": {
-    "returncode": 0,
-    "elapsed_seconds": 28.072,
-    "output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Started Project initialization (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Scanning file structure...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Loading global class names...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Verifying GDExtensions...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Creating autoload scripts...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Initializing plugins...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Starting file scan...\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mfirst_scan_filesystem\u001b[22m\n\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Started Loading editor (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading editor layout...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading docks...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Reopening scenes...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading central editor layout...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading plugin window layout...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Editor layout ready.\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mloading_editor_layout\u001b[22m\n\u001b[0m\n"
+	"returncode": 0,
+	"elapsed_seconds": 5.783,
+	"output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Started Project initialization (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Scanning file structure...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Loading global class names...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Verifying GDExtensions...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Creating autoload scripts...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Initializing plugins...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Starting file scan...\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mfirst_scan_filesystem\u001b[22m\n\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Started Loading editor (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading editor layout...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading docks...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Reopening scenes...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading central editor layout...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading plugin window layout...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Editor layout ready.\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mloading_editor_layout\u001b[22m\n\u001b[0m\n"
   },
   "negative_path_passed": true
 }
