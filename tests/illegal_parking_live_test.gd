@@ -51,11 +51,11 @@ func _run() -> void:
     parking.incident_card_requested.connect(func(info: Dictionary) -> void:
         card_events.append(info)
     )
-    parking.owner.interact(player)
+    parking.parking_owner.interact(player)
     if not card_events.is_empty():
         _fail("distant owner interaction opened card")
         return
-    player.position = parking.owner.position + Vector3(0, 0, 1.8)
+    player.position = parking.parking_owner.position + Vector3(0, 0, 1.8)
     if parking.perform_incident_action(player, "inspect"):
         _fail("inspection accepted before real pedestrian was blocked")
         return
@@ -75,7 +75,7 @@ func _run() -> void:
         parking.witness.position + Vector3(0.12, 0, 0)):
         _fail("witness was not actually stopped by parked car's collider")
         return
-    parking.owner.interact(player)
+    parking.parking_owner.interact(player)
     if card_events.size() != 1 or not card_events[0]["can_inspect"]:
         _fail("nearby owner did not offer evidence inspection")
         return
