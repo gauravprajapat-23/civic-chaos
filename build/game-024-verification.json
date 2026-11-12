@@ -1,19 +1,26 @@
 ﻿{
     "milestone":  "GAME-024",
     "status":  "blocked",
-    "verified_at_utc":  "2026-11-12T05:34:56.3280707Z",
+    "verified_at_utc":  "2026-11-12T07:44:49.4711055Z",
     "expected_branch":  "fix/aud-001-game024-gate-hardening",
     "branch":  "fix/aud-001-game024-gate-hardening",
-    "commit":  "00fc6ffcd3da3cc60bbba1282bdfff1fb4eb4f33",
-    "godot_version":  "",
-    "import_passed":  false,
-    "python_runner_checks_passed":  false,
-    "python_runner_test_count":  0,
-    "source_preflight_passed":  false,
-    "source_files_checked":  0,
-    "static_resources_checked":  0,
+    "commit":  "912a37c5edc9abe9f55684e1f9a51270d44d0af8",
+    "godot_version":  "4.7.2.stable.official.ed1daf0bf",
+    "import_passed":  true,
+    "python_runner_checks_passed":  true,
+    "python_runner_test_count":  30,
+    "source_preflight_passed":  true,
+    "source_files_checked":  195,
+    "static_resources_checked":  327,
     "focused_tests":  [
-
+                          {
+                              "name":  "free_roam_director_checkpoint_test.gd",
+                              "passed":  false,
+                              "exit_code":  1,
+                              "engine_error":  true,
+                              "timed_out":  false,
+                              "pass_marker":  false
+                          }
                       ],
     "full_regression_passed":  false,
     "full_regression_timed_out":  false,
@@ -24,5 +31,5 @@
     "source_unchanged":  false,
     "readiness_evidence_passed":  false,
     "regression_report":  "build/game-024-regression.json",
-    "reason":  "Uncommitted tracked or untracked source changes: commit or stash before acceptance."
+    "reason":  "Focused test failed: free_roam_director_checkpoint_test.gd. See build/game-024-verification-logs/"
 }

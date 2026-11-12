@@ -1,0 +1,36 @@
+﻿test_duplicate_fixture_names_are_rejected (test_game024_gate_readiness.GateReadinessTests.test_duplicate_fixture_names_are_rejected) ... ok
+test_exact_revision_with_real_state_evidence_can_pass (test_game024_gate_readiness.GateReadinessTests.test_exact_revision_with_real_state_evidence_can_pass) ... ok
+test_full_suite_and_negative_path_are_required (test_game024_gate_readiness.GateReadinessTests.test_full_suite_and_negative_path_are_required) ... ok
+test_missing_or_forged_state_replay_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_missing_or_forged_state_replay_is_rejected) ... ok
+test_missing_python_checks_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_missing_python_checks_is_rejected) ... ok
+test_partial_focused_suite_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_partial_focused_suite_is_rejected) ... ok
+test_stale_or_wrong_branch_evidence_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_stale_or_wrong_branch_evidence_is_rejected) ... ok
+test_unverified_or_invalid_godot_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_unverified_or_invalid_godot_is_rejected) ... ok
+test_command_timeout_is_failure (test_regression_runner.RegressionRunnerTests.test_command_timeout_is_failure) ... ok
+test_discover_runs_new_fixtures_without_losing_required_ones (test_regression_runner.RegressionRunnerTests.test_discover_runs_new_fixtures_without_losing_required_ones) ... ok
+test_godot_error_lines_fail_even_after_expected_marker (test_regression_runner.RegressionRunnerTests.test_godot_error_lines_fail_even_after_expected_marker) ... ok
+test_godot_log_decoder_is_utf8_with_replacement (test_regression_runner.RegressionRunnerTests.test_godot_log_decoder_is_utf8_with_replacement) ... ok
+test_legacy_alias_is_specific_to_its_fixture (test_regression_runner.RegressionRunnerTests.test_legacy_alias_is_specific_to_its_fixture) ... ok
+test_marker_must_belong_to_executed_test (test_regression_runner.RegressionRunnerTests.test_marker_must_belong_to_executed_test) ... ok
+test_missing_binary_is_failure (test_regression_runner.RegressionRunnerTests.test_missing_binary_is_failure) ... ok
+test_missing_git_cannot_claim_a_verified_source_commit (test_regression_runner.RegressionRunnerTests.test_missing_git_cannot_claim_a_verified_source_commit) ... ok
+test_missing_registered_file_is_fatal (test_regression_runner.RegressionRunnerTests.test_missing_registered_file_is_fatal) ... ok
+test_negative_path_rejects_timeout_and_generic_crashes (test_regression_runner.RegressionRunnerTests.test_negative_path_rejects_timeout_and_generic_crashes) ... ok
+test_replay_state_extraction_ignores_unrelated_output (test_regression_runner.RegressionRunnerTests.test_replay_state_extraction_ignores_unrelated_output) ... ok
+test_replay_state_must_match_even_with_identical_pass_markers (test_regression_runner.RegressionRunnerTests.test_replay_state_must_match_even_with_identical_pass_markers) ... ok
+test_script_errors_or_nonzero_exit_never_pass (test_regression_runner.RegressionRunnerTests.test_script_errors_or_nonzero_exit_never_pass) ... ok
+test_source_commit_is_exact_sha (test_regression_runner.RegressionRunnerTests.test_source_commit_is_exact_sha) ... ok
+test_workflow_discovers_tests (test_regression_runner.RegressionRunnerTests.test_workflow_discovers_tests) ... ok
+test_commented_preloads_are_not_real_dependencies (test_source_preflight.SourcePreflightTests.test_commented_preloads_are_not_real_dependencies) ... ok
+test_duplicate_global_class_is_rejected (test_source_preflight.SourcePreflightTests.test_duplicate_global_class_is_rejected) ... ok
+test_dynamic_load_not_claimed_as_literal (test_source_preflight.SourcePreflightTests.test_dynamic_load_not_claimed_as_literal) ... ok
+test_literal_scene_and_script_references_pass (test_source_preflight.SourcePreflightTests.test_literal_scene_and_script_references_pass) ... ok
+test_missing_literal_script_is_reported (test_source_preflight.SourcePreflightTests.test_missing_literal_script_is_reported) ... ok
+test_missing_project_rejected (test_source_preflight.SourcePreflightTests.test_missing_project_rejected) ... ok
+test_parent_reference_rejected (test_source_preflight.SourcePreflightTests.test_parent_reference_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 0.052s
+
+OK
+
