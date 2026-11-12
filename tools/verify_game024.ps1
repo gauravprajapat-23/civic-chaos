@@ -153,7 +153,17 @@ try {
     }
     $versionResult = Run-Local -Arguments @("--version") -LogName "godot-version.log"
     $gate.godot_version = ($versionResult.output.Trim() -split "\r?\n")[0]
-    if (-not $versionResult.passed -or $gate.godot_version -notmatch '^4\.7\.2([\.-]|$)') {
+    # A correct version string does not prove the process completed cleanly.
+    # Report probe failures separately from actual version mismatches; this
+    # matters for Windows console binaries when Start-Process exits nonzero.
+    if (-not $versionResult.passed) {
+        $gate.reason = ("Godot version probe failed: exit_code={0}; timed_out={1}; engine_error={2}; " +
+            "output={3}; inspect build/game-024-verification-logs/godot-version.log") -f `
+            $versionResult.exit_code, $versionResult.timed_out, $versionResult.engine_error, $gate.godot_version
+        Write-Gate
+        exit 1
+    }
+    if ($gate.godot_version -notmatch '^4\.7\.2([\.-]|$)') {
         $gate.reason = "GAME-024 requires Godot 4.7.2; found " + $gate.godot_version
         Write-Gate
         exit 1
