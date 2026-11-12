@@ -634,7 +634,7 @@ func restore(raw: Variant) -> bool:
     _car_route_progress_m = clampf(float(data["car_route_progress"]), 0.0, _route_total_length())
     _parking_segment = _segment_at(_car_route_progress_m)
     parked_vehicle.global_transform = pose
-    owner.position = OWNER_START.lerp(OWNER_DESTINATION, float(data["owner_progress"]))
+    parking_owner.position = OWNER_START.lerp(OWNER_DESTINATION, float(data["owner_progress"]))
     _walking_distance = clampf(float(data["witness_progress"]), 0.0, WALK_END_X - WALK_START.x)
     witness.position = WALK_START + Vector3(_walking_distance, 0, 0)
     _walking_before_block = bool(data["walking_before_block"])
