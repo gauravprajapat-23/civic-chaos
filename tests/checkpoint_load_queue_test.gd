@@ -81,9 +81,17 @@ func _run() -> void:
     if not Main.checkpoint_selected_document(queue.consume()).is_empty():
         _fail("empty selected F9 document silently loaded later F5 save")
         return
+    # The test checkpoint uses a deliberately isolated user:// path.
+    # The no-argument legacy API always reads SaveRepository.DEFAULT_PATH,
+    # not this fixture's private file. Verify the correct default behavior
+    # without overwriting a real player's default game save.
     var direct: Dictionary = Main.checkpoint_selected_document()
-    if float(direct.get("data", {}).get("player", {}).get("x", -1.0)) != 3.0:
-        _fail("legacy direct load could not select current save")
+    if direct != Repo.read_save_detail():
+        _fail("legacy direct load did not select the default save")
+        return
+    var explicitly_selected: Dictionary = Main.checkpoint_selected_document(Repo.read_save_detail(PATH))
+    if float(explicitly_selected.get("data", {}).get("player", {}).get("x", -1.0)) != 3.0:
+        _fail("explicit checkpoint selection did not preserve the test generation")
         return
     _clean()
     print("CIVIC_CHAOS_CHECKPOINT_LOAD_QUEUE_PASS")
