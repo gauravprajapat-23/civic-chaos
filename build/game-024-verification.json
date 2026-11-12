@@ -1,10 +1,10 @@
 ﻿{
     "milestone":  "GAME-024",
     "status":  "blocked",
-    "verified_at_utc":  "2026-11-12T07:44:49.4711055Z",
+    "verified_at_utc":  "2026-11-12T10:04:46.4278693Z",
     "expected_branch":  "fix/aud-001-game024-gate-hardening",
     "branch":  "fix/aud-001-game024-gate-hardening",
-    "commit":  "912a37c5edc9abe9f55684e1f9a51270d44d0af8",
+    "commit":  "1aa38f9d9cbd9a59ac40777d3e75cad83e7aae07",
     "godot_version":  "4.7.2.stable.official.ed1daf0bf",
     "import_passed":  true,
     "python_runner_checks_passed":  true,
@@ -15,6 +15,70 @@
     "focused_tests":  [
                           {
                               "name":  "free_roam_director_checkpoint_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_dynamic_locations_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_npc_reactions_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "vehicle_scene_contract_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "vehicle_feedback_optional_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "traffic_checkpoint_invariants_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "traffic_reconfigure_atomicity_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "checkpoint_record_shapes_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "checkpoint_load_queue_test.gd",
                               "passed":  false,
                               "exit_code":  1,
                               "engine_error":  true,
@@ -31,5 +95,5 @@
     "source_unchanged":  false,
     "readiness_evidence_passed":  false,
     "regression_report":  "build/game-024-regression.json",
-    "reason":  "Focused test failed: free_roam_director_checkpoint_test.gd. See build/game-024-verification-logs/"
+    "reason":  "Focused test failed: checkpoint_load_queue_test.gd. See build/game-024-verification-logs/"
 }
