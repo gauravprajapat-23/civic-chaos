@@ -316,25 +316,50 @@ try {
     $gate.full_regression_timed_out = $fullResult.timed_out
     $gate.full_regression_exit_code = $fullResult.exit_code
     $fullPath = Join-Path $root "build\game-024-regression.json"
-    if ($fullResult.passed -and (Test-Path -LiteralPath $fullPath)) {
-        $regression = Get-Content -LiteralPath $fullPath -Raw | ConvertFrom-Json
-        $gate.regression_tests_run = @($regression.tests).Count
-        $gate.regression_expected_tests = [int]$regression.expected_test_count
-        $gate.regression_source_commit = [string]$regression.source_commit
-        $allTestsPassed = @($regression.tests | Where-Object { -not $_.passed }).Count -eq 0
-        $gate.full_regression_passed = (
-            [bool]$regression.passed -and
-            ($gate.regression_source_commit -eq $gate.commit) -and
-            [bool]$regression.negative_path_passed -and
-            ($regression.import.returncode -eq 0) -and
-            (@($regression.missing_tests).Count -eq 0) -and
-            $allTestsPassed -and
-            ($gate.regression_tests_run -ge $MinimumTestCount) -and
-            ($gate.regression_tests_run -eq $gate.regression_expected_tests)
-        )
+    # Read regression evidence even when the runner exits 1: a red suite
+    # must not be presented as zero executed tests with a blank source SHA.
+    # A failed process still cannot satisfy the acceptance gate.
+    $failedRegressionNames = @()
+    $regressionEvidenceError = ""
+    if (Test-Path -LiteralPath $fullPath) {
+        try {
+            $regression = Get-Content -LiteralPath $fullPath -Raw | ConvertFrom-Json
+            $gate.regression_tests_run = @($regression.tests).Count
+            $gate.regression_expected_tests = [int]$regression.expected_test_count
+            $gate.regression_source_commit = [string]$regression.source_commit
+            $failedRegressionNames = @($regression.tests |
+                Where-Object { $_.passed -ne $true } |
+                ForEach-Object { [string]$_.test })
+            $allTestsPassed = $failedRegressionNames.Count -eq 0
+            $gate.full_regression_passed = (
+                $fullResult.passed -and
+                [bool]$regression.passed -and
+                ($gate.regression_source_commit -eq $gate.commit) -and
+                [bool]$regression.negative_path_passed -and
+                ($regression.import.returncode -eq 0) -and
+                (@($regression.missing_tests).Count -eq 0) -and
+                $allTestsPassed -and
+                ($gate.regression_tests_run -ge $MinimumTestCount) -and
+                ($gate.regression_tests_run -eq $gate.regression_expected_tests)
+            )
+        } catch {
+            $regressionEvidenceError = $_.Exception.Message
+        }
+    } else {
+        $regressionEvidenceError = "report missing"
     }
     if (-not $gate.full_regression_passed) {
-        $gate.reason = "Full local regression failed (exit $($gate.full_regression_exit_code), timeout $($gate.full_regression_timed_out), report SHA $($gate.regression_source_commit)). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
+        $failureNames = if ($failedRegressionNames.Count -gt 0) {
+            $failedRegressionNames -join ", "
+        } else {
+            "none identified"
+        }
+        $gate.reason = ("Full local regression failed (exit {0}, timeout {1}, {2}/{3} fixtures, " +
+            "report SHA {4}, failing fixtures: {5}, report error: {6}). " +
+            "Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log") -f `
+            $gate.full_regression_exit_code, $gate.full_regression_timed_out,
+            $gate.regression_tests_run, $gate.regression_expected_tests,
+            $gate.regression_source_commit, $failureNames, $regressionEvidenceError
         Write-Gate
         exit 1
     }
