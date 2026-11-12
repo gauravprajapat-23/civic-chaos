@@ -151,15 +151,25 @@ try {
         Write-Gate
         exit 1
     }
-    $versionResult = Run-Local -Arguments @("--version") -LogName "godot-version.log"
-    $gate.godot_version = ($versionResult.output.Trim() -split "\r?\n")[0]
-    # A correct version string does not prove the process completed cleanly.
-    # Report probe failures separately from actual version mismatches; this
-    # matters for Windows console binaries when Start-Process exits nonzero.
-    if (-not $versionResult.passed) {
-        $gate.reason = ("Godot version probe failed: exit_code={0}; timed_out={1}; engine_error={2}; " +
-            "output={3}; inspect build/game-024-verification-logs/godot-version.log") -f `
-            $versionResult.exit_code, $versionResult.timed_out, $versionResult.engine_error, $gate.godot_version
+    # Windows PowerShell 5.1 Start-Process -PassThru can return a process
+    # object without a usable ExitCode even when the executable exits 0.
+    # Version probing is fast and does not need the timed subprocess wrapper.
+    # Use direct native invocation and its authoritative LASTEXITCODE instead;
+    # still reject any failed launch, engine error, or wrong Godot version.
+    $versionOutput = ""
+    $versionExitCode = -1
+    try {
+        $versionOutput = (& $Godot --version 2>&1 | Out-String)
+        $versionExitCode = $LASTEXITCODE
+    } catch {
+        $versionOutput = ($_ | Out-String)
+    }
+    $versionOutput | Set-Content -Path (Join-Path $logs "godot-version.log") -Encoding UTF8
+    $gate.godot_version = ($versionOutput.Trim() -split "\r?\n")[0]
+    if ($versionExitCode -ne 0 -or $versionOutput -match '(?m)^\s*(SCRIPT ERROR:|ERROR:)') {
+        $gate.reason = ("Godot version probe failed: exit_code={0}; output={1}; " +
+            "inspect build/game-024-verification-logs/godot-version.log") -f `
+            $versionExitCode, $gate.godot_version
         Write-Gate
         exit 1
     }
