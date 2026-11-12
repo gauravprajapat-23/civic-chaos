@@ -63,7 +63,17 @@ func _run() -> void:
     if not _act(events, actor, events.primary, "inspect") or not _act(events, actor, events.primary, str(info["collect"])):
         _fail("could not save legacy mid-carry event")
         return
+    # This fixture deliberately disables the session's automatic physics
+    # clock while manually driving Free Roam. In production the session clock
+    # advances alongside incident creation/transitions; restore correctly
+    # rejects an unfinished tutorial snapshot older than its own incidents.
+    # Reconcile the fixture's clock before taking the paired checkpoint.
+    session.tick = maxi(session.tick, maxi(events.tick,
+        maxi(session.incidents.current_tick, session.metrics.last_tick)))
     var civic_state: Dictionary = session.snapshot()
+    if not session.can_restore(civic_state):
+        _fail("fixture produced an unrestorable civic session before migration")
+        return
     var legacy: Dictionary = events.checkpoint_state()
     legacy["schema_version"] = 1
     legacy.erase("last_location_id")
@@ -84,8 +94,11 @@ func _run() -> void:
     var new_session: CivicGameplaySession = restored["session"]
     var new_events: CivicFreeRoamEvents = restored["events"]
     var new_actor: Node3D = restored["actor"]
-    if not new_session.restore(civic_state) or not new_events.restore_checkpoint(legacy):
-        _fail("GAME-023 checkpoint did not migrate to GAME-024")
+    if not new_session.restore(civic_state):
+        _fail("civic session could not restore before legacy migration")
+        return
+    if not new_events.restore_checkpoint(legacy):
+        _fail("GAME-023 Free Roam event could not migrate to GAME-024")
         return
     var expected_site: String = "legacy_litter" if kind == Challenges.LITTER else "legacy_sign"
     if str(new_events.active_event.get("site_id", "")) != expected_site:
