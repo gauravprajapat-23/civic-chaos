@@ -204,12 +204,21 @@ func restore_checkpoint(raw: Variant) -> bool:
             "id": str(entry["id"]), "cost": int(entry["cost"]),
             "tags": entry["tags"].duplicate(true), "end_tick": int(entry["end_tick"])
         }
+    # JSON numeric values can be floating-point even for validated whole
+    # numbers. Rebuild the native integer fields, rather than allowing save
+    # decoding types to leak into deterministic in-memory replay state.
     var restored_history: Array[Dictionary] = []
     for entry in data["history"]:
-        restored_history.append((entry as Dictionary).duplicate(true))
+        var event: Dictionary = (entry as Dictionary).duplicate(true)
+        event["instance"] = int(event["instance"])
+        event["tick"] = int(event["tick"])
+        restored_history.append(event)
+    var restored_last_started: Dictionary = {}
+    for id in data["last_started"].keys():
+        restored_last_started[id] = int(data["last_started"][id])
     active = restored_active
     history = restored_history
-    last_started = data["last_started"].duplicate(true)
+    last_started = restored_last_started
     current_tick = int(data["current_tick"])
     next_instance = int(data["next_instance"])
     budget = int(data["budget"])
