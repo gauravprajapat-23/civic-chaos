@@ -73,7 +73,7 @@ func _run() -> void:
     if not parking.configure(first, player, civic):
         _fail("physical parking witness failed to stage after traffic recovery")
         return
-    player.position = parking.owner.position + Vector3(0, 0, 1.8)
+    player.position = parking.parking_owner.position + Vector3(0, 0, 1.8)
     for frame in range(430):
         await physics_frame
         if parking.observed_blockage:
