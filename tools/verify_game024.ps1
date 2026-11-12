@@ -217,7 +217,8 @@ try {
     }
     $gate.python_runner_checks_passed = $pythonCheck.passed -and $gate.python_runner_test_count -ge 30
     if (-not $gate.python_runner_checks_passed) {
-        $gate.reason = "Python regression and resource-preflight unit tests failed; inspect python-runner-tests.log"
+        $gate.reason = ("Python regression and resource-preflight unit tests failed: exit_code={0}, timed_out={1}, engine_error={2}, discovered={3}; inspect build/game-024-verification-logs/python-runner-tests.log") -f `
+            $pythonCheck.exit_code, $pythonCheck.timed_out, $pythonCheck.engine_error, $gate.python_runner_test_count
         Write-Gate
         exit 1
     }
