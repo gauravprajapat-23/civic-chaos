@@ -738,7 +738,7 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
     if bool(data["finished"]) and not bool(data["tow_completed"]):
         return _checkpoint_rejected("CKP-22: if bool(data[\"finished\"]) and not bool(data[\"tow_completed\"]):", failures)
     if bool(data["tow_started"]):
-        if float(data["tow_progress"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data["tow_progress"]) > total_length:
+        if float(data["tow_progress"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data["tow_progress"]) > total_length + CHECKPOINT_DISTANCE_EPS_M:
             return _checkpoint_rejected("CKP-23: if float(data[\"tow_progress\"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data[\"tow_progress\"]) > total_length:", failures)
         if bool(data["tow_completed"]) and float(data["tow_progress"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:
             return _checkpoint_rejected("CKP-24: if bool(data[\"tow_completed\"]) and float(data[\"tow_progress\"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:", failures)
