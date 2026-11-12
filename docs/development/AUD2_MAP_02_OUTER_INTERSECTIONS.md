@@ -50,3 +50,16 @@ Godot 4.7.2 is unavailable in the authoring environment; **this change has not p
 Commit `6eeccea` changes `CivicTrafficSpawner.advance_fixed()` to gather **both** nearest-lead and outer-junction stop-line decisions for the full fleet before advancing any car. Previously, only nearest-lead detections were snapshotted, so an earlier fleet slot could change its position before a later slot evaluated right-of-way during the same tick. This removes that same-tick evaluation-order inconsistency without changing the phase schedule, mission scoring, save fields, or central signal ownership.
 
 **Verification remains pending:** review and commit are not equivalent to running Godot. The existing `outer_intersection_priority_test.gd` checks deterministic arbitration, occupied lanes, pedestrian colliders and replay; run the exact-SHA Godot gate, plus a physical multi-car scenario to measure any overshoot while braking at the stop line. Keep #53 open and PR #49 draft until runtime evidence is attached.
+
+## AUD2-MAP-03 — real vehicle movement fixture (source staged, engine pending)
+
+Added `tests/outer_intersection_movement_test.gd` as an automatically discovered regression fixture. It instantiates the shipped `vehicle_agent.tscn` scene twice with active physics footprints, positions perpendicular approaches nine metres before the outer junction at (46, 46), places a layer-8 pedestrian collider inside the crossing, and advances the **actual spawner** for 260 logical 20-Hz ticks with an awaited physics frame before each step. It checks blocked pedestrian entry, red-axis compliance, two-car separation, eventual progress, and outbound clearance after the walker leaves. Normal route completion is permitted; completed cars are retired by the spawner.
+
+The fixture is deliberately deterministic and does not alter save format, scoring, traffic timing, or visual assets. It must run with Godot 4.7.2 before any assertion of real-world collision safety. Full inventory rises from **104 to 105** mandatory/discovered Godot fixtures when present; 24 focused checks and 30 Python checks are unchanged. The strict test runner discovers new `*_test.gd` fixtures automatically; the local gate's `-MinimumTestCount` remains a lower bound, not a count to reduce or overwrite.
+
+Run directly:
+```powershell
+& "C:\Godot\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --editor --import --quit
+& "C:\Godot\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/outer_intersection_movement_test.gd
+```
+Then run the full exact-commit local verification gate. Any Godot error or failing fixture blocks acceptance; do not close #53 or merge PR #49 based on source inspection.
