@@ -108,12 +108,21 @@ func _run() -> void:
         return
     var last_position: Vector3 = parking.parked_vehicle.position
     var observed_movement: bool = false
+    var observed_witness_retreat: bool = false
     var resolved: bool = false
+    var last_witness_x: float = parking.witness.position.x
     var max_car_step: float = Parking.CAR_SPEED / float(Engine.physics_ticks_per_second) + 0.08
     for frame in range(1300):
         await physics_frame
         var next_position: Vector3 = parking.parked_vehicle.position
         var moved: float = next_position.distance_to(last_position)
+        var witness_x: float = parking.witness.position.x
+        if witness_x < last_witness_x - 0.001:
+            observed_witness_retreat = true
+        if parking._car_route_progress_m > 0.001 and not parking.relocation_complete and witness_x > Parking.WITNESS_WAIT_X + Parking.WITNESS_WAIT_EPSILON:
+            _fail("vehicle started moving before pedestrian reached a safe waiting position")
+            return
+        last_witness_x = witness_x
         if moved > max_car_step:
             _fail("relocation teleported %.2f metres in one physics frame" % moved)
             return
@@ -123,6 +132,9 @@ func _run() -> void:
         if parking.finished:
             resolved = true
             break
+    if not observed_witness_retreat:
+        _fail("pedestrian never retreated from the turning vehicle")
+        return
     if not observed_movement or not resolved:
         _fail("parking timed out: moved=%s, owner_agreed=%s, intervention=%d, relocating=%s, car_progress=%.3f/%.3f, car_pos=%s, blocker=%s, parked=%s, witness_x=%.3f, cleared_frames=%d, recovered=%s, incident=%s" % [
             str(observed_movement), str(parking.owner_agreed), parking.intervention_tick,
