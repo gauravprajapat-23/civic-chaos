@@ -100,6 +100,9 @@ func _run() -> void:
     if not parking.relocation_started or parking._car_route_progress_m <= 1.0:
         _fail("physical owner and car did not begin moving")
         return
+    if parking.witness.position.x > Parking.WITNESS_WAIT_X + Parking.WITNESS_WAIT_EPSILON:
+        _fail("car moved before physical pedestrian retreat was complete")
+        return
     var old_car_progress: float = parking._car_route_progress_m
     var old_owner_pos: Vector3 = parking.parking_owner.global_position
     var old_witness_pos: Vector3 = parking.witness.global_position
