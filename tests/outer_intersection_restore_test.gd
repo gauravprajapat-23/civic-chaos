@@ -45,6 +45,9 @@ func _run() -> void:
     waiting._place_on_lane()
     original.active_vehicles.append(inside)
     original.active_vehicles.append(waiting)
+    # This fixture injects cars instead of using try_spawn(). Preserve the
+    # production invariant: each live car must count toward spawned_total.
+    original.spawned_total = original.active_vehicles.size()
     original.current_tick = 160
     if not Priority.occupies(inside, graph, node):
         _fail("fixture did not occupy conflict zone")
@@ -55,7 +58,14 @@ func _run() -> void:
         return
     var saved: Variant = JSON.parse_string(JSON.stringify(original.snapshot()))
     if not original.can_restore(saved):
-        _fail("occupied crossing checkpoint invalid")
+        _fail("occupied crossing checkpoint invalid after coherent spawn accounting")
+        return
+    # Keep the strict validator: an injected active fleet without matching
+    # spawn history is not an acceptable checkpoint.
+    var impossible: Dictionary = (saved as Dictionary).duplicate(true)
+    impossible["spawned_total"] = 0
+    if original.can_restore(impossible):
+        _fail("checkpoint accepted active cars with no spawn history")
         return
     stage.queue_free()
     await physics_frame
