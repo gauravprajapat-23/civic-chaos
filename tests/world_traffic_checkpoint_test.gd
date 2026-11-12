@@ -112,8 +112,31 @@ func _run() -> void:
     var resumed := Spawner.new()
     resumed_stage.add_child(resumed)
     resumed.spawn_interval_ticks = 8
-    if not resumed.configure(graph, 3411) or not resumed.restore(saved):
-        _fail("background traffic did not reconstruct from JSON")
+    if not resumed.configure(graph, 3411):
+        _fail("fresh traffic spawner could not configure")
+        return
+    if not resumed.can_restore(saved):
+        _fail("JSON traffic generation rejected by semantic preflight: " + JSON.stringify(saved))
+        return
+    if not resumed.restore(saved):
+        # The semantic checkpoint may be valid while its physical positions
+        # conflict with real collision bodies. Report the car positions and
+        # separation before deciding whether to change collision semantics.
+        var placements: Array[String] = []
+        var min_gap: float = INF
+        for i in range(saved["cars"].size()):
+            var item: Dictionary = saved["cars"][i]
+            var lane_id: int = int(item["route"][int(item["route_index"])])
+            var lane: CivicLaneData = graph.get_lane(lane_id)
+            var sampled: Dictionary = CivicVehicleAgent.sample_centerline(lane.centerline, float(item["lane_distance"]))
+            var pos: Vector3 = sampled["position"]
+            placements.append("%d:lane=%d,distance=%.3f,pos=%s" % [i, lane_id, float(item["lane_distance"]), str(pos)])
+            for j in range(i):
+                var prior: Dictionary = saved["cars"][j]
+                var other_lane: CivicLaneData = graph.get_lane(int(prior["route"][int(prior["route_index"])]))
+                var other_pos: Vector3 = CivicVehicleAgent.sample_centerline(other_lane.centerline, float(prior["lane_distance"]))["position"]
+                min_gap = minf(min_gap, pos.distance_to(other_pos))
+        _fail("background traffic physical restoration rejected: min_car_spacing=%.3f cars=%s" % [min_gap, "; ".join(placements)])
         return
     var round_trip: Dictionary = resumed.snapshot()
     if round_trip["rng_state"] != saved["rng_state"] or round_trip["current_tick"] != saved["current_tick"] or round_trip["spawned_total"] != saved["spawned_total"]:
