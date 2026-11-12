@@ -44,3 +44,9 @@ Godot 4.7.2 is unavailable in the authoring environment; **this change has not p
 4. Review signal discoverability: the policy's outer phases do **not yet have visible traffic-light meshes**. Add accurate visual cues after confirming gameplay and signal timing.
 5. Measure the added pedestrian shape-query cost on crowded Android and desktop scenes. Only optimize the measured hotspot.
 6. Capture Android screenshots and logs, full mission/Free Roam and complete acceptance report. Keep PR #49 draft and do not trigger GitHub Actions.
+
+## AUD2-MAP-02 follow-up — simultaneous observation safety
+
+Commit `6eeccea` changes `CivicTrafficSpawner.advance_fixed()` to gather **both** nearest-lead and outer-junction stop-line decisions for the full fleet before advancing any car. Previously, only nearest-lead detections were snapshotted, so an earlier fleet slot could change its position before a later slot evaluated right-of-way during the same tick. This removes that same-tick evaluation-order inconsistency without changing the phase schedule, mission scoring, save fields, or central signal ownership.
+
+**Verification remains pending:** review and commit are not equivalent to running Godot. The existing `outer_intersection_priority_test.gd` checks deterministic arbitration, occupied lanes, pedestrian colliders and replay; run the exact-SHA Godot gate, plus a physical multi-car scenario to measure any overshoot while braking at the stop line. Keep #53 open and PR #49 draft until runtime evidence is attached.
