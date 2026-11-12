@@ -92,6 +92,13 @@ func _run() -> void:
     if _stops(spawner, north_car) or not _stops(spawner, same_lane):
         _fail("same-lane tied vehicles received overlapping entrance rights")
         return
+    # The checkpoint fleet slot, not ObjectDB creation order, breaks a
+    # perfectly identical approach tie. Reversing slots must reverse the
+    # winner without leaving both cars simultaneously authorized.
+    spawner.active_vehicles.reverse()
+    if _stops(spawner, same_lane) or not _stops(spawner, north_car):
+        _fail("same-lane winner did not follow reversed saved fleet slots")
+        return
     spawner.active_vehicles.clear()
     spawner.active_vehicles.append(north_car)
     spawner.active_vehicles.append(other_north)
