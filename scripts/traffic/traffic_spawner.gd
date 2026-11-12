@@ -89,13 +89,15 @@ func advance_fixed(tick: int, delta: float) -> void:
 		return
 	var started_us := Time.get_ticks_usec()
 	current_tick = tick
-	# Sample all followers before moving to avoid update-order sensing.
+	# Freeze both following and junction decisions before any vehicle moves.
+	# Otherwise an earlier fleet slot can enter a conflict zone while a later
+	# slot arbitrates against already-mutated positions in the same fixed tick.
 	var observations: Dictionary = {}
 	for vehicle in active_vehicles:
-		observations[vehicle.get_instance_id()] = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
+		var observation: Dictionary = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
+		observations[vehicle.get_instance_id()] = apply_stop_line_observation(vehicle, observation)
 	for vehicle in active_vehicles:
 		var observation: Dictionary = observations[vehicle.get_instance_id()]
-		observation = apply_stop_line_observation(vehicle, observation)
 		if observation.get("detected", false):
 			vehicle.set_lead_observation(float(observation["gap_m"]), float(observation["lead_speed_mps"]))
 		else:
