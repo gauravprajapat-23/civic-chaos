@@ -26,7 +26,7 @@ const CHECKPOINT_EPSILON_M: float = 0.025
 
 var session: CivicGameplaySession
 var player: Node3D
-var owner: CivicParkingOwner
+var parking_owner: CivicParkingOwner
 var parked_vehicle: CivicVehicleAgent
 var witness: AnimatableBody3D
 var incident_id: int = -1
@@ -105,11 +105,11 @@ func _stage_actors(world: Node3D, actor: Node3D, civic_session: CivicGameplaySes
     car_label.pixel_size = 0.006
     parked_vehicle.add_child(car_label)
 
-    owner = OwnerScene.new() as CivicParkingOwner
+    parking_owner = OwnerScene.new() as CivicParkingOwner
     owner.name = "ParkingOwner"
-    add_child(owner)
-    owner.position = OWNER_START
-    owner.activated.connect(_on_owner_activated)
+    add_child(parking_owner)
+    parking_owner.position = OWNER_START
+    parking_owner.activated.connect(_on_owner_activated)
 
     witness = AnimatableBody3D.new()
     witness.name = "FootpathWitness"
@@ -247,9 +247,9 @@ func _on_owner_activated(actor: Node) -> void:
         _say("Talk to the owner from the sidewalk within three metres.")
 
 func _can_interact(actor: Node) -> bool:
-    if actor != player or finished or not is_instance_valid(owner):
+    if actor != player or finished or not is_instance_valid(parking_owner):
         return false
-    var distance_m: float = player.global_position.distance_to(owner.global_position)
+    var distance_m: float = player.global_position.distance_to(parking_owner.global_position)
     return bool(session.interactions.inspect(incident_id, distance_m).get("ok", false))
 
 func incident_card_state() -> Dictionary:
@@ -292,7 +292,7 @@ func perform_incident_action(actor: Node, action: String) -> bool:
         return true
     if action != "request_owner" or not inspected or requested_tick >= 0:
         return false
-    var distance_m: float = player.global_position.distance_to(owner.global_position)
+    var distance_m: float = player.global_position.distance_to(parking_owner.global_position)
     var permissions := PackedStringArray(["report"])
     if not session.interactions.begin_action(0, incident_id, "report", distance_m, permissions):
         return false
@@ -308,12 +308,12 @@ func perform_incident_action(actor: Node, action: String) -> bool:
 
 func _advance_owner_and_car(delta: float) -> void:
     if not relocation_started:
-        if not is_instance_valid(owner):
+        if not is_instance_valid(parking_owner):
             return
-        owner.position = owner.position.move_toward(OWNER_DESTINATION, OWNER_SPEED * delta)
-        if owner.position.distance_to(OWNER_DESTINATION) <= 0.12:
+        parking_owner.position = parking_owner.position.move_toward(OWNER_DESTINATION, OWNER_SPEED * delta)
+        if parking_owner.position.distance_to(OWNER_DESTINATION) <= 0.12:
             # Record exact endpoint for reproducible owner checkpoints.
-            owner.position = OWNER_DESTINATION
+            parking_owner.position = OWNER_DESTINATION
             if session.incidents.transition(incident_id, CivicIncidentManager.INTERVENTION, tick, "owner_accepted_safe_relocation"):
                 intervention_tick = tick
                 relocation_started = true
@@ -422,10 +422,10 @@ func _segment_at(progress: float) -> int:
 
 func snapshot() -> Dictionary:
     var owner_fraction: float = 0.0
-    if is_instance_valid(owner):
+    if is_instance_valid(parking_owner):
         var distance: float = OWNER_START.distance_to(OWNER_DESTINATION)
         if distance > 0.00001:
-            owner_fraction = clampf(OWNER_START.distance_to(owner.position) / distance, 0.0, 1.0)
+            owner_fraction = clampf(OWNER_START.distance_to(parking_owner.position) / distance, 0.0, 1.0)
     return {
         "schema_version": CHECKPOINT_VERSION,
         "incident_id": incident_id,
@@ -605,7 +605,7 @@ static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = [])
 func restore(raw: Variant) -> bool:
     if session == null or not checkpoint_valid(raw, session.snapshot()):
         return false
-    if not is_instance_valid(owner) or not is_instance_valid(parked_vehicle) or not is_instance_valid(witness):
+    if not is_instance_valid(parking_owner) or not is_instance_valid(parked_vehicle) or not is_instance_valid(witness):
         return false
     var data: Dictionary = raw
     if incident_id >= 0 and incident_id != int(data["incident_id"]):
@@ -656,10 +656,10 @@ func guidance_state() -> Dictionary:
         show = false
     elif inspected:
         objective = "Return to the owner and ask for relocation."
-        target = owner.global_position
+        target = parking_owner.global_position
     elif observed_blockage:
         objective = "Talk to the owner and choose Inspect Evidence."
-        target = owner.global_position
+        target = parking_owner.global_position
     return {
         "title": "Footpath First | Illegal Parking",
         "objective": objective,
