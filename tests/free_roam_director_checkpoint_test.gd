@@ -29,8 +29,12 @@ func _run() -> void:
     if not b.restore_checkpoint(data):
         _fail("valid JSON scheduler snapshot refused")
         return
-    if b.checkpoint_state() != data:
-        _fail("event instance, budget or 64-bit RNG changed on resume")
+    # JSON.parse_string produces untyped collections and may represent
+    # integer values differently from the live typed GDScript arrays. Compare
+    # exactly what is persisted on disk while checking the 64-bit RNG text
+    # independently (it must never pass through an imprecise JSON number).
+    if not _same_json_checkpoint(b.checkpoint_state(), data):
+        _fail("event checkpoint changed on resume: " + _checkpoint_diff(b.checkpoint_state(), data))
         return
     var forged: Dictionary = (data as Dictionary).duplicate(true)
     forged["rng_state"] = "not a number"
@@ -52,8 +56,8 @@ func _run() -> void:
     if b.restore_checkpoint(forged):
         _fail("negative event budget accepted")
         return
-    if b.checkpoint_state() != data:
-        _fail("failed load changed live deterministic state")
+    if not _same_json_checkpoint(b.checkpoint_state(), data):
+        _fail("failed load changed live deterministic state: " + _checkpoint_diff(b.checkpoint_state(), data))
         return
     var id: int = int(start["instance"])
     if not a.resolve_instance(id, 11) or not b.resolve_instance(id, 11):
@@ -77,3 +81,32 @@ func _run() -> void:
 func _fail(reason: String) -> void:
     push_error(reason)
     quit(1)
+
+## Persistent checkpoint equality must compare JSON document values. In
+## particular, signed 64-bit RNG state stays a string and is checked exactly.
+func _same_json_checkpoint(actual: Dictionary, expected: Variant) -> bool:
+    if not (expected is Dictionary):
+        return false
+    var saved: Dictionary = expected
+    if not (actual.get("rng_state") is String) or actual.get("rng_state") != saved.get("rng_state"):
+        return false
+    return JSON.parse_string(JSON.stringify(actual)) == expected
+
+func _checkpoint_diff(actual: Dictionary, expected: Variant) -> String:
+    if not (expected is Dictionary):
+        return "invalid_expected_document"
+    var normalized: Variant = JSON.parse_string(JSON.stringify(actual))
+    if not (normalized is Dictionary):
+        return "invalid_actual_document"
+    var details: Array[String] = []
+    var saved: Dictionary = expected
+    var replay: Dictionary = normalized
+    for key in saved.keys():
+        if not replay.has(key):
+            details.append(str(key) + "=missing")
+        elif replay[key] != saved[key]:
+            details.append(str(key) + ": actual=" + str(replay[key]) + " expected=" + str(saved[key]))
+    for key in replay.keys():
+        if not saved.has(key):
+            details.append(str(key) + "=unexpected")
+    return "; ".join(details)
