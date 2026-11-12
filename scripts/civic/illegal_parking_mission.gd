@@ -17,6 +17,10 @@ const WALK_END_X: float = 32.0
 const CLEARANCE_X: float = 27.0
 const PARKING_BAY: Vector3 = Vector3(36.0, 0.0, -8.5)
 const PEDESTRIAN_SPEED: float = 1.6
+## Witness yields along the same footpath before the car may rotate/relocate.
+## Within the existing witness_progress checkpoint range; no save field added.
+const WITNESS_WAIT_X: float = WALK_START.x + 1.0
+const WITNESS_WAIT_EPSILON: float = 0.025
 const OWNER_SPEED: float = 1.35
 const CAR_SPEED: float = 1.5
 const BLOCKED_FRAMES_REQUIRED: int = 10
@@ -186,6 +190,20 @@ func _physics_process(delta: float) -> void:
 func _advance_witness(delta: float) -> void:
     if not is_instance_valid(witness) or witness.position.x >= WALK_END_X:
         return
+    # A car cannot safely swing out from the footpath while the witness is
+    # standing beside its body. After consent, first walk the witness BACK
+    # along the checked footpath, then hold them until the car is parked.
+    # This position is saved by the existing witness_progress field and
+    # reconstructed without new checkpoint flags, teleporting or unsafe
+    # collision-mask changes.
+    if requested_tick >= 0 and not relocation_complete:
+        if witness.position.x > WITNESS_WAIT_X + WITNESS_WAIT_EPSILON:
+            var backwards: Vector3 = witness.position - Vector3(minf(
+                PEDESTRIAN_SPEED * delta, witness.position.x - WITNESS_WAIT_X), 0.0, 0.0)
+            if _pedestrian_path_clear(witness.position, backwards):
+                witness.position = backwards
+                _walking_distance = witness.position.x - WALK_START.x
+        return
     var candidate: Vector3 = witness.position + Vector3(minf(PEDESTRIAN_SPEED * delta, WALK_END_X - witness.position.x), 0, 0)
     if _pedestrian_path_clear(witness.position, candidate):
         witness.position = candidate
@@ -325,6 +343,11 @@ func _advance_owner_and_car(delta: float) -> void:
                 _say("Owner reached the vehicle. Moving to a marked bay, away from the footpath.")
         return
     if relocation_complete or not is_instance_valid(parked_vehicle):
+        return
+    # Even after the owner arrives, the vehicle must wait for the REAL
+    # pedestrian collider to reach a safe retreat distance. Prevents the
+    # turning car from pinning the witness and deadlocking this mission.
+    if not is_instance_valid(witness) or witness.position.x > WITNESS_WAIT_X + WITNESS_WAIT_EPSILON:
         return
     var remaining: float = CAR_SPEED * delta
     while remaining > 0.000001 and _parking_segment < _parking_route.size() - 1:
