@@ -30,7 +30,7 @@ test_missing_project_rejected (test_source_preflight.SourcePreflightTests.test_m
 test_parent_reference_rejected (test_source_preflight.SourcePreflightTests.test_parent_reference_rejected) ... ok
 
 ----------------------------------------------------------------------
-Ran 30 tests in 0.070s
+Ran 30 tests in 0.042s
 
 OK
 
