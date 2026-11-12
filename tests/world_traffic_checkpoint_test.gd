@@ -155,8 +155,27 @@ func _run() -> void:
     for index in range(round_trip["cars"].size()):
         var actual: Dictionary = round_trip["cars"][index]
         var expected: Dictionary = saved["cars"][index]
-        if actual["route"] != expected["route"] or actual["route_index"] != expected["route_index"] or absf(float(actual["lane_distance"]) - float(expected["lane_distance"])) > 0.001:
-            _fail("restored car lost its route or physical lane position")
+        # Restore normalizes JSON numeric arrays back to native integer lane
+        # IDs. Compare route semantics element by element, not Array Variant
+        # container types; keep a strict 1 mm physical position tolerance.
+        var actual_route: Array = actual["route"]
+        var expected_route: Array = expected["route"]
+        if actual_route.size() != expected_route.size():
+            _fail("restored car %d changed route length: %s vs %s" % [index, str(actual_route), str(expected_route)])
+            return
+        for lane_index in range(expected_route.size()):
+            if int(actual_route[lane_index]) != int(expected_route[lane_index]):
+                _fail("restored car %d changed lane %d: %s vs %s" % [
+                    index, lane_index, str(actual_route), str(expected_route)])
+                return
+        if int(actual["route_index"]) != int(expected["route_index"]):
+            _fail("restored car %d changed route cursor: %s vs %s" % [
+                index, str(actual["route_index"]), str(expected["route_index"])])
+            return
+        var distance_delta: float = absf(float(actual["lane_distance"]) - float(expected["lane_distance"]))
+        if distance_delta > 0.001:
+            _fail("restored car %d moved %.6f m: actual=%s expected=%s" % [
+                index, distance_delta, str(actual["lane_distance"]), str(expected["lane_distance"])])
             return
     if resumed.rng.state != int((saved as Dictionary)["rng_state"]):
         _fail("RNG state did not survive JSON's integer limitations")
