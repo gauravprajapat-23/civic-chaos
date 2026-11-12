@@ -95,3 +95,11 @@ The fix has the witness retreat **along the same checked footpath** toward `WITN
 ## AUD2-MAP-04 checkpoint fixture correction (Godot 4.7.2)
 
 The locally run `outer_intersection_restore_test.gd` reported `occupied crossing checkpoint invalid` after both parking fixtures passed. Investigation showed the test manually appended two physical cars to `active_vehicles` but never updated `spawned_total`. Production `CivicTrafficSpawner.can_restore()` correctly enforces `completed_total + cars.size() <= spawned_total`; the fixture had a fabricated impossible fleet history. The fixture now sets `spawned_total` to the number of manually staged cars before serializing and adds a negative assertion that zero recorded spawns with two active cars remains rejected. **The production checkpoint validator was not relaxed.** Re-run the Godot fixture to verify actual collision-safe reconstruction and the subsequent movement test; this change has not been validated in-engine by the authoring environment.
+
+## Full GAME-024 gate: event-director JSON round-trip failure
+
+User-run Godot 4.7.2 gate passed the 30 Python unit tests, source preflight and editor import, but the first focused fixture `free_roam_director_checkpoint_test.gd` failed at checkpoint equality even when executed directly (exit 1). The gate runner therefore correctly rejected the build. The restored scheduler must preserve all persisted fields, including the 64-bit RNG as **exact decimal text**; rejecting forged budgets, nonexistent instances and failed-load mutation remains mandatory.
+
+`CivicEventDirector.restore_checkpoint` now restores validated integral history entries and last-started ticks as native integers (rather than inheriting parser-produced numeric variants). The fixture compares the JSON-persisted checkpoint value against a freshly serialized restored checkpoint, checks RNG text independently and reports the specific changed fields on mismatch. This accommodates JSON container/value decoding without skipping event instance, budget, history, timer or RNG verification. Neither event budget rules nor checkpoint schema is relaxed.
+
+**Pending local engine acceptance:** Run the corrected fixture against the new SHA, then the full GAME-024 gate. These commits are not a claim that the full suite has passed. Leave PR #49 draft and do not run Actions.
