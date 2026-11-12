@@ -106,7 +106,10 @@ func _stage_actors(world: Node3D, actor: Node3D, civic_session: CivicGameplaySes
     parked_vehicle.add_child(car_label)
 
     parking_owner = OwnerScene.new() as CivicParkingOwner
-    owner.name = "ParkingOwner"
+    if parking_owner == null:
+        push_error("Parking owner actor could not be instantiated")
+        return false
+    parking_owner.name = "ParkingOwner"
     add_child(parking_owner)
     parking_owner.position = OWNER_START
     parking_owner.activated.connect(_on_owner_activated)
