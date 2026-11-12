@@ -8,6 +8,7 @@ const Director = preload("res://scripts/core/simulation_director.gd")
 const SignalController = preload("res://scripts/traffic/traffic_signal_controller.gd")
 const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
+const OuterLights = preload("res://scripts/traffic/outer_traffic_lights.gd")
 
 var road_graph: CivicRoadGraph
 var demo_vehicle: CivicVehicleAgent
@@ -15,6 +16,7 @@ var simulation: SimulationDirector
 var traffic_signals: CivicTrafficSignalController
 var intersection_reservations: CivicIntersectionReservations
 var traffic_spawner: CivicTrafficSpawner
+var outer_lights: CivicOuterTrafficLights
 
 func _ready() -> void:
     var expanded_city: bool = get_parent() != null and get_parent().get_node_or_null("Neighborhood") != null
@@ -34,6 +36,10 @@ func _ready() -> void:
     traffic_signals = SignalController.new()
     intersection_reservations = Reservations.new()
     traffic_spawner.configure_intersection(traffic_signals, intersection_reservations)
+    if expanded_city:
+        outer_lights = OuterLights.new() as CivicOuterTrafficLights
+        outer_lights.name = "OuterTrafficLights"
+        add_child(outer_lights)
     simulation = Director.new()
     add_child(simulation)
     simulation.register_system(_on_simulation_tick)
@@ -43,6 +49,8 @@ func _on_simulation_tick(_tick_index: int, fixed_delta: float) -> void:
     intersection_reservations.advance_to(_tick_index)
     if is_instance_valid(traffic_spawner):
         traffic_spawner.advance_fixed(_tick_index, fixed_delta)
+    if is_instance_valid(outer_lights):
+        outer_lights.sync_tick(_tick_index)
 
 ## GAME-019: one coherent background-world checkpoint covers fixed clock,
 ## signal phase, traffic demand/cars, crossing permissions and real walkers.
@@ -98,4 +106,6 @@ func restore_checkpoint(raw: Variant, pedestrians: Node3D) -> bool:
     intersection_reservations.restore(data["reservations"])
     traffic_signals.restore(data["signals"])
     simulation.restore_checkpoint(data["clock"])
+    if is_instance_valid(outer_lights):
+        outer_lights.sync_tick(int(data["clock"]["tick_index"]))
     return true
