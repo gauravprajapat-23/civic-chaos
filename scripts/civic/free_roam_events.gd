@@ -10,6 +10,7 @@ signal npc_reaction_requested(position: Vector3, kind: String, phase: String, in
 const Target = preload("res://scripts/civic/cleanup_target.gd")
 const Challenges = preload("res://scripts/civic/free_roam_challenges.gd")
 const Progression = preload("res://scripts/civic/volunteer_progression.gd")
+const Improvements = preload("res://scripts/world/neighborhood_improvements.gd")
 const CHECKPOINT_VERSION: int = 2
 const SEED: int = 23077
 const COOLDOWN_TICKS: int = 20
@@ -38,6 +39,7 @@ var receiver: CivicCleanupTarget
 ## A non-colliding visual aid, reconstructed from audited receipts on load.
 ## It never grants physical access, changes deadlines, or enters checkpoints.
 var support_beacon: MeshInstance3D
+var neighborhood_improvements: CivicNeighborhoodImprovements
 var feedback: String = "Free Roam | Keep an eye out for civic issues around Market Chowk."
 
 func _init() -> void:
@@ -69,6 +71,10 @@ func configure(actor: Node3D, civic: CivicGameplaySession) -> bool:
         return false
     tick = maxi(civic.tick, maxi(civic.incidents.current_tick, civic.metrics.last_tick))
     next_spawn_tick = tick + 3
+    neighborhood_improvements = Improvements.new() as CivicNeighborhoodImprovements
+    neighborhood_improvements.name = "NeighborhoodImprovements"
+    add_child(neighborhood_improvements)
+    _sync_improvements()
     return true
 
 func _physics_process(delta: float) -> void:
@@ -188,6 +194,14 @@ func _notify_witness(phase: String) -> void:
     if not site.is_empty():
         npc_reaction_requested.emit(to_global(site["source"]),
             str(active_event["kind"]), phase, int(active_event["instance"]))
+
+func _sync_improvements() -> void:
+    if not is_instance_valid(neighborhood_improvements) or session == null:
+        return
+    # Called only after a verified physical completion or checkpoint restore.
+    # False/forged progress fails closed without displaying new projects.
+    neighborhood_improvements.update_from_receipts(
+        session.metrics.reputation(), resolved_total, session.metrics.processed_events)
 
 func _sync_support_beacon() -> void:
     if is_instance_valid(support_beacon):
@@ -340,6 +354,7 @@ func _resolve_event() -> bool:
     director.resolve_instance(instance, tick)
     _notify_witness("resolved")
     resolved_total += 1
+    _sync_improvements()
     active_event = {}
     next_spawn_tick = tick + COOLDOWN_TICKS
     _clear_targets()
@@ -389,6 +404,8 @@ func hud_state() -> Dictionary:
     if session != null:
         result["volunteer_progress"] = Progression.overview(
             session.metrics.reputation(), resolved_total, session.metrics.processed_events)
+    if is_instance_valid(neighborhood_improvements):
+        result["neighborhood_projects"] = neighborhood_improvements.project_state()
     return result
 
 func checkpoint_state() -> Dictionary:
@@ -517,6 +534,7 @@ func restore_checkpoint(raw: Variant) -> bool:
     next_spawn_tick = int(data["next_spawn_tick"])
     resolved_total = int(data["resolved_total"])
     expired_total = int(data["expired_total"])
+    _sync_improvements()
     active_event = proposed
     last_location_id = new_last
     if not active_event.is_empty() and int(active_event["stage"]) >= 2:
