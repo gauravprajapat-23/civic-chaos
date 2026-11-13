@@ -211,7 +211,6 @@ func _on_neighborhood_service_requested(index: int, actor: Node) -> void:
         session.metrics.reputation(), resolved_total, session.metrics.processed_events)
     if progress.is_empty():
         return
-    var summary: Dictionary = progress.get("neighborhood_support", {})
     match index:
         0:
             _say("MARKET GARDEN | %d verified civic activities. Next volunteer badge: %s." % [
@@ -233,11 +232,6 @@ func _on_neighborhood_service_requested(index: int, actor: Node) -> void:
                 var urgency: String = "PRIORITY" if str(active_event["tier"]) == "priority" else "ROUTINE"
                 _say("SOLAR RESPONSE POINT | %s civic call, %ds remaining." % [
                     urgency, seconds_left])
-    # A separate unlock cannot be inferred from the caller's station index.
-    # Only the validated earned project can reach these informational actions.
-    if summary.is_empty():
-        return
-
 func _sync_improvements() -> void:
     if not is_instance_valid(neighborhood_improvements) or session == null:
         return
