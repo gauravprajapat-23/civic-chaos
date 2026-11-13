@@ -25,7 +25,7 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | UX-01 | P1 | Responsive start menu and accessible How to Play guide | CODE COMMITTED — TEST PENDING | Godot import; menu navigation focused test; keyboard/touch review |
 | QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | TODO | Godot import, AI tests, crossing/traffic checkpoints, visual review |
-| UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | TODO | Screenshot comparison at PC and mobile aspect ratios |
+| UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | CODE COMMITTED — TEST PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | TODO | Distinct tested consequences, no duplicate rewards |
 | PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | TODO | Save/replay/anti-farming tests, clear return incentive |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
@@ -34,6 +34,14 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — UX-02 responsive civic UI
+- Source audit: the live `CivicStatusHUD` used fixed pixel offsets and the incident card had no bounded scroll container, risking clipping at narrow screen sizes.
+- Implemented: viewport-bounded HUD geometry in `scripts/ui/civic_status_hud.gd`; bounded incident-card geometry with vertical-only evidence scrolling in `scripts/ui/civic_incident_card.gd`.
+- Added `tests/ui_responsive_civic_test.gd` covering 320px portrait, landscape and desktop bounds, action sizes, evidence gating, authoritative score display and dismissal.
+- Source commits: `08bd078` (HUD), `5a793db` and `1bf94a3` (card), `371eb70` and `205ccf1` (test).
+- Status: **CODE COMMITTED; Godot import, local tests and visual phone review NOT YET RUN**. Do not mark UX-02 accepted.
+- Next: perform live UI screenshots and a manual campaign playthrough on Windows and Android before closing visual issues.
 
 ### 2026-11-13 — UX-01 started
 - Source audit: `scenes/core/menu.tscn` had a bare Start/Quit menu without instructions or structured visual hierarchy.
@@ -51,6 +59,9 @@ git merge --ff-only origin/fix/aud-001-game024-gate-hardening
 $godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 & $godot --headless --path . --editor --import --quit
 & $godot --headless --path . --script res://tests/menu_ux_test.gd
+& $godot --headless --path . --script res://tests/ui_responsive_civic_test.gd
+& $godot --headless --path . --script res://tests/gameplay_incident_card_test.gd
+& $godot --headless --path . --script res://tests/civic_hud_test.gd
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 ```
 
