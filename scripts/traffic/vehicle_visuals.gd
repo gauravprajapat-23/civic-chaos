@@ -52,11 +52,30 @@ func _reshape_legacy() -> void:
         base.position = Vector3(0, 0.58, 0)
         base.material_override = _paint
     if cabin != null:
-        var glass_frame := BoxMesh.new()
-        glass_frame.size = Vector3(1.34, 0.45, 1.43)
-        cabin.mesh = glass_frame
+        # A tapered six-sided cabin replaces the rectangular shoebox roof.
+        # Roof pillars slope inwards and the front/rear glazing tilts back.
+        cabin.mesh = _tapered_cabin()
         cabin.position = Vector3(0, 1.035, 0.10)
         cabin.material_override = _paint
+
+func _tapered_cabin() -> ArrayMesh:
+    var corners: Array[Vector3] = [
+        Vector3(-0.675, -0.225, -0.75), Vector3(0.675, -0.225, -0.75),
+        Vector3(0.675, -0.225, 0.78), Vector3(-0.675, -0.225, 0.78),
+        Vector3(-0.58, 0.225, -0.46), Vector3(0.58, 0.225, -0.46),
+        Vector3(0.58, 0.225, 0.53), Vector3(-0.58, 0.225, 0.53)
+    ]
+    var faces: Array = [
+        [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3],
+        [3, 7, 4, 0], [4, 7, 6, 5], [0, 1, 2, 3]
+    ]
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for face in faces:
+        for offset in [0, 1, 2, 0, 2, 3]:
+            surface.add_vertex(corners[int(face[offset])])
+    surface.generate_normals()
+    return surface.commit()
 
 func set_lane_variant(lane_id: int) -> void:
     # The existing lane is deterministic and saved with route state.
