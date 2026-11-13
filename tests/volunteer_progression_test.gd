@@ -42,6 +42,30 @@ func _run() -> void:
     if not Progression.overview(1001, 0, {}).is_empty():
         _fail("out-of-range reputation was accepted")
         return
+    var cycle_zero: Dictionary = Progression.rotating_goal(0)
+    var cycle_edge: Dictionary = Progression.rotating_goal(3)
+    var next_cycle: Dictionary = Progression.rotating_goal(4)
+    if cycle_zero.get("completed") != 0 or cycle_zero.get("remaining") != 4:
+        _fail("first rotating civic goal did not initialize")
+        return
+    if cycle_edge.get("completed") != 3 or cycle_edge.get("remaining") != 1:
+        _fail("current rotating goal milestone did not advance")
+        return
+    if next_cycle.get("cycle") != 1 or next_cycle.get("completed") != 0:
+        _fail("completed rotating goal failed to activate the next cycle")
+        return
+    if next_cycle.get("title") == cycle_zero.get("title"):
+        _fail("civic goal themes did not rotate")
+        return
+    if Progression.rotating_goal(-1) != {} or Progression.rotating_goal(1000000001) != {}:
+        _fail("invalid activity count was accepted")
+        return
+    if goals.get("rotating_goal", {}).get("completed") != 2:
+        _fail("verified ten-event progress did not advance rotating civic goal")
+        return
+    if Progression.overview(620, 10, replay).get("rotating_goal") != goals.get("rotating_goal"):
+        _fail("rotating goal did not survive JSON replay")
+        return
     var hud := HUD.new() as CivicStatusHUD
     root.add_child(hud)
     await process_frame
@@ -52,6 +76,9 @@ func _run() -> void:
         return
     if not hud.roam_label.text.contains("10/25"):
         _fail("next badge goal is not visible")
+        return
+    if not hud.roam_label.text.contains("CIVIC GOAL") or not hud.roam_label.text.contains("2/4"):
+        _fail("rotating civic goal is not visible in the HUD")
         return
     hud.queue_free()
     print("CIVIC_CHAOS_VOLUNTEER_PROGRESSION_PASS")
