@@ -246,15 +246,17 @@ func _physics_process(delta: float) -> void:
                 _crossing[index] = true
             else:
                 can_walk = false
+        var planned_pause: bool = false
         if recovering or _yield_to_player(index, delta):
             can_walk = false
         elif can_walk and _routine_rest_at_safe_sidewalk(index, side):
-            # Never apply a routine pause on the carriageway or override
-            # player avoidance, collision recovery or crossing reservations.
+            # A voluntary break must not accrue obstacle-stall frames. Real
+            # collision/yield failures still follow the original recovery path.
+            planned_pause = true
             can_walk = false
         elif can_walk:
             can_walk = _advance_clear_walker(index, delta, length)
-        if can_walk:
+        if can_walk or planned_pause:
             _blocked_frames[index] = 0
         else:
             _blocked_frames[index] += 1
@@ -300,13 +302,41 @@ func _routine_rest_at_safe_sidewalk(index: int, side: int) -> bool:
         var witness: Node3D = _walkers[index]["root"]
         var incident_at: Vector3 = _reaction_context["position"]
         near_incident = witness.global_position.distance_squared_to(incident_at) <= 100.0
-    var plan: Dictionary = NpcDailyRoutine.plan(index, _decision_tick, near_incident, near_incident)
+    # Proximity is only awareness. A real-world safety check is required
+    # before offering help: no nearby moving vehicle, player/body overlap,
+    # or blocking geometry at the pedestrian's present position.
+    var safe_to_help: bool = near_incident and _routine_help_is_clear(index)
+    var plan: Dictionary = NpcDailyRoutine.plan(index, _decision_tick, near_incident, safe_to_help)
     if not bool(plan.get("ok", false)):
         return false
     _routine_activity[index] = str(plan["activity"])
     if bool(plan["assist"]) and (not is_instance_valid(_reaction_label) or not _reaction_label.visible):
         _show_reaction(index, "I'll help keep our street safe.")
     return bool(plan["pause"])
+
+func _routine_help_is_clear(index: int) -> bool:
+    if index < 0 or index >= _walkers.size() or _crossing[index]:
+        return false
+    var walker: Node3D = _walkers[index]["root"]
+    if not is_instance_valid(walker):
+        return false
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var to_player: Vector3 = walker.global_position - player.global_position
+        to_player.y = 0.0
+        if to_player.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+            return false
+    if _traffic_spawner != null:
+        for car in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(car) or not car.active:
+                continue
+            var to_car: Vector3 = walker.global_position - car.global_position
+            to_car.y = 0.0
+            if to_car.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                return false
+    # Scene geometry must also be clear. Do not call this from an input event:
+    # it runs only inside the pedestrian physics update.
+    return not _swept_path_blocked(index, walker.position, walker.position, true)
 
 func routine_activity(index: int) -> String:
     if index < 0 or index >= _routine_activity.size():
