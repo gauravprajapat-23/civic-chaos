@@ -55,9 +55,16 @@ func _run() -> void:
             _fail("improvement object is not a visual-only node")
             return
         for piece in mesh_parent.get_children():
-            if piece is not MeshInstance3D:
-                _fail("city improvement created a collision or interaction node")
-                return
+            if piece is MeshInstance3D:
+                continue
+            if piece is CivicNeighborhoodService:
+                var station: CivicNeighborhoodService = piece as CivicNeighborhoodService
+                if station.collision_layer != 16 or station.collision_mask != 0:
+                    _fail("unlocked service station has unsafe physics layer")
+                    return
+                continue
+            _fail("city project created an unexpected child node")
+            return
     stage.queue_free()
     print("CIVIC_CHAOS_NEIGHBORHOOD_IMPROVEMENTS_PASS")
     quit(0)
