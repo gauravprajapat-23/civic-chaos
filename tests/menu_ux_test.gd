@@ -30,6 +30,25 @@ func _run() -> void:
     if instructions == null:
         _fail("instructions were not available to keyboard and touch users")
         return
+    # Regression: the How to Play paragraph previously rendered as one
+    # letter per line because ScrollContainer gave the Label zero width.
+    var panel: PanelContainer = instance.get_node(
+        "GuideBackdrop/GuideCenter/GuidePanel") as PanelContainer
+    var scroll: ScrollContainer = instance.get_node(
+        "GuideBackdrop/GuideCenter/GuidePanel/VBoxContainer/GuideScroll") as ScrollContainer
+    if panel == null or scroll == null:
+        _fail("How to Play layout container missing")
+        return
+    if instructions.custom_minimum_size.x < 130.0 or instructions.custom_minimum_size.x < panel.custom_minimum_size.x - 80.0:
+        _fail("How to Play instructions collapsed into one-character wrapping")
+        return
+    if scroll.horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED:
+        _fail("How to Play content should wrap normally, not scroll sideways")
+        return
+    await process_frame
+    if instructions.size.x < 130.0:
+        _fail("How to Play instructions rendered too narrow for readable text")
+        return
     for required in ["WASD", "F5", "F9", "TOUCH CONTROLS", "WRONG", "Free Roam"]:
         if not instructions.text.to_lower().contains(required.to_lower()):
             _fail("gameplay guide omitted " + required)
