@@ -511,6 +511,13 @@ func restore_checkpoint(raw: Variant) -> bool:
     if director == null or session == null or not checkpoint_valid(raw, session.snapshot()):
         return false
     var data: Dictionary = raw
+    # Idempotent load: the same already-staged checkpoint must not be
+    # rejected by its own active evidence colliders, or respawn duplicates.
+    # Static civic/checkpoint validation above still runs before this path.
+    if data == checkpoint_state():
+        _sync_improvements()
+        _sync_support_beacon()
+        return true
     var proposed: Dictionary = data["active_event"].duplicate(true)
     var new_last: String = str(data.get("last_location_id", ""))
     if int(data["schema_version"]) == 1 and not proposed.is_empty():
