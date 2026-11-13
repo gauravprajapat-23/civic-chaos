@@ -11,3 +11,4 @@ Thumbs.db
 # Python test/QA bytecode is generated output, not game source.
 __pycache__/
 *.py[cod]
+build/android/
