@@ -85,6 +85,9 @@ function Run-Local {
         $startInfo.FileName = $Executable
         $startInfo.Arguments = ($quotedArguments -join " ")
         $startInfo.WorkingDirectory = $root
+        # Python unit tests/preflight must not leave new untracked bytecode
+        # that could falsely fail the end-of-run source cleanliness check.
+        $startInfo.EnvironmentVariables["PYTHONDONTWRITEBYTECODE"] = "1"
         $startInfo.UseShellExecute = $false
         $startInfo.CreateNoWindow = $true
         $startInfo.RedirectStandardOutput = $true
