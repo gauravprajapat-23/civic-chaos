@@ -312,13 +312,18 @@ try {
     # deadline for the *whole* runner, including import and replay.
     $suiteTimeout = [int][Math]::Min(14400, [Math]::Max(300,
         ([double]($MinimumTestCount + 6) * [double]($Timeout + 5))))
+    # Invalidate the prior report before starting: an early Python crash
+    # must not allow a stale 106-test report to masquerade as fresh evidence.
+    $fullPath = Join-Path $root "build\game-024-regression.json"
+    if (Test-Path -LiteralPath $fullPath) {
+        Remove-Item -LiteralPath $fullPath -Force
+    }
     $fullResult = Run-Local -Executable $Python -Arguments @(
         "tools/run_regression.py", "--godot", $Godot, "--timeout",
         [string]$Timeout, "--report", "build/game-024-regression.json"
     ) -LogName "full-regression.log" -ProcessTimeoutSeconds $suiteTimeout
     $gate.full_regression_timed_out = $fullResult.timed_out
     $gate.full_regression_exit_code = $fullResult.exit_code
-    $fullPath = Join-Path $root "build\game-024-regression.json"
     # Read regression evidence even when the runner exits 1: a red suite
     # must not be presented as zero executed tests with a blank source SHA.
     # A failed process still cannot satisfy the acceptance gate.
