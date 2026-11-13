@@ -23,7 +23,7 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | ID | Priority | Task | State | Acceptance evidence |
 |---|---|---|---|---|
 | UX-01 | P1 | Responsive start menu and accessible How to Play guide | FOCUSED GODOT TEST PASSED — VISUAL REVIEW PENDING | Godot import; menu navigation focused test; keyboard/touch review |
-| QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
+| QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | PLAYTHROUGH MATRIX READY — HUMAN/ANDROID EVIDENCE PENDING | Recorded steps, screenshots, blockers and end state |
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | RESPONSIVE TEST PASSED — DEVICE REVIEW PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
@@ -31,12 +31,22 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | PROG-02 | P1 | Neighborhood support unlocks with physical Free Roam navigation benefits | CODE COMMITTED — GODOT TEST PENDING | Audited-receipt thresholds, visual beacon, stage transition, reload consistency |
 | PROG-03 | P1 | Visible neighborhood improvement projects earned from real civic work | CODE COMMITTED — LOCAL TESTS / VISUAL QA PENDING | Tier gates, no extra scores, physically non-blocking objects, checkpoint reconstruction |
 | PROG-04 | P1 | Usable community garden, kiosk and solar response information services | CODE COMMITTED — GODOT REGRESSION PENDING | E/USE gated at real location, audited unlock, no score mutation, valid save replay |
+| GAME-QA-01 | P0 | Complete Playability and Visual Audit | AUDIT PLAN + HUD/GUIDE LAYOUT FIX COMMITTED — LOCAL TESTS PENDING | Actual screenshots, full manual journey, Android QA |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — GAME-024 fully accepted; GAME-QA-01 gameplay/visual audit started
+- User supplied **complete GAME-024 acceptance at exactly `88e2b108066b43378a0b8385e84af37720269060`**: status `passed`, 113/113 full regression tests, 24 focused tests, independent evidence `True`, Godot import/negative-path gate passed. This is an accepted **engineering baseline**, not a claim of manual game quality or acceptance of newer commits.
+- Source audit found fixed-size mission guide offsets and potential overlap with civic HUD on narrow portrait displays. Replaced fixed guide bounds with deterministic viewport-relative `CivicMissionGuide.panel_bounds`, moved portrait HUD below the upper guide, and added `tests/game_qa_mission_guide_test.gd` covering 5 screen sizes, overlap and recovery actions.
+- How to Play now explains direct/municipal illegal-parking choice and the usable neighborhood projects, eliminating outdated onboarding.
+- Added `docs/qa/GAME_QA_01_PLAYABILITY_VISUAL_AUDIT.md` with a real player path from menu through tutorial, wrong-way, parking choices, cleanup, finale, Free Roam, support services and save/restore plus PC/mobile viewport & Android evidence matrix.
+- Commits `53a2f54`, `230e2b8`, `df65fd4`, `7155577`, `bb64fd0`, `c7dd3ae`.
+- **Status: Code committed; NO local Godot result yet for these edits.** Manual walkthrough, screenshots, Android tactile performance and art/audio evaluation are open. Rerun focused QA and full acceptance at exact new commit; no GitHub Actions manually triggered.
+
 
 ### 2026-11-13 — Exact 113/113 suite accepted by runner; Git probe failed in independent validator
 - User supplied exact report at commit `ac46337ef44bcab57ab1eb356e3cae88ac2e8749`: **113/113 regression cases**, `full_regression_passed=True`, `source_unchanged=True`; the independent checker returned `branch=""`, `commit=""` and Git evidence issues. This is a genuine **blocked** gate, not a Godot test failure.
