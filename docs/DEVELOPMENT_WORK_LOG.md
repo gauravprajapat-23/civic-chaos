@@ -11,7 +11,7 @@
 |---|---|---|
 | GAME-024 (Godot 4.7.2) | `build/game-024-verification.json` on the user's Windows machine; gate output reported `passed` twice | **PASSED on 2026-11-13** |
 | Focused gameplay regressions | NPC decision stability, pedestrian checkpoint, crossing recovery, player contact, traffic checkpoint | **5/5 PASSED** |
-| Full GAME-024 regression inventory | Previously 106 fixtures; accepted as part of the successful gate | **PASSED at gate revision** |
+| Full GAME-024 regression inventory | 109 fixtures on exact user-tested commit `dd8645c` | **109/109 PASSED on 2026-11-13** |
 | AI-03 daily routines | Committed at `2b77caa`; no subsequent local Godot output supplied | **UNVERIFIED** |
 | Manual tutorial → finale playthrough | Not supplied | **PENDING** |
 | Android physical-device test / signed release | Not supplied | **PENDING** |
@@ -27,13 +27,21 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | RESPONSIVE TEST PASSED — DEVICE REVIEW PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
-| PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | TODO | Save/replay/anti-farming tests, clear return incentive |
+| PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | RANKS/BADGES HUD IMPLEMENTED — TEST PENDING; DAILY REQUESTS/UNLOCKS TODO | Save/replay/anti-farming tests, clear return incentive |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — GAME-024 passed / PROG-01 ranks and badge foundation
+- User's **exact commit `dd8645c`** passed the local Godot 4.7.2 GAME-024 gate with **109/109 full regression fixtures**, all 24 focused tests, source/import, negative-path and independent readiness evidence. The four generated Godot UID files were committed. This is the last **verified baseline**, not an acceptance claim for later commits.
+- PROG-01 first batch: added read-only `CivicVolunteerProgression` thresholds (New Volunteer / Neighborhood Helper / Trusted Volunteer / Community Champion) and cumulative Free Roam milestone badges at 3/10/25/50 verified completions. Progress is derived strictly from `CivicCityMetrics.processed_events` and cross-checked with resolved count; no grant API, extra mission reward, changed save format, calendar-clock dependence or penalty for missed days.
+- Integrated rank and next goal into the Free Roam HUD through `CivicFreeRoamEvents.hud_state()`; added `tests/volunteer_progression_test.gd` checking replay, forged-counter denial, thresholds and UI display.
+- Commits: `99de7cd` model, `1757f1e` Free Roam readout, `50c48cd` HUD, `542a034` focused test.
+- Status: **CODE COMMITTED; Godot import and test on the NEW revision pending**. Rank and milestone display are the first part of PROG-01; daily challenge rotation and playable neighborhood unlocks are still planned.
+- Next: commit any new Godot-generated `.gd.uid` files, run the focused volunteer progression and existing Free Roam test group, and rerun the full gate.
 
 ### 2026-11-13 — Focused UX and choice tests passed; full acceptance blocked
 - User ran Godot 4.7.2 import successfully at commit `77ae2a6`, then **7/7 focused scripts passed**: `menu_ux_test.gd`, `ui_responsive_civic_test.gd`, `parking_owner_card_test.gd`, `parking_response_choice_test.gd`, `illegal_parking_live_test.gd`, `parking_checkpoint_test.gd`, `multi_incident_checkpoint_test.gd`.
@@ -91,6 +99,7 @@ $godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 & $godot --headless --path . --script res://tests/parking_owner_card_test.gd
 & $godot --headless --path . --script res://tests/parking_response_choice_test.gd
 & $godot --headless --path . --script res://tests/parking_checkpoint_test.gd
+& $godot --headless --path . --script res://tests/volunteer_progression_test.gd
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 ```
 
