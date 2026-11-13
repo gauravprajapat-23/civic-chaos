@@ -22,7 +22,7 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 | ID | Priority | Task | State | Acceptance evidence |
 |---|---|---|---|---|
-| UX-01 | P1 | Responsive start menu and accessible How to Play guide | CODE IN PROGRESS | Godot import; menu navigation focused test; keyboard/touch review |
+| UX-01 | P1 | Responsive start menu and accessible How to Play guide | CODE COMMITTED — TEST PENDING | Godot import; menu navigation focused test; keyboard/touch review |
 | QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | TODO | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | TODO | Screenshot comparison at PC and mobile aspect ratios |
@@ -37,8 +37,9 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ### 2026-11-13 — UX-01 started
 - Source audit: `scenes/core/menu.tscn` had a bare Start/Quit menu without instructions or structured visual hierarchy.
-- Planned implementation: responsive layout and a How to Play overlay that explains actual keyboard/touch controls and the four-stage civic campaign. Preserve Start/Quit behavior.
-- Verification status: **source changes pending local Godot run**. Do not mark acceptance based on commits alone.
+- Implementation: styled deep-blue/yellow start menu, first-time-player How to Play modal with PC/touch controls, campaign and Free Roam instructions, Esc/Back dismissal and size-aware layout. Start/Quit lifecycle preserved.
+- Source commits: `f10958f` (menu); `ca56ebe` (new `tests/menu_ux_test.gd`). Full GAME-024 runner automatically discovers the new fixture.
+- Verification status: **source and test committed; engine import, focused test and full gate NOT YET RUN on this SHA**. The earlier accepted GAME-024 SHA predates this change. Do not mark acceptance based on commits alone.
 - Next: run menu-focused test and local import, then GAME-024 gate at the updated revision.
 
 ## Verification command (Windows)
