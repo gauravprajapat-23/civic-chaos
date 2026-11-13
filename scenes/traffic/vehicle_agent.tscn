@@ -1,6 +1,7 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/traffic/vehicle_agent.gd" id="1_agent"]
+[ext_resource type="Script" path="res://scripts/traffic/vehicle_visuals.gd" id="2_visuals"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_vehicle"]
 size = Vector3(1.6, 1.2, 3.0)
@@ -66,6 +67,9 @@ position = Vector3(0.83, 0.36, 0.95)
 rotation_degrees = Vector3(0, 0, 90)
 mesh = SubResource("WheelMesh")
 material_override = SubResource("Rubber")
+
+[node name="DetailVisuals" type="Node3D" parent="."]
+script = ExtResource("2_visuals")
 
 [node name="CollisionBody" type="StaticBody3D" parent="."]
 collision_layer = 4
