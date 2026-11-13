@@ -70,20 +70,39 @@ def validate(gate, regression, branch, commit):
 
 
 def current_git(root):
-    """Read-only local revision and worktree check; never trusts report metadata."""
-    try:
-        branch = subprocess.run(["git", "branch", "--show-current"], cwd=root,
-                                capture_output=True, text=True, timeout=10, check=True).stdout.strip()
-        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
-                                capture_output=True, text=True, timeout=10, check=True).stdout.strip()
-        changes = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=all", "--", ".", ":(exclude)build"],
-            cwd=root, capture_output=True, text=True, timeout=10, check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return "", "", "git_status_unavailable"
-    return branch, commit, changes
+    """Query Git independently and fail closed with actionable diagnostics.
 
+    One failed subprocess must not erase already-proven branch/SHA values.
+    Both the worktree status and the revision are independently required.
+    """
+    errors = []
+
+    def run_git(operation, argv):
+        try:
+            result = subprocess.run(
+                ["git", *argv], cwd=root, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            errors.append("git_" + operation + "_exception:" + type(exc).__name__
+                          + ":" + str(exc)[:250])
+            return ""
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip().replace("\\n", " ")
+            errors.append("git_" + operation + "_failed:exit="
+                          + str(result.returncode) + ":" + detail[:250])
+            return ""
+        return result.stdout.strip()
+
+    branch = run_git("branch", ["branch", "--show-current"])
+    commit = run_git("commit", ["rev-parse", "HEAD"])
+    # Empty stdout means a clean tree. A failed status is never treated as
+    # clean, and its diagnostic remains available in the readiness report.
+    changes = run_git("status", [
+        "status", "--porcelain", "--untracked-files=all", "--",
+        ".", ":(exclude)build",
+    ])
+    return branch, commit, changes, errors
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
@@ -92,7 +111,7 @@ def main(argv=None):
     parser.add_argument("--regression", default="build/game-024-regression.json")
     args = parser.parse_args(argv)
     root = args.root.resolve()
-    branch, commit, changes = current_git(root)
+    branch, commit, changes, git_errors = current_git(root)
     issues = []
     reports = []
     for name in (args.gate, args.regression):
@@ -106,8 +125,10 @@ def main(argv=None):
             reports.append(data)
         except (OSError, ValueError, UnicodeError) as exc:
             issues.append("missing_or_invalid_report:" + name + ":" + type(exc).__name__)
+    if git_errors:
+        issues.extend(git_errors)
     if changes:
-        issues.append("worktree_not_clean_or_git_unavailable")
+        issues.append("worktree_not_clean")
     if not branch:
         issues.append("git_branch_unavailable")
     if len(reports) == 2:
