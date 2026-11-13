@@ -9,6 +9,7 @@ signal npc_reaction_requested(position: Vector3, kind: String, phase: String, in
 
 const Target = preload("res://scripts/civic/cleanup_target.gd")
 const Challenges = preload("res://scripts/civic/free_roam_challenges.gd")
+const Progression = preload("res://scripts/civic/volunteer_progression.gd")
 const CHECKPOINT_VERSION: int = 2
 const SEED: int = 23077
 const COOLDOWN_TICKS: int = 20
@@ -333,10 +334,14 @@ func guidance_state() -> Dictionary:
         "recovery_available": false}
 
 func hud_state() -> Dictionary:
-    return {"free_roam_resolved": resolved_total, "free_roam_expired": expired_total,
+    var result: Dictionary = {"free_roam_resolved": resolved_total, "free_roam_expired": expired_total,
         "free_roam_event": str(active_event.get("kind", "")),
         "free_roam_location": str(active_event.get("site_id", "")),
         "free_roam_priority": str(active_event.get("tier", "")) == "priority"}
+    if session != null:
+        result["volunteer_progress"] = Progression.overview(
+            session.metrics.reputation(), resolved_total, session.metrics.processed_events)
+    return result
 
 func checkpoint_state() -> Dictionary:
     return {"schema_version": CHECKPOINT_VERSION,
