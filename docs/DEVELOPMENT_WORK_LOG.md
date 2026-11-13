@@ -24,7 +24,7 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 |---|---|---|---|---|
 | UX-01 | P1 | Responsive start menu and accessible How to Play guide | CODE COMMITTED — TEST PENDING | Godot import; menu navigation focused test; keyboard/touch review |
 | QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
-| AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | TODO | Godot import, AI tests, crossing/traffic checkpoints, visual review |
+| AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | CODE COMMITTED — TEST PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | TODO | Distinct tested consequences, no duplicate rewards |
 | PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | TODO | Save/replay/anti-farming tests, clear return incentive |
@@ -34,6 +34,14 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — AI-03 routine safety hardening
+- Reviewed the opt-in daily routine implementation against pedestrian recovery and physics-safety contracts.
+- Corrected a false stall: voluntary sidewalk breaks now reset rather than increment `_blocked_frames`; true blocked movement still increments it.
+- Civic-help proximity no longer automatically implies physical safety. Help is declined near overlapping players, active cars or solid world obstructions, and it never alters missions, rewards or crossing reservations.
+- Strengthened `tests/npc_decision_stability_test.gd` to check planned rests do not create false obstruction counters and overlapping players block assistance.
+- Source commits: `6923bbf` (runtime), `555b21d` (focused test). **Local Godot import and focused/full regression evidence pending at this revision.**
+- Next: user runs `npc_decision_stability_test.gd`, pedestrian checkpoints/recovery and full GAME-024 gate; then visualize the opt-in routines in actual gameplay before enabling by default.
 
 ### 2026-11-13 — UX-02 responsive civic UI
 - Source audit: the live `CivicStatusHUD` used fixed pixel offsets and the incident card had no bounded scroll container, risking clipping at narrow screen sizes.
@@ -62,6 +70,9 @@ $godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 & $godot --headless --path . --script res://tests/ui_responsive_civic_test.gd
 & $godot --headless --path . --script res://tests/gameplay_incident_card_test.gd
 & $godot --headless --path . --script res://tests/civic_hud_test.gd
+& $godot --headless --path . --script res://tests/npc_decision_stability_test.gd
+& $godot --headless --path . --script res://tests/world_pedestrian_checkpoint_test.gd
+& $godot --headless --path . --script res://tests/pedestrian_crossing_recovery_test.gd
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 ```
 
