@@ -23,6 +23,16 @@ const VEHICLE_CLEARANCE: float = 1.5
 const PERSONAL_SPACE: float = 1.4
 const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
 const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd")
+const NpcPersonality = preload("res://scripts/npc/npc_personality.gd")
+const NpcBlackboard = preload("res://scripts/npc/npc_blackboard.gd")
+const NpcStability = preload("res://scripts/npc/npc_decision_stability.gd")
+## AI-02 staged integration: disabled until GAME-024 full acceptance.
+## Safety checks/reservation authority remain in the physical walker code.
+@export var stable_crossing_decisions_enabled: bool = false
+var _decision_tick: int = 0
+var _crossing_policies: Array[CivicNpcDecisionStability] = []
+var _crossing_boards: Array[CivicNpcBlackboard] = []
+var _crossing_personalities: Array[CivicNpcPersonality] = []
 var _reaction_context: Dictionary = {}
 var _reaction_label: Label3D
 var _reaction_end: float = -1.0
@@ -106,6 +116,15 @@ func _ready() -> void:
             walker.queue_free()
             continue
         _walker_progress.append(spawn_progress)
+        # Use the compact walker slot, not a possibly skipped spawn index,
+        # for stable policy identity and checkpoint-independent ordering.
+        var policy_slot: int = _walkers.size()
+        _crossing_policies.append(NpcStability.new() as CivicNpcDecisionStability)
+        _crossing_boards.append(NpcBlackboard.new() as CivicNpcBlackboard)
+        var personality: CivicNpcPersonality = NpcPersonality.new() as CivicNpcPersonality
+        personality.patience = 0.0
+        personality.rule_compliance = 1.0
+        _crossing_personalities.append(personality)
         _sidestep_offsets.append(0.0)
         _blocked_frames.append(0)
         _crossing.append(false)
@@ -191,6 +210,7 @@ func _physics_process(delta: float) -> void:
         return
     var profile_start_us: int = Time.get_ticks_usec() if profile_movement_enabled else 0
     _elapsed += delta
+    _decision_tick += 1
     if is_instance_valid(_reaction_label) and _elapsed >= _reaction_end:
         _reaction_label.visible = false
     if not _reaction_context.is_empty() and _elapsed - _last_reaction_time >= 8.0:
@@ -212,13 +232,13 @@ func _physics_process(delta: float) -> void:
         # at a red crossing must still move away from an overlapping player.
         var recovering: bool = _resolve_actor_overlap(index, delta)
         if not _crossing[index] and old_progress < -6.0 and proposed >= -6.0:
-            if _can_cross(side) and _reserve_crossing(index, side):
+            if _crossing_permission(index, side) and _reserve_crossing(index, side):
                 _crossing[index] = true
             else:
                 _walker_progress[index] = -6.0 + length * 0.5
                 can_walk = false
         elif not _crossing[index] and absf(old_progress + 6.0) < 0.0001:
-            if _can_cross(side) and _reserve_crossing(index, side):
+            if _crossing_permission(index, side) and _reserve_crossing(index, side):
                 _crossing[index] = true
             else:
                 can_walk = false
@@ -598,6 +618,48 @@ func _swept_path_blocked(index: int, from_position: Vector3, to_position: Vector
             return true
     return false
 
+## Stable utility decisions may delay an otherwise legal entrance; they may
+## NEVER override a red light, approaching vehicle, or reservation conflict.
+## This is evaluated at the crossing entrance only, not while inside it.
+func _crossing_permission(index: int, side: int) -> bool:
+    return crossing_decision(index, _can_cross(side))
+
+## Public deterministic adapter for isolated AI-02 contract tests. The input
+## is the physical safety result, NOT an AI prediction of collision clearance.
+func crossing_decision(index: int, physically_safe: bool) -> bool:
+    if not physically_safe:
+        # Evaluate the red/occupied condition even in the same tick to discard
+        # a previously held "cross_legally" action immediately.
+        if stable_crossing_decisions_enabled:
+            _update_crossing_policy(index, false)
+        return false
+    if not stable_crossing_decisions_enabled:
+        return true
+    return _update_crossing_policy(index, true)
+
+func _update_crossing_policy(index: int, physically_safe: bool) -> bool:
+    if index < 0 or index >= _crossing_policies.size():
+        return false
+    var board: CivicNpcBlackboard = _crossing_boards[index]
+    if not board.update_snapshot(index, _decision_tick, {
+        "pedestrian_green": physically_safe,
+        "crossing_clear": physically_safe,
+        "urgency": 1.0
+    }):
+        return false
+    var result: Dictionary = _crossing_policies[index].decide(
+        _crossing_personalities[index], board, 2402)
+    return bool(result.get("ok", false)) and str(result.get("action", "")) == "cross_legally"
+
+func reset_crossing_decisions() -> void:
+    _decision_tick = 0
+    for policy in _crossing_policies:
+        policy.reset()
+    for board in _crossing_boards:
+        board.npc_id = -1
+        board.tick_index = -1
+        board.observations.clear()
+
 func _can_cross(side: int) -> bool:
     if _signal_controller == null:
         return true
@@ -761,6 +823,10 @@ func restore_checkpoint(raw: Variant, reservations_state: Variant) -> bool:
         var destination := Vector3(float(coords[0]), float(coords[1]), float(coords[2]))
         if _swept_path_blocked(index, destination, destination, true):
             return false
+    # Decision inertia isn't part of the v1 pedestrian save contract:
+    # reset it after successful preflight, so a prior city's policy cannot
+    # suppress crossing decisions in the restored world.
+    reset_crossing_decisions()
     _elapsed = float(data["elapsed"])
     for index in range(data["walkers"].size()):
         var record: Dictionary = data["walkers"][index]
