@@ -39,6 +39,16 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-13 — ART-CAR-01 sedan visual replacement, no traffic changes
+- User requested the existing Civic Chaos vehicle look recognizably like a car instead of a toy-like box.
+- Inspected the actual traffic scene `scenes/traffic/vehicle_agent.tscn`, root `CivicVehicleAgent`, existing four named wheels and authoritative `CollisionBody/CollisionShape3D` (BoxShape3D 1.6×1.2×3.0). Kept the scene contract and unchanged collision, node paths, route physics and save model.
+- New `scripts/traffic/vehicle_visuals.gd` builds a sedan silhouette using lightweight BoxMesh/CylinderMesh children: reshaped low chassis, cabin, sloped glass, side windows, hood/trunk/roof, bumper, grille, headlights/taillights with emission, mirrors, handles and hubcaps. No added colliders or GPU-heavy external assets.
+- Scene now instantiates `DetailVisuals` and route configuration sets cosmetic paint from the existing first lane ID; **no new random draws**, preserving deterministic traffic spawning and replay.
+- Added `tests/vehicle_visuals_test.gd` checking scene detail parts, unchanged box collider, car movement, repeatable paint and distinct lane colors. Existing `vehicle_scene_contract_test.gd`, `vehicle_feedback_optional_test.gd`, vehicle movement/checkpoint tests still required.
+- Commits `3a29478`, `4195f1c`, `d700189`, `2c13038`. **Implementation committed, local Godot import/tests and actual screenshot/Android APK acceptance pending.**
+
+
+
 ### 2026-11-13 — GAME-QA-01 screenshot: How to Play content wraps one letter per line
 - User-provided screenshot shows the How to Play modal frame at healthy width but instruction text squeezed into a narrow sliver, forcing single-character lines. Classified **P1 UI readability blocker**.
 - Root cause: the wrapping `Label` nested directly under `ScrollContainer` lacked a useful minimum content width; scrolling container vertical expansion did not guarantee text-layout width.
