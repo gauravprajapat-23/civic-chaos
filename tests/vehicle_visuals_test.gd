@@ -72,6 +72,10 @@ func _run() -> void:
     if not (visual.mesh is BoxMesh) or (visual.mesh as BoxMesh).size.y >= 1.0:
         _fail("tall cuboid body was not reshaped into sedan proportions")
         return
+    var cabin: MeshInstance3D = car.get_node("Cabin") as MeshInstance3D
+    if not (cabin.mesh is ArrayMesh) or (cabin.mesh as ArrayMesh).get_surface_count() != 1:
+        _fail("sedan roof is still a block instead of a tapered 3D mesh")
+        return
     if not car.configure(road, PackedInt32Array([11]), Profile.new()):
         _fail("detailed car cannot be configured for a valid route")
         return
