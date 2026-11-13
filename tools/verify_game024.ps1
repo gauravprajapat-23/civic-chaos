@@ -394,7 +394,25 @@ try {
     ) -LogName "postgate-evidence.log"
     if (-not $readiness.passed) {
         $gate.status = "blocked"
-        $gate.reason = "Independent evidence validation failed. Inspect build/game-024-verification-logs/postgate-evidence.log"
+        $evidenceIssues = ""
+        try {
+            # The checker prints one JSON record with a concrete issues array.
+            # Include its diagnostics in the top-level gate report so the
+            # failure isn't mistaken for a gameplay-test regression.
+            $evidenceResult = $readiness.output | ConvertFrom-Json -ErrorAction Stop
+            if ($null -ne $evidenceResult.issues) {
+                $evidenceIssues = (@($evidenceResult.issues) -join ", ")
+            }
+        } catch {
+            $evidenceIssues = ("Checker output could not be parsed: " +
+                ($readiness.output.Trim() -replace "\\r?\\n", " "))
+        }
+        if ([string]::IsNullOrWhiteSpace($evidenceIssues)) {
+            $evidenceIssues = ("exit_code={0}, engine_error={1}, timed_out={2}" -f `
+                $readiness.exit_code, $readiness.engine_error, $readiness.timed_out)
+        }
+        $gate.reason = "Independent evidence validation failed: " + $evidenceIssues +
+            ". Inspect build/game-024-verification-logs/postgate-evidence.log"
         Write-Gate
         exit 1
     }
