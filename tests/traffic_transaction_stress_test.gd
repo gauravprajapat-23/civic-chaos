@@ -22,6 +22,16 @@ func _run() -> void:
         await physics_frame
         spawner.advance_fixed(tick, 0.05)
     await physics_frame
+    # PERF-02 live integration: a 109-tick simulation must expose exactly
+    # 109 sensor-work samples, with at least one real vehicle evaluation.
+    # This does not substitute performance telemetry for collision safety.
+    var work: Dictionary = spawner.metrics()["timing"]
+    if int(work["sensor_sample_count"]) != 109:
+        _fail("real traffic profiler skipped or duplicated fixed-tick samples")
+        return
+    if float(work["sensor_checks_peak"]) < 2.0 or float(work["sensor_checks_average"]) <= 0.0:
+        _fail("real traffic profiler did not observe active vehicle sensors")
+        return
     if spawner.active_vehicles.size() < 2:
         _fail("dense traffic fixture did not generate multiple physical cars")
         return
@@ -48,6 +58,10 @@ func _run() -> void:
         if spawner.active_vehicles.size() != originals.size():
             _fail("preflight changed running traffic generation")
             return
+        # Preparing a restore must not erase or fabricate workload history.
+        if spawner.metrics()["timing"]["sensor_sample_count"] != 109:
+            _fail("prepare_restore modified traffic telemetry")
+            return
         # A rogue direct tick must not move cars or advance the spawner
         # while their live collision layers are temporarily disabled.
         var tick_before: int = spawner.current_tick
@@ -57,6 +71,9 @@ func _run() -> void:
             _fail("simulation advanced while transaction was prepared")
             return
         spawner.abort_restore()
+        if spawner.metrics()["timing"]["sensor_sample_count"] != 109:
+            _fail("abort_restore cleared traffic workload history")
+            return
         if spawner.restore_prepared():
             _fail("abort left a pending traffic transaction")
             return
@@ -78,6 +95,10 @@ func _run() -> void:
         return
     if spawner.restore_prepared() or spawner.active_vehicles.size() != originals.size():
         _fail("commit leaked pending state or changed car count")
+        return
+    var committed_work: Dictionary = spawner.metrics()["timing"]
+    if committed_work["sensor_sample_count"] != 0 or committed_work["sample_count"] != 0:
+        _fail("committed traffic generation inherited stale performance data")
         return
     for index in range(originals.size()):
         var replacement: CivicVehicleAgent = spawner.active_vehicles[index]
