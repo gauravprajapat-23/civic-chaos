@@ -233,6 +233,21 @@ func _test_daily_routine_and_safe_assistance() -> bool:
         return _fail("routine activity was not exposed to presentation")
     if walkers.checkpoint_state() != saved:
         return _fail("visual routine changed the existing pedestrian save schema")
+    # Planned rest is not a collision stall: repeated physics ticks must
+    # reset the obstruction counter instead of accumulating false blockage.
+    walkers._blocked_frames[0] = 17
+    walkers._physics_process(0.016)
+    if walkers._blocked_frames[0] != 0:
+        return _fail("scheduled sidewalk rest was counted as collision blockage")
+    # A nearby player is not a license to offer help within overlapping
+    # actors, even if an active civic incident exists in the same area.
+    var volunteer := Node3D.new()
+    volunteer.name = "PlayerRoot"
+    stage.add_child(volunteer)
+    volunteer.global_position = walkers._walkers[0]["root"].global_position
+    if walkers._routine_help_is_clear(0):
+        return _fail("civic helper ignored an overlapping player")
+    volunteer.queue_free()
     stage.queue_free()
     return true
 
