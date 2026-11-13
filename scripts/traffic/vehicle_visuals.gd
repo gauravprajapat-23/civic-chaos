@@ -18,6 +18,7 @@ var _rubber: StandardMaterial3D
 var _headlamp: StandardMaterial3D
 var _tail: StandardMaterial3D
 var _color_slot: int = 0
+var _braking: bool = false
 
 func _ready() -> void:
     _paint = _material(PALETTE[0], 0.36, 0.36)
@@ -66,6 +67,14 @@ func set_lane_variant(lane_id: int) -> void:
 
 func color_variant() -> int:
     return _color_slot
+
+func set_braking(value: bool) -> void:
+    if _braking == value or _tail == null:
+        return
+    _braking = value
+    # Shared lamp material; no per-frame mesh or material allocations.
+    _tail.emission = Color(0.88, 0.08, 0.035) if value else Color(0.24, 0.015, 0.015)
+
 
 func _box(name: String, center: Vector3, dimensions: Vector3,
         surface: Material, tilt: float = 0.0) -> void:
@@ -132,3 +141,30 @@ func _build_details() -> void:
         Vector3(0.39, 0.10, 0.016), _metal)
     _box("LicensePlateRear", Vector3(0, 0.34, 1.545),
         Vector3(0.39, 0.10, 0.016), _metal)
+    # Door seams, pillars, wheel arch accents and running boards add a
+    # recognizable sedan profile while keeping physics entirely unchanged.
+    _box("FrontAirIntake", Vector3(0.0, 0.29, -1.548),
+        Vector3(0.68, 0.085, 0.02), _trim)
+    _box("RearNumberFrame", Vector3(0.0, 0.50, 1.529),
+        Vector3(0.52, 0.19, 0.027), _trim)
+    for side in [-1, 1]:
+        var s: float = float(side)
+        var label: String = "L" if side < 0 else "R"
+        _box("CabinCenterPillar_" + label, Vector3(s * 0.702, 1.075, 0.17),
+            Vector3(0.05, 0.38, 0.075), _trim)
+        _box("RunningBoard_" + label, Vector3(s * 0.79, 0.35, 0.0),
+            Vector3(0.055, 0.10, 1.62), _trim)
+        _box("Waistline_" + label, Vector3(s * 0.812, 0.82, 0.02),
+            Vector3(0.018, 0.025, 2.10), _metal)
+        _box("DoorSeam_" + label, Vector3(s * 0.814, 0.70, 0.2),
+            Vector3(0.02, 0.38, 0.024), _trim)
+        for axle in [-0.95, 0.95]:
+            var axle_name: String = "Front" if axle < 0.0 else "Rear"
+            _box(axle_name + "Arch_" + label, Vector3(s * 0.794, 0.59, axle),
+                Vector3(0.06, 0.045, 0.69), _trim)
+        _box("FogLamp_" + label, Vector3(s * 0.67, 0.37, -1.535),
+            Vector3(0.16, 0.065, 0.025), _headlamp)
+    _box("HoodCenterCrease", Vector3(0, 0.896, -1.09),
+        Vector3(0.025, 0.014, 0.66), _metal)
+    _box("RearWindowBrakeStrip", Vector3(0, 1.275, 0.54),
+        Vector3(0.43, 0.035, 0.04), _tail)
