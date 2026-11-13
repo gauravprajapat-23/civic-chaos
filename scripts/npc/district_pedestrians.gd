@@ -368,6 +368,22 @@ func _resolve_actor_overlap(index: int, _delta: float) -> bool:
         if ratio < 1.0 and ratio < closest_ratio:
             closest_ratio = ratio
             closest = other.position
+    # A checkpoint/initial placement can leave a walker *inside* a car.
+    # Relative distances alone miss the corners of a long vehicle; evaluate
+    # the existing rectangular vehicle footprint in its rotated local space.
+    # Only the current car's location is used, never a made-up escape point.
+    if _traffic_spawner != null:
+        for car in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(car) or not car.active:
+                continue
+            var relative: Vector3 = car.to_local(walker.global_position)
+            if absf(relative.y) > 2.2:
+                continue
+            var overlap_ratio: float = maxf(absf(relative.x) / 1.20,
+                absf(relative.z) / 1.85)
+            if overlap_ratio < 1.0 and overlap_ratio < closest_ratio:
+                closest_ratio = overlap_ratio
+                closest = to_local(car.global_position)
     if closest_ratio == INF:
         return false
 
