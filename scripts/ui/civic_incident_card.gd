@@ -15,6 +15,7 @@ var phase_label: Label
 var hint_label: Label
 var inspect_button: Button
 var report_button: Button
+var alternative_button: Button
 var close_button: Button
 var _state: Dictionary = {}
 
@@ -54,9 +55,12 @@ func _ready() -> void:
     hint_label = _line(layout, "Hint", 14)
     inspect_button = _action(layout, "Inspect Evidence", "InspectButton")
     report_button = _action(layout, "Report to Municipal Service", "ReportButton")
+    alternative_button = _action(layout, "Alternative Response", "AlternativeButton")
+    alternative_button.visible = false
     close_button = _action(layout, "Close / Return to City", "CloseButton")
     inspect_button.pressed.connect(_on_inspect)
     report_button.pressed.connect(_on_report)
+    alternative_button.pressed.connect(_on_alternative)
     close_button.pressed.connect(dismiss)
     get_viewport().size_changed.connect(_fit)
     _fit()
@@ -109,6 +113,8 @@ func present(data: Dictionary) -> void:
         inspect_button.grab_focus()
     elif not report_button.disabled:
         report_button.grab_focus()
+    elif alternative_button.visible and not alternative_button.disabled:
+        alternative_button.grab_focus()
     else:
         close_button.grab_focus()
 
@@ -130,6 +136,15 @@ func render_card(data: Dictionary) -> void:
         report_action = "report"
     report_button.set_meta("report_action", report_action)
     report_button.text = str(data.get("report_label", "Report to Municipal Service"))
+    var alternative_action: String = str(data.get("alternative_action", ""))
+    alternative_button.visible = alternative_action == "request_service"
+    alternative_button.disabled = not bool(data.get("can_alternative", false)) or not alternative_button.visible
+    alternative_button.set_meta("alternative_action", alternative_action if alternative_button.visible else "")
+    alternative_button.text = str(data.get("alternative_label", "Request municipal assistance"))
+
+func _on_alternative() -> void:
+    if is_open() and alternative_button.visible and not alternative_button.disabled:
+        action_selected.emit(str(alternative_button.get_meta("alternative_action", "")))
 
 func is_open() -> bool:
     return backdrop != null and backdrop.visible
