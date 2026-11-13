@@ -118,7 +118,6 @@ func _ready() -> void:
         _walker_progress.append(spawn_progress)
         # Use the compact walker slot, not a possibly skipped spawn index,
         # for stable policy identity and checkpoint-independent ordering.
-        var policy_slot: int = _walkers.size()
         _crossing_policies.append(NpcStability.new() as CivicNpcDecisionStability)
         _crossing_boards.append(NpcBlackboard.new() as CivicNpcBlackboard)
         var personality: CivicNpcPersonality = NpcPersonality.new() as CivicNpcPersonality
