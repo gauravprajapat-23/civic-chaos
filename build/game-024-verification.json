@@ -1,0 +1,219 @@
+﻿{
+    "milestone":  "GAME-024",
+    "status":  "passed",
+    "verified_at_utc":  "2026-11-12T13:02:22.9157018Z",
+    "expected_branch":  "fix/aud-001-game024-gate-hardening",
+    "branch":  "fix/aud-001-game024-gate-hardening",
+    "commit":  "d7fa7a2ec6fb7df4cc2c20af0078696e744c6803",
+    "godot_version":  "4.7.2.stable.official.ed1daf0bf",
+    "import_passed":  true,
+    "python_runner_checks_passed":  true,
+    "python_runner_test_count":  30,
+    "source_preflight_passed":  true,
+    "source_files_checked":  195,
+    "static_resources_checked":  327,
+    "focused_tests":  [
+                          {
+                              "name":  "free_roam_director_checkpoint_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_dynamic_locations_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_npc_reactions_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "vehicle_scene_contract_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "vehicle_feedback_optional_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "traffic_checkpoint_invariants_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "traffic_reconfigure_atomicity_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "checkpoint_record_shapes_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "checkpoint_load_queue_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "checkpoint_orphaned_records_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "player_checkpoint_atomicity_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "npc_personality_contract_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "npc_utility_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "npc_decision_stability_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "touch_layout_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "performance_capture_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "city_road_alignment_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "outer_intersection_priority_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_legacy_migration_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_card_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_live_events_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_event_restart_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "free_roam_expiry_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          },
+                          {
+                              "name":  "district_finale_checkpoint_test.gd",
+                              "passed":  true,
+                              "exit_code":  0,
+                              "engine_error":  false,
+                              "timed_out":  false,
+                              "pass_marker":  true
+                          }
+                      ],
+    "full_regression_passed":  true,
+    "full_regression_timed_out":  false,
+    "full_regression_exit_code":  0,
+    "regression_tests_run":  106,
+    "regression_expected_tests":  106,
+    "regression_source_commit":  "d7fa7a2ec6fb7df4cc2c20af0078696e744c6803",
+    "source_unchanged":  true,
+    "readiness_evidence_passed":  true,
+    "regression_report":  "build/game-024-regression.json",
+    "reason":  "Exact source revision passed import, focused tests, full suite and negative-path checks."
+}

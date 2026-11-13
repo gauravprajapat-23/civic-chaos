@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "godot": "C:\\Godot\\Godot_v4.7.2-stable_win64_console.exe",
+  "tests": [
+    {
+      "test": "smoke_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_SMOKE_PASS"
+      ],
+      "duration_seconds": 0.74
+    },
+    {
+      "test": "determinism_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_DETERMINISM_PASS"
+      ],
+      "duration_seconds": 0.323,
+      "replay_passed": true
+    },
+    {
+      "test": "player_controller_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PLAYER_PASS"
+      ],
+      "duration_seconds": 0.338
+    },
+    {
+      "test": "lifecycle_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_LIFECYCLE_PASS"
+      ],
+      "duration_seconds": 0.419
+    },
+    {
+      "test": "lane_graph_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_LANE_GRAPH_PASS"
+      ],
+      "duration_seconds": 0.315
+    },
+    {
+      "test": "lane_routing_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_ROUTING_PASS"
+      ],
+      "duration_seconds": 0.33
+    },
+    {
+      "test": "junction_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_JUNCTION_PASS"
+      ],
+      "duration_seconds": 0.414
+    },
+    {
+      "test": "vehicle_agent_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_VEHICLE_PASS"
+      ],
+      "duration_seconds": 0.355
+    },
+    {
+      "test": "car_following_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_FOLLOWING_PASS"
+      ],
+      "duration_seconds": 0.327
+    },
+    {
+      "test": "signal_phases_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_SIGNAL_PASS"
+      ],
+      "duration_seconds": 0.344
+    },
+    {
+      "test": "intersection_reservations_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_RESERVATIONS_PASS"
+      ],
+      "duration_seconds": 0.333
+    },
+    {
+      "test": "traffic_spawner_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_SPAWNER_PASS"
+      ],
+      "duration_seconds": 0.916
+    },
+    {
+      "test": "npc_personality_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_NPC_PERSONALITY_PASS"
+      ],
+      "duration_seconds": 0.361
+    },
+    {
+      "test": "vehicle_behavior_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_VEHICLE_BEHAVIOR_PASS"
+      ],
+      "duration_seconds": 0.479
+    },
+    {
+      "test": "pedestrian_navigation_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_PASS"
+      ],
+      "duration_seconds": 0.342
+    },
+    {
+      "test": "social_influence_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_SOCIAL_INFLUENCE_PASS"
+      ],
+      "duration_seconds": 0.395
+    },
+    {
+      "test": "ai_lod_scheduler_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_AI_LOD_PASS"
+      ],
+      "duration_seconds": 0.378
+    },
+    {
+      "test": "incident_lifecycle_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_INCIDENT_PASS"
+      ],
+      "duration_seconds": 0.339
+    },
+    {
+      "test": "wrong_way_scenario_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_WRONG_WAY_PASS"
+      ],
+      "duration_seconds": 0.323
+    },
+    {
+      "test": "parking_capacity_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PARKING_PASS"
+      ],
+      "duration_seconds": 0.359
+    },
+    {
+      "test": "deadlock_detector_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_DEADLOCK_PASS"
+      ],
+      "duration_seconds": 0.338
+    },
+    {
+      "test": "deadlock_recovery_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_DEADLOCK_RECOVERY_PASS"
+      ],
+      "duration_seconds": 0.33
+    },
+    {
+      "test": "mission_framework_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_MISSIONS_PASS"
+      ],
+      "duration_seconds": 0.349
+    },
+    {
+      "test": "city_metrics_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_CITY_METRICS_PASS"
+      ],
+      "duration_seconds": 0.352
+    },
+    {
+      "test": "player_civic_interactions_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PLAYER_INTERACTIONS_PASS"
+      ],
+      "duration_seconds": 0.447
+    },
+    {
+      "test": "wrong_way_mission_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_WRONG_WAY_MISSION_PASS"
+      ],
+      "duration_seconds": 0.451,
+      "replay_passed": true
+    },
+    {
+      "test": "event_director_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_EVENT_DIRECTOR_PASS"
+      ],
+      "duration_seconds": 0.47
+    },
+    {
+      "test": "neighborhood_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_NEIGHBORHOOD_PASS"
+      ],
+      "duration_seconds": 0.359
+    },
+    {
+      "test": "civic_hud_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_HUD_PASS"
+      ],
+      "duration_seconds": 0.499
+    },
+    {
+      "test": "agent_feedback_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_AGENT_FEEDBACK_PASS"
+      ],
+      "duration_seconds": 0.328
+    },
+    {
+      "test": "debug_telemetry_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_DEBUG_TELEMETRY_PASS"
+      ],
+      "duration_seconds": 0.32
+    },
+    {
+      "test": "touch_controls_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_TOUCH_CONTROLS_PASS"
+      ],
+      "duration_seconds": 0.33
+    },
+    {
+      "test": "graphics_lod_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_GRAPHICS_LOD_PASS"
+      ],
+      "duration_seconds": 0.353
+    },
+    {
+      "test": "traffic_budget_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_TRAFFIC_BUDGET_PASS"
+      ],
+      "duration_seconds": 0.367,
+      "replay_passed": true
+    },
+    {
+      "test": "traffic_stop_line_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_TRAFFIC_STOP_LINE_PASS"
+      ],
+      "duration_seconds": 0.33
+    },
+    {
+      "test": "traffic_braking_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_TRAFFIC_BRAKING_PASS"
+      ],
+      "duration_seconds": 0.315
+    },
+    {
+      "test": "world_collision_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_WORLD_COLLISION_PASS"
+      ],
+      "duration_seconds": 0.406
+    },
+    {
+      "test": "pedestrian_collision_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_COLLISION_PASS"
+      ],
+      "duration_seconds": 6.334
+    },
+    {
+      "test": "vehicle_obstacle_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_VEHICLE_OBSTACLE_PASS"
+      ],
+      "duration_seconds": 4.233
+    },
+    {
+      "test": "city_traffic_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_CITY_TRAFFIC_PASS"
+      ],
+      "duration_seconds": 0.445
+    },
+    {
+      "test": "surface_player_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_SURFACE_AND_PLAYER_PASS"
+      ],
+      "duration_seconds": 0.93
+    },
+    {
+      "test": "player_pedestrian_contact_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PLAYER_PEDESTRIAN_CONTACT_PASS"
+      ],
+      "duration_seconds": 4.253
+    },
+    {
+      "test": "player_vehicle_contact_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PLAYER_VEHICLE_CONTACT_PASS"
+      ],
+      "duration_seconds": 4.621
+    },
+    {
+      "test": "player_safe_restore_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PLAYER_SAFE_RESTORE_PASS"
+      ],
+      "duration_seconds": 0.737
+    },
+    {
+      "test": "pedestrian_crowd_avoidance_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_CROWD_AVOIDANCE_PASS"
+      ],
+      "duration_seconds": 14.417
+    },
+    {
+      "test": "pedestrian_spawn_separation_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_SPAWN_SEPARATION_PASS"
+      ],
+      "duration_seconds": 5.904
+    },
+    {
+      "test": "building_distance_lod_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_BUILDING_DISTANCE_LOD_PASS"
+      ],
+      "duration_seconds": 0.537
+    },
+    {
+      "test": "city_signal_stop_line_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_CITY_SIGNAL_STOP_LINE_PASS"
+      ],
+      "duration_seconds": 0.454
+    },
+    {
+      "test": "vehicle_world_obstacle_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_VEHICLE_WORLD_OBSTACLE_PASS"
+      ],
+      "duration_seconds": 2.958
+    },
+    {
+      "test": "vehicle_spawn_occupancy_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_VEHICLE_SPAWN_OCCUPANCY_PASS"
+      ],
+      "duration_seconds": 0.488
+    },
+    {
+      "test": "gameplay_session_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_GAMEPLAY_SESSION_PASS"
+      ],
+      "duration_seconds": 3.019
+    },
+    {
+      "test": "two_way_lane_separation_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_TWO_WAY_LANE_SEPARATION_PASS"
+      ],
+      "duration_seconds": 0.364
+    },
+    {
+      "test": "pedestrian_crossing_recovery_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_PEDESTRIAN_CROSSING_RECOVERY_PASS"
+      ],
+      "duration_seconds": 0.425
+    },
+    {
+      "test": "gameplay_persistence_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_GAMEPLAY_PERSISTENCE_PASS"
+      ],
+      "duration_seconds": 3.027
+    },
+    {
+      "test": "gameplay_incident_card_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_GAMEPLAY_INCIDENT_CARD_PASS"
+      ],
+      "duration_seconds": 3.089
+    },
+    {
+      "test": "wrong_way_live_mission_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_WRONG_WAY_LIVE_MISSION_PASS"
+      ],
+      "duration_seconds": 11.174
+    },
+    {
+      "test": "wrong_way_report_post_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "engine_error_detected": false,
+      "markers": [
+        "CIVIC_CHAOS_WRONG_WAY_REPORT_POST_PASS"
+      ],
+      "duration_seconds": 0.455
+    }
+  ],
+  "passed": true,
+  "import": {
+    "returncode": 0,
+    "elapsed_seconds": 7.107,
+    "output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Started Project initialization (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Scanning file structure...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Loading global class names...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Verifying GDExtensions...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Creating autoload scripts...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Initializing plugins...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Starting file scan...\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mfirst_scan_filesystem\u001b[22m\n\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Started Loading editor (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading editor layout...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading docks...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Reopening scenes...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading central editor layout...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading plugin window layout...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Editor layout ready.\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mloading_editor_layout\u001b[22m\n\u001b[0m\n"
+  },
+  "negative_path_passed": true
+}

@@ -31,6 +31,7 @@ func _test_clock() -> bool:
     if log_a != log_b or a.tick_index != 3:
         push_error("Clock replay mismatch")
         return false
+    print("CIVIC_CHAOS_REPLAY_STATE clock=" + JSON.stringify(log_a))
     a.paused = true
     if a.advance(1.0) != 0 or a.tick_index != 3:
         push_error("Paused clock advanced")
@@ -52,6 +53,7 @@ func _test_rng() -> bool:
     if seq_a != seq_b:
         push_error("Seeded replay mismatch")
         return false
+    print("CIVIC_CHAOS_REPLAY_STATE rng=" + JSON.stringify(seq_a))
     var agent_two = RandomScript.new(42)
     agent_two.next_float(2002)
     if agent_two.next_float(1001) != seq_a[0]:

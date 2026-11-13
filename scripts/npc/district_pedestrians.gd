@@ -1,0 +1,905 @@
+extends Node3D
+## Deterministic sidewalk pedestrians with physics clearance and junction reservations.
+
+@export var pedestrian_count: int = 8
+@export var district_extent: float = 38.0
+var _walkers: Array[Dictionary] = []
+var _elapsed: float = 0.0
+var _signal_controller: CivicTrafficSignalController
+var _traffic_spawner: CivicTrafficSpawner
+var _walker_progress: Array[float] = []
+var _reservations: CivicIntersectionReservations
+var _crossing: Array[bool] = []
+var _crossing_start_tick: Array[int] = []
+const CROSSING_WAIT_TIMEOUT_TICKS: int = 80
+const CROSSING_BLOCKED_FRAMES: int = 60
+const BODY_RADIUS: float = 0.32
+const PLAYER_CLEARANCE: float = 1.4
+const PLAYER_YIELD_RADIUS: float = 2.3
+const PLAYER_YIELD_SPEED: float = 5.5
+const WALKER_CLEARANCE: float = 1.05
+const CROSSING_CLEARANCE: float = 1.3
+const VEHICLE_CLEARANCE: float = 1.5
+const PERSONAL_SPACE: float = 1.4
+const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
+const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd")
+const NpcPersonality = preload("res://scripts/npc/npc_personality.gd")
+const NpcBlackboard = preload("res://scripts/npc/npc_blackboard.gd")
+const NpcStability = preload("res://scripts/npc/npc_decision_stability.gd")
+const NpcDailyRoutine = preload("res://scripts/npc/npc_daily_routine.gd")
+## AI-03 feature gate: retain the accepted GAME-024 walking behavior by default.
+@export var daily_routines_enabled: bool = false
+var _routine_activity: Array[String] = []
+## AI-02 staged integration: disabled until GAME-024 full acceptance.
+## Safety checks/reservation authority remain in the physical walker code.
+@export var stable_crossing_decisions_enabled: bool = false
+var _decision_tick: int = 0
+var _crossing_policies: Array[CivicNpcDecisionStability] = []
+var _crossing_boards: Array[CivicNpcBlackboard] = []
+var _crossing_personalities: Array[CivicNpcPersonality] = []
+var _reaction_context: Dictionary = {}
+var _reaction_label: Label3D
+var _reaction_end: float = -1.0
+var _last_reaction_time: float = -100.0
+const SIDESTEP_DISTANCE: float = 1.4
+const SIDESTEP_SPEED: float = 1.5
+var _sidestep_offsets: Array[float] = []
+var _blocked_frames: Array[int] = []
+
+## PERF-01: opt-in local profiling; false in all normal gameplay scenes.
+## Measurements are microseconds per complete pedestrian physics update.
+@export var profile_movement_enabled: bool = false
+const PROFILE_WINDOW: int = 120
+var _movement_samples_us: Array[int] = []
+
+func reset_movement_profile() -> void:
+    _movement_samples_us.clear()
+
+func movement_profile() -> Dictionary:
+    var total: int = 0
+    var peak: int = 0
+    for duration in _movement_samples_us:
+        total += duration
+        peak = maxi(peak, duration)
+    var count: int = _movement_samples_us.size()
+    return {
+        "sample_count": count,
+        "average_us": float(total) / float(maxi(count, 1)),
+        "peak_us": peak,
+        "walkers": _walkers.size()
+    }
+
+func configure_traffic(signals: CivicTrafficSignalController, spawner: CivicTrafficSpawner, reservations: CivicIntersectionReservations = null) -> void:
+    _signal_controller = signals
+    _traffic_spawner = spawner
+    _reservations = reservations
+
+func _ready() -> void:
+    var shirt_colors := [
+        Color(0.82, 0.29, 0.24),
+        Color(0.20, 0.53, 0.77),
+        Color(0.31, 0.62, 0.39),
+        Color(0.82, 0.66, 0.23)
+    ]
+    for index in range(pedestrian_count):
+        var walker := AnimatableBody3D.new()
+        walker.collision_layer = 8
+        walker.collision_mask = 0 # Sensing layer only; no rigid actor-actor collision.
+        walker.sync_to_physics = false # We place walkers in _physics_process; never replay a stale synced transform.
+        walker.set_meta("pedestrian_index", index)
+        var collider := CollisionShape3D.new()
+        collider.name = "BodyCollision"
+        var capsule := CapsuleShape3D.new()
+        capsule.radius = BODY_RADIUS
+        capsule.height = 1.75
+        collider.shape = capsule
+        collider.position.y = 0.87
+        walker.add_child(collider)
+        walker.name = "Pedestrian_%02d" % index
+        add_child(walker)
+        var color: Color = shirt_colors[index % shirt_colors.size()]
+        _part(walker, "Torso", Vector3(0, 1.18, 0), Vector3(0.42, 0.62, 0.26), color)
+        _part(walker, "Head", Vector3(0, 1.72, 0), Vector3(0.31, 0.33, 0.31), Color(0.70, 0.46, 0.31))
+        var left_arm := _part(walker, "LeftArm", Vector3(-0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
+        var right_arm := _part(walker, "RightArm", Vector3(0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
+        var left_leg := _part(walker, "LeftLeg", Vector3(-0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
+        var right_leg := _part(walker, "RightLeg", Vector3(0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
+        # Search an unoccupied start; overlapping capsules cannot resolve
+        # themselves through simple stop-on-obstacle avoidance.
+        var spawn_progress: float = float(index) * 5.0
+        var loop_length: float = district_extent * 1.65
+        var found_spawn: bool = false
+        for attempt in range(192):
+            var spawn_fraction: float = fposmod(spawn_progress, loop_length) - loop_length * 0.5
+            if _spawn_is_clear(_walk_position(index % 4, spawn_fraction)):
+                found_spawn = true
+                break
+            spawn_progress += PERSONAL_SPACE + 0.3
+        if not found_spawn:
+            push_warning("Pedestrian spawn skipped: all safe slots occupied (%d)" % index)
+            walker.queue_free()
+            continue
+        _walker_progress.append(spawn_progress)
+        # Use the compact walker slot, not a possibly skipped spawn index,
+        # for stable policy identity and checkpoint-independent ordering.
+        _crossing_policies.append(NpcStability.new() as CivicNpcDecisionStability)
+        _crossing_boards.append(NpcBlackboard.new() as CivicNpcBlackboard)
+        var personality: CivicNpcPersonality = NpcPersonality.new() as CivicNpcPersonality
+        personality.patience = 0.0
+        personality.rule_compliance = 1.0
+        _crossing_personalities.append(personality)
+        _routine_activity.append("commute")
+        _sidestep_offsets.append(0.0)
+        _blocked_frames.append(0)
+        _crossing.append(false)
+        _crossing_start_tick.append(-1)
+        walker.position = _walk_position(index % 4, fposmod(spawn_progress, loop_length) - loop_length * 0.5)
+        _walkers.append({
+            "root": walker, "arms": [left_arm, right_arm], "legs": [left_leg, right_leg],
+            "phase": float(index) * 1.7, "speed": 1.0 + float(index % 3) * 0.22,
+            "side": index % 4, "offset": float(index) * 5.0
+        })
+
+## NPCs react when a nearby incident appears, is inspected, carried or resolved.
+## This is visual feedback only; checkpointed pedestrian movement remains intact.
+func react_to_incident(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
+    if not FreeRoamChallenges.all_kinds().has(kind) or instance_id <= 0:
+        return
+    if phase == "resolved" or phase == "expired":
+        _reaction_context = {}
+    else:
+        _reaction_context = {"position": at, "kind": kind,
+            "phase": phase, "instance": instance_id}
+    var witness: int = _closest_witness(at, 20.0)
+    if witness >= 0:
+        _show_reaction(witness, FreeRoamChallenges.reaction(kind, phase, instance_id))
+
+func _closest_witness(at: Vector3, max_distance: float) -> int:
+    var best: int = -1
+    var best_distance: float = max_distance * max_distance
+    for index in range(_walkers.size()):
+        var walker: Node3D = _walkers[index]["root"]
+        if not is_instance_valid(walker):
+            continue
+        var gap: Vector3 = walker.global_position - at
+        gap.y = 0.0
+        if gap.length_squared() < best_distance:
+            best_distance = gap.length_squared()
+            best = index
+    return best
+
+func _show_reaction(index: int, message: String) -> void:
+    if message.is_empty() or index < 0 or index >= _walkers.size():
+        return
+    var walker: Node3D = _walkers[index]["root"]
+    if not is_instance_valid(_reaction_label):
+        _reaction_label = Label3D.new()
+        _reaction_label.name = "CivicWitnessSpeech"
+        _reaction_label.font_size = 32
+        _reaction_label.pixel_size = 0.006
+        _reaction_label.outline_size = 9
+        _reaction_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+        _reaction_label.position = Vector3(0.0, 2.2, 0.0)
+    if _reaction_label.get_parent() != walker:
+        if _reaction_label.get_parent() != null:
+            _reaction_label.get_parent().remove_child(_reaction_label)
+        walker.add_child(_reaction_label)
+    _reaction_label.text = message
+    _reaction_label.visible = true
+    _last_reaction_time = _elapsed
+    _reaction_end = _elapsed + 4.0
+
+func _part(parent: Node3D, part_name: String, position_value: Vector3, size: Vector3, color: Color) -> MeshInstance3D:
+    var part := MeshInstance3D.new()
+    part.name = part_name
+    part.position = position_value
+    if part_name == "Head":
+        var head_mesh := SphereMesh.new()
+        head_mesh.radius = size.x * 0.5
+        head_mesh.height = size.y
+        part.mesh = head_mesh
+    else:
+        var limb_mesh := CapsuleMesh.new()
+        limb_mesh.radius = minf(size.x, size.z) * 0.5
+        limb_mesh.height = maxf(size.y, limb_mesh.radius * 2.0)
+        part.mesh = limb_mesh
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    part.material_override = material
+    parent.add_child(part)
+    return part
+
+func _physics_process(delta: float) -> void:
+    if delta <= 0.0:
+        return
+    var profile_start_us: int = Time.get_ticks_usec() if profile_movement_enabled else 0
+    _elapsed += delta
+    _decision_tick += 1
+    if is_instance_valid(_reaction_label) and _elapsed >= _reaction_end:
+        _reaction_label.visible = false
+    if not _reaction_context.is_empty() and _elapsed - _last_reaction_time >= 8.0:
+        var witness: int = _closest_witness(_reaction_context["position"], 10.0)
+        if witness >= 0:
+            _show_reaction(witness, FreeRoamChallenges.reaction(
+                str(_reaction_context["kind"]), str(_reaction_context["phase"]),
+                int(_reaction_context["instance"])))
+    var length: float = district_extent * 1.65
+    for index in range(_walkers.size()):
+        var data: Dictionary = _walkers[index]
+        var root: Node3D = data["root"]
+        var side: int = data["side"]
+        var speed: float = data["speed"]
+        var old_progress: float = fposmod(_walker_progress[index], length) - length * 0.5
+        var proposed: float = fposmod(_walker_progress[index] + delta * speed, length) - length * 0.5
+        var can_walk: bool = true
+        # Safety recovery is independent of traffic-light permission. A walker
+        # at a red crossing must still move away from an overlapping player.
+        var recovering: bool = _resolve_actor_overlap(index, delta)
+        if not _crossing[index] and old_progress < -6.0 and proposed >= -6.0:
+            if _crossing_permission(index, side) and _reserve_crossing(index, side):
+                _crossing[index] = true
+            else:
+                _walker_progress[index] = -6.0 + length * 0.5
+                can_walk = false
+        elif not _crossing[index] and absf(old_progress + 6.0) < 0.0001:
+            if _crossing_permission(index, side) and _reserve_crossing(index, side):
+                _crossing[index] = true
+            else:
+                can_walk = false
+        var planned_pause: bool = false
+        if recovering or _yield_to_player(index, delta):
+            can_walk = false
+        elif can_walk and _routine_rest_at_safe_sidewalk(index, side):
+            # A voluntary break must not accrue obstacle-stall frames. Real
+            # collision/yield failures still follow the original recovery path.
+            planned_pause = true
+            can_walk = false
+        elif can_walk:
+            can_walk = _advance_clear_walker(index, delta, length)
+        if can_walk or planned_pause:
+            _blocked_frames[index] = 0
+        else:
+            _blocked_frames[index] += 1
+        var progress: float = fposmod(_walker_progress[index], length) - length * 0.5
+        _retire_stalled_crossing(index, side)
+        # Release a completed crossing only after the body is actually clear.
+        if _crossing[index] and progress >= 6.0 and not _walker_in_crossing_conflict(index, side):
+            _release_crossing(index, side)
+            _crossing[index] = false
+        # Position was accepted by _advance_clear_walker; when blocked, the
+        # body either sidesteps into tested space or stays in place.
+        match side:
+            0:
+                root.rotation.y = PI
+            1:
+                root.rotation.y = 0.0
+            2:
+                root.rotation.y = -PI * 0.5
+            3:
+                root.rotation.y = PI * 0.5
+        var swing: float = sin(_elapsed * speed * 7.0 + data["phase"]) * 0.35 if can_walk else 0.0
+        var arms: Array = data["arms"]
+        var legs: Array = data["legs"]
+        arms[0].rotation.x = swing
+        if is_instance_valid(_reaction_label) and _reaction_label.visible and _reaction_label.get_parent() == root:
+            arms[0].rotation.x = -0.95 # Brief acknowledgement; no collision or path override.
+        arms[1].rotation.x = -swing
+        legs[0].rotation.x = -swing
+        legs[1].rotation.x = swing
+    if profile_movement_enabled:
+        _movement_samples_us.append(maxi(0, Time.get_ticks_usec() - profile_start_us))
+        if _movement_samples_us.size() > PROFILE_WINDOW:
+            _movement_samples_us.remove_at(0)
+
+## The daily schedule is computed, not stored in the v1 checkpoint. A
+## pause is allowed only away from road conflict space and while outside an
+## occupied crosswalk; original movement clearance remains the authority.
+func _routine_rest_at_safe_sidewalk(index: int, side: int) -> bool:
+    if not daily_routines_enabled or _crossing[index] or _walker_in_crossing_conflict(index, side):
+        return false
+    var near_incident: bool = false
+    if not _reaction_context.is_empty():
+        var witness: Node3D = _walkers[index]["root"]
+        var incident_at: Vector3 = _reaction_context["position"]
+        near_incident = witness.global_position.distance_squared_to(incident_at) <= 100.0
+    # Proximity is only awareness. A real-world safety check is required
+    # before offering help: no nearby moving vehicle, player/body overlap,
+    # or blocking geometry at the pedestrian's present position.
+    var safe_to_help: bool = near_incident and _routine_help_is_clear(index)
+    var plan: Dictionary = NpcDailyRoutine.plan(index, _decision_tick, near_incident, safe_to_help)
+    if not bool(plan.get("ok", false)):
+        return false
+    _routine_activity[index] = str(plan["activity"])
+    if bool(plan["assist"]) and (not is_instance_valid(_reaction_label) or not _reaction_label.visible):
+        _show_reaction(index, "I'll help keep our street safe.")
+    return bool(plan["pause"])
+
+func _routine_help_is_clear(index: int) -> bool:
+    if index < 0 or index >= _walkers.size() or _crossing[index]:
+        return false
+    var walker: Node3D = _walkers[index]["root"]
+    if not is_instance_valid(walker):
+        return false
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var to_player: Vector3 = walker.global_position - player.global_position
+        to_player.y = 0.0
+        if to_player.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+            return false
+    if _traffic_spawner != null:
+        for car in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(car) or not car.active:
+                continue
+            var to_car: Vector3 = walker.global_position - car.global_position
+            to_car.y = 0.0
+            if to_car.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                return false
+    # Scene geometry must also be clear. Do not call this from an input event:
+    # it runs only inside the pedestrian physics update.
+    return not _swept_path_blocked(index, walker.position, walker.position, true)
+
+func routine_activity(index: int) -> String:
+    if index < 0 or index >= _routine_activity.size():
+        return ""
+    return _routine_activity[index]
+
+## When somebody is already embedded, create small local separation.
+## A separate fallback is needed because planning from overlapping positions
+## cannot know a legal path until the initial penetration is reduced.
+func _resolve_actor_overlap(index: int, _delta: float) -> bool:
+    var walker: Node3D = _walkers[index]["root"]
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    var closest: Vector3 = Vector3.ZERO
+    var closest_ratio: float = INF
+    if player != null:
+        var to_player: Vector3 = walker.global_position - player.global_position
+        to_player.y = 0.0
+        var player_ratio: float = to_player.length() / PLAYER_CLEARANCE
+        if player_ratio < 1.0:
+            closest_ratio = player_ratio
+            closest = to_local(player.global_position)
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var gap: Vector3 = walker.position - other.position
+        gap.y = 0.0
+        var ratio: float = gap.length() / HARD_SEPARATION
+        if ratio < 1.0 and ratio < closest_ratio:
+            closest_ratio = ratio
+            closest = other.position
+    if closest_ratio == INF:
+        return false
+
+    # Normal path avoidance cannot escape a fully embedded start: it rejects
+    # every intermediate point as occupied. Reserve one small, clear landing
+    # point instead, then resume regular path planning on subsequent frames.
+    var away: Vector3 = walker.position - closest
+    away.y = 0.0
+    if away.length_squared() < 0.00001:
+        var heading: float = float((index * 5 + 1) % 16) * TAU / 16.0
+        away = Vector3(cos(heading), 0.0, sin(heading))
+    away = away.normalized()
+    var heading_angle: float = atan2(away.z, away.x)
+    for radius in [1.55, 1.95, 2.4, 3.1]:
+        for direction_step in [0, 1, -1, 2, -2, 3, -3, 4]:
+            var angle: float = heading_angle + float(direction_step) * PI / 4.0
+            var candidate: Vector3 = walker.position + Vector3(cos(angle), 0.0, sin(angle)) * radius
+            if _recovery_position_is_clear(index, candidate):
+                walker.position = candidate
+                var entry: Dictionary = _walkers[index]
+                var side: int = entry["side"]
+                var circumference: float = district_extent * 1.65
+                var progress: float = fposmod(_walker_progress[index], circumference) - circumference * 0.5
+                var route_center: Vector3 = _walk_position(side, progress)
+                _sidestep_offsets[index] = clampf(
+                    (candidate - route_center).dot(_walker_right(side, float(entry["speed"]))),
+                    -SIDESTEP_DISTANCE, SIDESTEP_DISTANCE
+                )
+                _blocked_frames[index] = 0
+                return true
+    # Do not teleport into another actor or a building if every option fails.
+    return false
+
+func _recovery_position_is_clear(index: int, candidate: Vector3) -> bool:
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var player_offset: Vector3 = to_local(player.global_position) - candidate
+        player_offset.y = 0.0
+        if player_offset.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+            return false
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var gap: Vector3 = other.position - candidate
+        gap.y = 0.0
+        if gap.length_squared() < PERSONAL_SPACE * PERSONAL_SPACE:
+            return false
+    if _traffic_spawner != null:
+        for vehicle in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(vehicle) or not vehicle.active:
+                continue
+            var gap: Vector3 = vehicle.global_position - to_global(candidate)
+            gap.y = 0.0
+            if gap.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                return false
+    # Validate static world/car occupancy only at the recovery destination.
+    # Never apply the normal path sweep to a point already inside an actor.
+    return not _swept_path_blocked(index, candidate, candidate, true)
+
+## People have right-of-way over an NPC's route. Approach is sensed before
+## they touch; a pedestrian moves sideways instead of physically pushing the
+## player or remaining motionless in front of them.
+func _yield_to_player(index: int, delta: float) -> bool:
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player == null:
+        return false
+    var root: Node3D = _walkers[index]["root"]
+    var to_player: Vector3 = player.global_position - root.global_position
+    to_player.y = 0.0
+    if to_player.length_squared() >= PLAYER_YIELD_RADIUS * PLAYER_YIELD_RADIUS:
+        return false
+    var entry: Dictionary = _walkers[index]
+    var side: int = entry["side"]
+    var speed: float = entry["speed"]
+    var loop_length: float = district_extent * 1.65
+    var progress: float = fposmod(_walker_progress[index], loop_length) - loop_length * 0.5
+    var center: Vector3 = _walk_position(side, progress)
+    var lateral: Vector3 = _walker_right(side, speed)
+    var player_local: Vector3 = to_local(player.global_position)
+    var player_side: float = (player_local - center).dot(lateral)
+    var direction: float = -1.0 if player_side > 0.0 else 1.0
+    for sign_value in [direction, -direction]:
+        var new_offset: float = move_toward(
+            _sidestep_offsets[index],
+            sign_value * SIDESTEP_DISTANCE,
+            PLAYER_YIELD_SPEED * delta
+        )
+        var candidate: Vector3 = center + lateral * new_offset
+        var previous: Vector3 = root.position
+        var old_gap: Vector3 = previous - player_local
+        var new_gap: Vector3 = candidate - player_local
+        old_gap.y = 0.0
+        new_gap.y = 0.0
+        if new_gap.length_squared() + 0.00001 < old_gap.length_squared():
+            continue
+        if _candidate_is_clear(index, previous, candidate, false):
+            root.position = candidate
+            _sidestep_offsets[index] = new_offset
+            return true
+    # When the player occupies the walkway, wait rather than walk into them.
+    return true
+
+## Spawn and route-reset clearance are checked against already committed
+## pedestrian positions, never the unoccupied route centerline alone.
+func _spawn_is_clear(candidate: Vector3) -> bool:
+    for entry in _walkers:
+        var other: Node3D = entry["root"]
+        var delta: Vector3 = other.position - candidate
+        delta.y = 0.0
+        if delta.length_squared() < PERSONAL_SPACE * PERSONAL_SPACE:
+            return false
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var offset: Vector3 = player.global_position - to_global(candidate)
+        offset.y = 0.0
+        if offset.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+            return false
+    return true
+
+## The lane-relative right side is opposite for opposing walkers; deterministic
+## yielding avoids both agents choosing the same physical passing side.
+func _walker_right(side: int, speed: float) -> Vector3:
+    var forward := Vector3.FORWARD
+    match side:
+        0:
+            forward = Vector3.BACK
+        1:
+            forward = Vector3.FORWARD
+        2:
+            forward = Vector3.RIGHT
+        3:
+            forward = Vector3.LEFT
+    if speed < 0.0:
+        forward = -forward
+    return Vector3(forward.z, 0.0, -forward.x)
+
+func _advance_clear_walker(index: int, delta: float, loop_length: float) -> bool:
+    var data: Dictionary = _walkers[index]
+    var root: Node3D = data["root"]
+    var side: int = data["side"]
+    var speed: float = data["speed"]
+    var previous: Vector3 = root.position
+    var progress: float = fposmod(_walker_progress[index], loop_length) - loop_length * 0.5
+    var next_progress: float = fposmod(_walker_progress[index] + speed * delta, loop_length) - loop_length * 0.5
+    var lateral := _walker_right(side, speed)
+    var center: Vector3 = _walk_position(side, next_progress)
+    var wraps: bool = previous.distance_squared_to(center) > 4.0
+    var recenter: float = move_toward(_sidestep_offsets[index], 0.0, SIDESTEP_SPEED * delta)
+    var intended: Vector3 = center + lateral * recenter
+    if _candidate_is_clear(index, previous, intended, wraps):
+        root.position = intended
+        _sidestep_offsets[index] = recenter
+        _walker_progress[index] += delta * speed
+        return true
+    # Route wrap is a safe respawn, never a swept movement across the city.
+    # Wait for destination clearance rather than teleport into another walker.
+    if wraps:
+        return false
+    # Alternate the passing side after sustained obstruction. Test the
+    # lateral path first; never step through another agent to reach an offset.
+    var first_side: float = 1.0 if _blocked_frames[index] < 75 else -1.0
+    for sign_value in [first_side, -first_side]:
+        var shifted: float = move_toward(
+            _sidestep_offsets[index], sign_value * SIDESTEP_DISTANCE,
+            SIDESTEP_SPEED * delta
+        )
+        if absf(shifted - _sidestep_offsets[index]) < 0.00001:
+            continue
+        var alongside: Vector3 = center + lateral * shifted
+        if _candidate_is_clear(index, previous, alongside, false):
+            root.position = alongside
+            _sidestep_offsets[index] = shifted
+            _walker_progress[index] += delta * speed
+            return true
+        # Controlled side-only movement allows the agent to go around an
+        # obstacle without advancing through the occupied crossing.
+        var sideways: Vector3 = _walk_position(side, progress) + lateral * shifted
+        if _candidate_is_clear(index, previous, sideways, false):
+            root.position = sideways
+            _sidestep_offsets[index] = shifted
+            return false
+    return false
+
+func _candidate_is_clear(index: int, previous: Vector3, destination: Vector3, wraps: bool) -> bool:
+    if _pedestrian_blocked(index, destination):
+        return false
+    if not wraps and _walker_path_occupied(index, previous, destination):
+        return false
+    # Probe solid buildings/props and vehicles only. Agent personal space
+    # and yielding are handled separately from the physics query.
+    if _swept_path_blocked(index, previous, destination, wraps):
+        return false
+    return true
+
+func _walk_position(side: int, progress: float) -> Vector3:
+    var offset: float = 5.0
+    match side:
+        0:
+            return Vector3(offset, 0.23, progress)
+        1:
+            return Vector3(-offset, 0.23, -progress)
+        2:
+            return Vector3(progress, 0.23, offset)
+        _:
+            return Vector3(-progress, 0.23, -offset)
+
+## A moving pedestrian must not cross another pedestrian's occupied space.
+## Segment sampling also catches perpendicular routes at the junction.
+func _walker_path_occupied(index: int, start: Vector3, destination: Vector3) -> bool:
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var initial: Vector3 = start - other.position
+        var proposed: Vector3 = destination - other.position
+        initial.y = 0.0
+        proposed.y = 0.0
+        var initial_squared: float = initial.length_squared()
+        var proposed_squared: float = proposed.length_squared()
+        # Never cross the combined collision capsules, even with large steps.
+        if _segment_near_point(start, destination, other.position, HARD_SEPARATION):
+            if initial_squared >= HARD_SEPARATION * HARD_SEPARATION or proposed_squared <= initial_squared + 0.000001:
+                return true
+        # In the personal-space buffer, only outward/parallel movement is
+        # permitted. This lets a pedestrian sidestep out of a tight crowd.
+        if _segment_near_point(start, destination, other.position, PERSONAL_SPACE):
+            if proposed_squared < initial_squared - 0.000001:
+                return true
+    return false
+
+static func _segment_near_point(start: Vector3, destination: Vector3, point: Vector3, clearance: float) -> bool:
+    var travel: Vector3 = destination - start
+    travel.y = 0.0
+    var relative: Vector3 = point - start
+    relative.y = 0.0
+    var fraction: float = clampf(relative.dot(travel) / maxf(travel.length_squared(), 0.000001), 0.0, 1.0)
+    var gap: Vector3 = relative - travel * fraction
+    return gap.length_squared() < clearance * clearance
+
+func _pedestrian_blocked(index: int, next_position: Vector3) -> bool:
+    var current: Vector3 = _walkers[index]["root"].position
+    var player: Node3D = get_parent().get_node_or_null("PlayerRoot") as Node3D
+    if player != null:
+        var destination_gap: Vector3 = player.global_position - to_global(next_position)
+        var current_gap: Vector3 = player.global_position - to_global(current)
+        destination_gap.y = 0.0
+        current_gap.y = 0.0
+        if destination_gap.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
+            if destination_gap.length_squared() < current_gap.length_squared() - 0.000001:
+                return true
+    for other_index in range(_walkers.size()):
+        if other_index == index:
+            continue
+        var other: Node3D = _walkers[other_index]["root"]
+        var destination_gap: Vector3 = other.position - next_position
+        var current_gap: Vector3 = other.position - current
+        destination_gap.y = 0.0
+        current_gap.y = 0.0
+        if destination_gap.length_squared() < WALKER_CLEARANCE * WALKER_CLEARANCE:
+            if destination_gap.length_squared() < current_gap.length_squared() - 0.000001:
+                return true
+    if _traffic_spawner != null:
+        for vehicle in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(vehicle) or not vehicle.active:
+                continue
+            var candidate_gap: Vector3 = vehicle.global_position - to_global(next_position)
+            var existing_gap: Vector3 = vehicle.global_position - to_global(current)
+            candidate_gap.y = 0.0
+            existing_gap.y = 0.0
+            if candidate_gap.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                if candidate_gap.length_squared() < existing_gap.length_squared() - 0.000001:
+                    return true
+    return false
+
+func _swept_path_blocked(index: int, from_position: Vector3, to_position: Vector3, wraps: bool = false) -> bool:
+    var walker: AnimatableBody3D = _walkers[index]["root"] as AnimatableBody3D
+    var collider: CollisionShape3D = walker.get_node("BodyCollision") as CollisionShape3D
+    if collider.shape == null:
+        return true
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.collision_mask = 1 | 4 # Solid city/vehicles only; people handled with personal-space rules.
+    query.exclude = [walker.get_rid()]
+    query.margin = 0.015
+    var distance: float = (to_position - from_position).length()
+    var samples: int = 1 if wraps else maxi(1, int(ceil(distance / 0.2)))
+    for sample in range(1, samples + 1):
+        var fraction: float = float(sample) / float(samples)
+        var trial: Vector3 = to_position if wraps else from_position.lerp(to_position, fraction)
+        query.transform = Transform3D(
+            walker.global_transform.basis,
+            to_global(trial) + Vector3.UP * collider.position.y
+        )
+        var contacts: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 16)
+        for hit in contacts:
+            var obstacle := hit.get("collider") as CollisionObject3D
+            if obstacle == null:
+                continue
+            if (obstacle.collision_layer & 4) != 0:
+                return true # Solid vehicle.
+            # Roads, terrain and sidewalks are floor surfaces, not obstacles.
+            # A capsule grazing their top surface must not freeze the NPC.
+            var obstacle_shape := obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
+            if obstacle_shape != null and obstacle_shape.shape is BoxShape3D:
+                var box: BoxShape3D = obstacle_shape.shape as BoxShape3D
+                var floor_top: float = obstacle_shape.global_position.y + box.size.y * 0.5
+                if floor_top <= to_global(trial).y + 0.04:
+                    continue
+            return true
+    return false
+
+## Stable utility decisions may delay an otherwise legal entrance; they may
+## NEVER override a red light, approaching vehicle, or reservation conflict.
+## This is evaluated at the crossing entrance only, not while inside it.
+func _crossing_permission(index: int, side: int) -> bool:
+    return crossing_decision(index, _can_cross(side))
+
+## Public deterministic adapter for isolated AI-02 contract tests. The input
+## is the physical safety result, NOT an AI prediction of collision clearance.
+func crossing_decision(index: int, physically_safe: bool) -> bool:
+    if not physically_safe:
+        # Evaluate the red/occupied condition even in the same tick to discard
+        # a previously held "cross_legally" action immediately.
+        if stable_crossing_decisions_enabled:
+            _update_crossing_policy(index, false)
+        return false
+    if not stable_crossing_decisions_enabled:
+        return true
+    return _update_crossing_policy(index, true)
+
+func _update_crossing_policy(index: int, physically_safe: bool) -> bool:
+    if index < 0 or index >= _crossing_policies.size():
+        return false
+    var board: CivicNpcBlackboard = _crossing_boards[index]
+    if not board.update_snapshot(index, _decision_tick, {
+        "pedestrian_green": physically_safe,
+        "crossing_clear": physically_safe,
+        "urgency": 1.0
+    }):
+        return false
+    var result: Dictionary = _crossing_policies[index].decide(
+        _crossing_personalities[index], board, 2402)
+    return bool(result.get("ok", false)) and str(result.get("action", "")) == "cross_legally"
+
+func reset_crossing_decisions() -> void:
+    _decision_tick = 0
+    for policy in _crossing_policies:
+        policy.reset()
+    for board in _crossing_boards:
+        board.npc_id = -1
+        board.tick_index = -1
+        board.observations.clear()
+
+func _can_cross(side: int) -> bool:
+    if _signal_controller == null:
+        return true
+    # Pedestrians cross only while the parallel vehicle axis is stopped.
+    var approach: String = "E" if side < 2 else "N"
+    if _signal_controller.aspect_for_approach(approach) != "red":
+        return false
+    if _traffic_spawner == null:
+        return true
+    for vehicle in _traffic_spawner.active_vehicles:
+        if not is_instance_valid(vehicle) or not vehicle.active:
+            continue
+        if vehicle.global_position.distance_to(Vector3.ZERO) < 7.0:
+            return false
+    return true
+
+func _crossing_zone(side: int) -> String:
+    return "pedestrian_crossing_ew" if side < 2 else "pedestrian_crossing_ns"
+
+func _reserve_crossing(index: int, side: int) -> bool:
+    if _reservations == null:
+        return true
+    var pedestrian_id: int = 100000 + index
+    var zone: String = _crossing_zone(side)
+    var start_tick: int = _reservations.current_tick
+    var result: Dictionary = _reservations.request(pedestrian_id, PackedStringArray([zone]), start_tick, start_tick + 600)
+    if not bool(result.get("granted", false)):
+        return false
+    if not _reservations.occupy(pedestrian_id, zone):
+        _reservations.cancel(pedestrian_id)
+        return false
+    _crossing_start_tick[index] = start_tick
+    return true
+
+## Release only a reservation stuck at the *entrance* while the person is
+## still outside the actual crosswalk. Never clear occupied road space on a timer.
+func _retire_stalled_crossing(index: int, side: int) -> bool:
+    if _reservations == null or not _crossing[index]:
+        return false
+    var reserved_at: int = _crossing_start_tick[index]
+    if reserved_at < 0 or _reservations.current_tick - reserved_at < CROSSING_WAIT_TIMEOUT_TICKS:
+        return false
+    if _blocked_frames[index] < CROSSING_BLOCKED_FRAMES or _walker_in_crossing_conflict(index, side):
+        return false
+    _release_crossing(index, side)
+    _crossing[index] = false
+    return true
+
+func _walker_in_crossing_conflict(index: int, side: int) -> bool:
+    var position: Vector3 = _walkers[index]["root"].position
+    var longitudinal: float = 0.0
+    match side:
+        0:
+            longitudinal = position.z
+        1:
+            longitudinal = -position.z
+        2:
+            longitudinal = position.x
+        3:
+            longitudinal = -position.x
+    var lateral: float = position.x if side < 2 else position.z
+    return longitudinal >= -5.5 and longitudinal <= 5.5 and absf(lateral) <= 7.0
+
+func _release_crossing(index: int, side: int) -> void:
+    if _reservations == null:
+        return
+    var pedestrian_id: int = 100000 + index
+    _reservations.release(pedestrian_id, _crossing_zone(side))
+    _reservations.cancel(pedestrian_id)
+    _crossing_start_tick[index] = -1
+
+func _exit_tree() -> void:
+    for index in range(_crossing.size()):
+        if _crossing[index]:
+            _release_crossing(index, index % 4)
+
+## GAME-019: crossing participants have stable index-derived IDs (100000+i).
+## Preserve their physical positions *and* the progress/occupation counters.
+func checkpoint_state() -> Dictionary:
+    var saved: Array[Dictionary] = []
+    for index in range(_walkers.size()):
+        var walker: Node3D = _walkers[index]["root"]
+        var coords: Array[float] = [walker.position.x, walker.position.y, walker.position.z]
+        saved.append({
+            "side": int(_walkers[index]["side"]),
+            "position": coords,
+            "progress": _walker_progress[index],
+            "sidestep": _sidestep_offsets[index],
+            "blocked_frames": _blocked_frames[index],
+            "crossing": _crossing[index],
+            "crossing_start_tick": _crossing_start_tick[index]
+        })
+    return {"schema_version": 1, "elapsed": _elapsed, "walkers": saved}
+
+static func _checkpoint_number(value: Variant, minimum: float, maximum: float) -> bool:
+    if not (value is int or value is float):
+        return false
+    var number: float = float(value)
+    return is_finite(number) and number >= minimum and number <= maximum
+
+static func _checkpoint_whole(value: Variant, minimum: int, maximum: int) -> bool:
+    return _checkpoint_number(value, float(minimum), float(maximum)) and float(value) == floorf(float(value))
+
+## Snapshot validation is pure, including the reservation-to-walker link.
+func checkpoint_valid(raw: Variant, reservations_state: Variant) -> bool:
+    if not (raw is Dictionary) or not (reservations_state is Dictionary):
+        return false
+    var data: Dictionary = raw
+    var reservation_data: Dictionary = reservations_state
+    if not _checkpoint_whole(data.get("schema_version"), 1, 1) or not _checkpoint_number(data.get("elapsed"), 0.0, 1000000000.0):
+        return false
+    if not (data.get("walkers") is Array) or data["walkers"].size() != _walkers.size():
+        return false
+    if not (reservation_data.get("occupied") is Dictionary):
+        return false
+    var locations: Array[Vector3] = []
+    for index in range(data["walkers"].size()):
+        var item: Variant = data["walkers"][index]
+        if not (item is Dictionary):
+            return false
+        if not _checkpoint_whole(item.get("side"), 0, 3) or int(item["side"]) != int(_walkers[index]["side"]):
+            return false
+        if not (item.get("position") is Array) or item["position"].size() != 3:
+            return false
+        for coord in item["position"]:
+            if not _checkpoint_number(coord, -500.0, 500.0):
+                return false
+        var destination := Vector3(float(item["position"][0]), float(item["position"][1]), float(item["position"][2]))
+        if absf(destination.y) > 2.0:
+            return false
+        for earlier in locations:
+            var distance: Vector3 = destination - earlier
+            distance.y = 0.0
+            if distance.length_squared() < HARD_SEPARATION * HARD_SEPARATION:
+                return false
+        locations.append(destination)
+        if not _checkpoint_number(item.get("progress"), 0.0, 1000000000.0) or not _checkpoint_number(item.get("sidestep"), -SIDESTEP_DISTANCE - 0.1, SIDESTEP_DISTANCE + 0.1):
+            return false
+        if not _checkpoint_whole(item.get("blocked_frames"), 0, 1000000000):
+            return false
+        if not (item.get("crossing") is bool) or not _checkpoint_whole(item.get("crossing_start_tick"), -1, 1000000000):
+            return false
+        var zone: String = _crossing_zone(int(item["side"]))
+        var occupied: Dictionary = reservation_data["occupied"]
+        if bool(item["crossing"]):
+            if int(occupied.get(zone, -1)) != 100000 + index or int(item["crossing_start_tick"]) < 0:
+                return false
+        elif int(item["crossing_start_tick"]) != -1:
+            return false
+    return true
+
+func restore_checkpoint(raw: Variant, reservations_state: Variant) -> bool:
+    if not checkpoint_valid(raw, reservations_state):
+        return false
+    var data: Dictionary = raw
+    # Check world props and resumed vehicle locations before mutating the
+    # pedestrians; no pawn may appear inside an incoming car/building.
+    for index in range(data["walkers"].size()):
+        var record: Dictionary = data["walkers"][index]
+        var coords: Array = record["position"]
+        var destination := Vector3(float(coords[0]), float(coords[1]), float(coords[2]))
+        if _swept_path_blocked(index, destination, destination, true):
+            return false
+    # Decision inertia isn't part of the v1 pedestrian save contract:
+    # reset it after successful preflight, so a prior city's policy cannot
+    # suppress crossing decisions in the restored world.
+    reset_crossing_decisions()
+    for index in range(_routine_activity.size()):
+        _routine_activity[index] = "commute"
+    _elapsed = float(data["elapsed"])
+    for index in range(data["walkers"].size()):
+        var record: Dictionary = data["walkers"][index]
+        var coords: Array = record["position"]
+        var walker: Node3D = _walkers[index]["root"]
+        walker.position = Vector3(float(coords[0]), float(coords[1]), float(coords[2]))
+        _walker_progress[index] = float(record["progress"])
+        _sidestep_offsets[index] = float(record["sidestep"])
+        _blocked_frames[index] = int(record["blocked_frames"])
+        _crossing[index] = bool(record["crossing"])
+        _crossing_start_tick[index] = int(record["crossing_start_tick"])
+    return true

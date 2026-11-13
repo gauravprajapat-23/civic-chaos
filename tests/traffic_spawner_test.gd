@@ -15,6 +15,9 @@ func _run() -> void:
         _fail("valid graph rejected")
         return
     for tick in range(1, 1601):
+        # Vehicle spawn clearance uses World3D.direct_space_state.
+        # Run the fixed tick only when physics-space queries are unlocked.
+        await physics_frame
         spawner.advance_fixed(tick, 0.05)
         if spawner.active_vehicles.size() > 20:
             _fail("active cap exceeded")

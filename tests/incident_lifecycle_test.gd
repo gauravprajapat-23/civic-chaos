@@ -22,8 +22,36 @@ func _run() -> void:
     assert(next["id"] != first["id"])
     var restored := Manager.from_json(m.to_json())
     assert(restored != null)
-    assert(restored.snapshot() == m.snapshot())
+    assert(restored.next_id == m.next_id)
+    assert(restored.current_tick == m.current_tick)
+    assert(restored.incidents.size() == m.incidents.size())
+    for id in m.incidents:
+        assert(restored.incidents.has(id))
+        var original_record: Dictionary = m.incidents[id]
+        var restored_record: Dictionary = restored.incidents[id]
+        assert(restored_record.keys().size() == original_record.keys().size())
+        for key in original_record:
+            assert(restored_record.has(key))
+            if original_record[key] is int:
+                assert(int(restored_record[key]) == int(original_record[key]))
+            else:
+                assert(restored_record[key] == original_record[key])
+    assert(restored.event_log.size() == m.event_log.size())
+    for index in range(m.event_log.size()):
+        var expected_event: Dictionary = m.event_log[index]
+        var actual_event: Dictionary = restored.event_log[index]
+        assert(actual_event.keys().size() == expected_event.keys().size())
+        for key in expected_event:
+            assert(actual_event.has(key))
+            if expected_event[key] is int:
+                assert(int(actual_event[key]) == int(expected_event[key]))
+            else:
+                assert(actual_event[key] == expected_event[key])
     assert(restored.event_log.size() == 5)
+    # Malformed and valid-but-wrong-type JSON must fail *quietly*: strict
+    # headless tests treat Godot engine ERROR output as a real failure.
     assert(Manager.from_json("broken") == null)
+    assert(Manager.from_json("{bad") == null)
+    assert(Manager.from_json("null") == null)
     print("CIVIC_CHAOS_INCIDENT_PASS")
     quit(0)

@@ -12,6 +12,14 @@ signal interaction_message(message: String)
 @export var mouse_sensitivity: float = 0.0025
 @export var gamepad_look_speed: float = 2.5
 @export var interaction_distance: float = 3.0
+@export var fall_recovery_height: float = -8.0
+
+const INTERACTION_COLLISION_MASK: int = 1 | 16 # Static world targets + nonblocking civic report posts.
+
+var _safe_spawn: Vector3 = Vector3.ZERO
+var _restore_pending: bool = false
+var _restore_position: Vector3 = Vector3.ZERO
+var _restore_yaw: float = 0.0
 
 @onready var visual: Node3D = $Visual
 @onready var camera_pivot: Node3D = $CameraPivot
@@ -22,8 +30,10 @@ var _pitch: float = -0.2
 var _gravity: float = 9.8
 var _look_touch_index: int = -1
 var _last_touch_position := Vector2.ZERO
+var _walk_animation_time: float = 0.0
 
 func _ready() -> void:
+    _safe_spawn = global_position
     _gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
     _apply_camera_pitch()
     camera.current = true
@@ -57,6 +67,23 @@ func _unhandled_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
 
 func _physics_process(delta: float) -> void:
+    # Physics-space queries execute on the physics tick, not from input events.
+    if _restore_pending:
+        _restore_pending = false
+        if _try_place_on_ground(_restore_position):
+            rotation.y = _restore_yaw
+            interaction_message.emit("Save loaded")
+        elif _recover_near_spawn():
+            interaction_message.emit("Saved position unsafe; returned to safe spawn")
+        else:
+            interaction_message.emit("Saved position unsafe; current position retained")
+        return
+    if global_position.y < fall_recovery_height:
+        if _recover_near_spawn():
+            interaction_message.emit("Returned to safe ground")
+        else:
+            velocity = Vector3.ZERO
+        return
     var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
     if look.length_squared() > 0.001:
         rotate_camera(-look.x * gamepad_look_speed * delta, -look.y * gamepad_look_speed * delta)
@@ -77,9 +104,131 @@ func _physics_process(delta: float) -> void:
             velocity.y = -0.1
     else:
         velocity.y -= _gravity * delta
+    # Keep car collision horizontal; pedestrians yield without hard blocking.
+    # The player stays grounded on world surfaces, not other characters.
+    _limit_horizontal_actor_motion(delta)
     move_and_slide()
+    _animate_walk(delta)
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
+
+## Queue save restoration for the next physics tick so the space is unlocked.
+## A queued restore is not considered successful until placement passes checks.
+func request_safe_restore(requested: Vector3, yaw: float) -> bool:
+    if not requested.is_finite() or not is_finite(yaw) or not is_inside_tree():
+        return false
+    _restore_position = requested
+    _restore_yaw = yaw
+    _restore_pending = true
+    return true
+
+## Called only from the game's checkpoint transaction on a physics tick.
+## Unlike request_safe_restore(), success means the saved position was actually
+## placed and checked against the *restored* traffic and pedestrian colliders.
+## On failure do not teleport to the fallback spawn: the caller must roll
+## back the civic/world transaction and leave the player in place.
+func restore_now_safe(requested: Vector3, yaw: float) -> bool:
+    _restore_pending = false
+    if not requested.is_finite() or not is_finite(yaw) or not is_inside_tree():
+        return false
+    if not _try_place_on_ground(requested):
+        return false
+    rotation.y = yaw
+    interaction_message.emit("Save loaded")
+    return true
+
+## Recovery uses only nearby, grounded and unoccupied points, never arbitrary
+## teleportation across the city. Current location is retained if all fail.
+func _recover_near_spawn() -> bool:
+    var offsets: Array[Vector3] = [
+        Vector3.ZERO,
+        Vector3(3.0, 0.0, 0.0), Vector3(-3.0, 0.0, 0.0),
+        Vector3(0.0, 0.0, 3.0), Vector3(0.0, 0.0, -3.0),
+        Vector3(6.0, 0.0, 0.0), Vector3(-6.0, 0.0, 0.0)
+    ]
+    for offset in offsets:
+        if _try_place_on_ground(_safe_spawn + offset):
+            return true
+    return false
+
+## Only accept nearby world-supported positions that are free of actor and
+## environment overlap. Calls must originate in _physics_process().
+func _try_place_on_ground(requested: Vector3) -> bool:
+    if not is_inside_tree() or not requested.is_finite():
+        return false
+    var collider := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collider == null or collider.shape == null:
+        return false
+    var space := get_world_3d().direct_space_state
+    var floor_ray := PhysicsRayQueryParameters3D.create(
+        requested + Vector3.UP * 0.75,
+        requested + Vector3.DOWN * 3.5
+    )
+    floor_ray.collision_mask = 1 # Floor must be world, never a car or NPC.
+    floor_ray.exclude = [get_rid()]
+    var floor_hit: Dictionary = space.intersect_ray(floor_ray)
+    if floor_hit.is_empty():
+        return false
+    var normal: Vector3 = floor_hit["normal"]
+    if normal.y < 0.7:
+        return false
+    var floor_point: Vector3 = floor_hit["position"]
+    # Leave 12 cm above the surface to avoid overlapping coplanar road slabs.
+    var placement := Vector3(requested.x, floor_point.y + 0.12, requested.z)
+    if absf(placement.y - requested.y) > 1.25:
+        return false
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.transform = Transform3D(
+        collider.global_transform.basis, placement + collider.position
+    )
+    query.collision_mask = 1 | 4 | 8
+    query.exclude = [get_rid()]
+    query.margin = 0.015
+    if not space.intersect_shape(query, 8).is_empty():
+        return false
+    global_position = placement
+    velocity = Vector3.ZERO
+    reset_physics_interpolation()
+    return true
+
+## Horizontal contact with vehicles only (never a roof/floor).
+## Pedestrians use proactive social avoidance rather than hard contact.
+func _limit_horizontal_actor_motion(delta: float) -> void:
+    var horizontal_motion := Vector3(velocity.x * delta, 0.0, velocity.z * delta)
+    if horizontal_motion.length_squared() <= 0.0000001:
+        return
+    var collider := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collider == null or collider.shape == null:
+        return
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = collider.shape
+    query.transform = collider.global_transform
+    query.motion = horizontal_motion
+    query.collision_mask = 4 # Solid vehicles only; NPCs are soft-avoidance agents.
+    query.exclude = [get_rid()]
+    query.margin = 0.02
+    var space := get_world_3d().direct_space_state
+    # cast_motion intentionally ignores bodies we already overlap. On a bad
+    # spawn, allow a player to walk out but not deeper into a pedestrian.
+    for overlap in space.intersect_shape(query, 8):
+        var obstacle := overlap.get("collider") as Node3D
+        if obstacle == null:
+            continue
+        var away := global_position - obstacle.global_position
+        away.y = 0.0
+        if away.length_squared() > 0.0001 and horizontal_motion.dot(away) <= 0.0:
+            velocity.x = 0.0
+            velocity.z = 0.0
+            return
+    var fractions: PackedFloat32Array = space.cast_motion(query)
+    if fractions.size() < 1:
+        return
+    var safe_fraction: float = clampf(fractions[0], 0.0, 1.0)
+    if safe_fraction < 1.0:
+        var allowance: float = maxf(0.0, safe_fraction - 0.01)
+        velocity.x *= allowance
+        velocity.z *= allowance
 
 func rotate_camera(yaw_delta: float, pitch_delta: float) -> void:
     camera_pivot.rotation.y += yaw_delta
@@ -95,6 +244,7 @@ func try_interact() -> void:
     var destination := origin + camera.project_ray_normal(center) * (spring_arm.spring_length + interaction_distance + 1.0)
     var query := PhysicsRayQueryParameters3D.create(origin, destination)
     query.exclude = [get_rid()]
+    query.collision_mask = INTERACTION_COLLISION_MASK
     var hit := get_world_3d().direct_space_state.intersect_ray(query)
     if hit.is_empty():
         interaction_message.emit("Nothing to interact with")
@@ -110,3 +260,18 @@ func try_interact() -> void:
             interaction_attempted.emit(node)
             return
     interaction_message.emit("No interaction available")
+
+func _animate_walk(delta: float) -> void:
+    var movement: float = Vector2(velocity.x, velocity.z).length()
+    _walk_animation_time += delta * movement * 2.0
+    var swing: float = sin(_walk_animation_time) * minf(movement / maxf(walk_speed, 0.1), 1.5) * 0.55
+    var left_arm := visual.get_node_or_null("LeftArm") as Node3D
+    var right_arm := visual.get_node_or_null("RightArm") as Node3D
+    var left_leg := visual.get_node_or_null("LeftLeg") as Node3D
+    var right_leg := visual.get_node_or_null("RightLeg") as Node3D
+    if left_arm == null or right_arm == null or left_leg == null or right_leg == null:
+        return
+    left_arm.rotation.x = lerpf(left_arm.rotation.x, swing, minf(1.0, delta * 12.0))
+    right_arm.rotation.x = lerpf(right_arm.rotation.x, -swing, minf(1.0, delta * 12.0))
+    left_leg.rotation.x = lerpf(left_leg.rotation.x, -swing, minf(1.0, delta * 12.0))
+    right_leg.rotation.x = lerpf(right_leg.rotation.x, swing, minf(1.0, delta * 12.0))

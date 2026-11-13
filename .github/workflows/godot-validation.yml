@@ -1,10 +1,8 @@
 name: Godot validation
 
+# Development commits must not start costly CI. Run validation only
+# when the release acceptance gate is explicitly opened.
 on:
-  push:
-    branches: [main, "feat/**", "fix/**"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

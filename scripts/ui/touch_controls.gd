@@ -42,7 +42,7 @@ func _layout() -> void:
         inset = Vector2(safe.position) * scale_factor
         usable = Vector2(safe.size) * scale_factor
     for index in range(actions.size()):
-        var location := inset + usable * positions[index] - button_size * 0.5
+        var location: Vector2 = inset + usable * (positions[index] as Vector2) - button_size * 0.5
         location.x = clampf(location.x, 0.0, maxf(0.0, viewport_size.x - button_size.x))
         location.y = clampf(location.y, 0.0, maxf(0.0, viewport_size.y - button_size.y))
         (buttons[actions[index]] as TouchScreenButton).position = location

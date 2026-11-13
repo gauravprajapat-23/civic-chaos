@@ -4,3 +4,10 @@
 *.log
 .DS_Store
 Thumbs.db
+
+# Read-only external game-dev skill reference pack, installed locally
+.agent-skills/
+
+# Python test/QA bytecode is generated output, not game source.
+__pycache__/
+*.py[cod]
