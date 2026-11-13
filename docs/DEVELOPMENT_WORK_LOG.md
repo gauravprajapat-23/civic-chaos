@@ -27,13 +27,21 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | RESPONSIVE TEST PASSED — DEVICE REVIEW PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
-| PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | RANKS/BADGES HUD IMPLEMENTED — TEST PENDING; DAILY REQUESTS/UNLOCKS TODO | Save/replay/anti-farming tests, clear return incentive |
+| PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | RANKS/BADGES FOCUSED TESTS PASS; ROTATING GOAL CODE COMMITTED — FULL GATE PENDING | Save/replay/anti-farming tests, clear return incentive |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — PROG-01 verified foundation and offline rotating civic goals
+- User's Godot 4.7.2 local import passed, followed by **5/5 focused tests**: `volunteer_progression_test.gd`, `free_roam_live_events_test.gd`, `free_roam_event_restart_test.gd`, `free_roam_director_checkpoint_test.gd`, and `civic_hud_test.gd` on commit `fe232ef`. This is **not** a new full-GAME-024 acceptance.
+- Added cumulative **four-activity civic goal cycles** (Neighborhood Patrol, Public Space Care, Market Stewardship) that change on verified Free Roam completions. They do **not** depend on phone clock/calendar, penalize absences, create synthetic mission rewards, or alter checkpoint schema.
+- The HUD now shows the current cycle title and verified progress. The existing volunteer-progression fixture adds cycle-boundary, forged count, JSON replay and HUD checks.
+- Implementation commits: `af8443e` progression model, `ce29b44` HUD, `5123226` tests.
+- **Code committed, current-revision Godot verification pending**. Daily-calendar goals and neighborhood unlocks are not implemented. New Godot `.gd.uid` files should be committed before full gate.
+- Next: run import, volunteer progression and Free Roam checkpoint tests, then exact-revision full acceptance, followed by real device UI inspection.
 
 ### 2026-11-13 — GAME-024 passed / PROG-01 ranks and badge foundation
 - User's **exact commit `dd8645c`** passed the local Godot 4.7.2 GAME-024 gate with **109/109 full regression fixtures**, all 24 focused tests, source/import, negative-path and independent readiness evidence. The four generated Godot UID files were committed. This is the last **verified baseline**, not an acceptance claim for later commits.
