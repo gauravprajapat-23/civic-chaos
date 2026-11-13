@@ -54,9 +54,16 @@ func _ready() -> void:
     panel.name = "GuidePanel"
     panel.mouse_filter = Control.MOUSE_FILTER_PASS
     guide_frame.add_child(panel)
+    var scroll := ScrollContainer.new()
+    scroll.name = "MissionGuideScroll"
+    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    panel.add_child(scroll)
     var stack := VBoxContainer.new()
+    stack.name = "GuideContent"
+    stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     stack.add_theme_constant_override("separation", 6)
-    panel.add_child(stack)
+    scroll.add_child(stack)
     mission_label = _line(stack, "MissionTitle", 18)
     objective_label = _line(stack, "NextObjective", 16)
     waypoint_label = _line(stack, "Waypoint", 15)
