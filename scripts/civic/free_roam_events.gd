@@ -74,6 +74,7 @@ func configure(actor: Node3D, civic: CivicGameplaySession) -> bool:
     neighborhood_improvements = Improvements.new() as CivicNeighborhoodImprovements
     neighborhood_improvements.name = "NeighborhoodImprovements"
     add_child(neighborhood_improvements)
+    neighborhood_improvements.service_requested.connect(_on_neighborhood_service_requested)
     _sync_improvements()
     return true
 
@@ -194,6 +195,48 @@ func _notify_witness(phase: String) -> void:
     if not site.is_empty():
         npc_reaction_requested.emit(to_global(site["source"]),
             str(active_event["kind"]), phase, int(active_event["instance"]))
+
+func _on_neighborhood_service_requested(index: int, actor: Node) -> void:
+    # E/USE must originate from the actual player at the real service desk.
+    # The station grants information, not physical authority or score credits.
+    if actor != player or not is_instance_valid(neighborhood_improvements):
+        return
+    if not neighborhood_improvements.project_visible(index):
+        return
+    var station: Node3D = neighborhood_improvements.get_node_or_null(
+        "Improvement_%d/ServicePoint" % index) as Node3D
+    if station == null or player.global_position.distance_to(station.global_position) > 3.0:
+        return
+    var progress: Dictionary = Progression.overview(
+        session.metrics.reputation(), resolved_total, session.metrics.processed_events)
+    if progress.is_empty():
+        return
+    var summary: Dictionary = progress.get("neighborhood_support", {})
+    match index:
+        0:
+            _say("MARKET GARDEN | %d verified civic activities. Next volunteer badge: %s." % [
+                resolved_total, str(progress.get("next_title", "All badges earned"))])
+        1:
+            if active_event.is_empty():
+                _say("COMMUNITY KIOSK | No current civic call. Explore the streets for new reports.")
+            else:
+                var site: Dictionary = Challenges.site(
+                    str(active_event["site_id"]), str(active_event["kind"]))
+                _say("COMMUNITY KIOSK | Active incident: %s. Location: %s." % [
+                    str(active_event["kind"]).replace("_", " ").capitalize(),
+                    str(site.get("label", "Market Chowk"))])
+        2:
+            if active_event.is_empty():
+                _say("SOLAR RESPONSE POINT | All clear. Priority monitoring is available.")
+            else:
+                var seconds_left: int = maxi(0, int(active_event["deadline_tick"]) - tick)
+                var urgency: String = "PRIORITY" if str(active_event["tier"]) == "priority" else "ROUTINE"
+                _say("SOLAR RESPONSE POINT | %s civic call, %ds remaining." % [
+                    urgency, seconds_left])
+    # A separate unlock cannot be inferred from the caller's station index.
+    # Only the validated earned project can reach these informational actions.
+    if summary.is_empty():
+        return
 
 func _sync_improvements() -> void:
     if not is_instance_valid(neighborhood_improvements) or session == null:
