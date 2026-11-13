@@ -45,6 +45,9 @@ function Write-Gate {
     $gate | ConvertTo-Json -Depth 12 | Set-Content -Path $gatePath -Encoding UTF8
     Write-Host ("Verification report: " + $gatePath)
     Write-Host ("GAME-024 gate: " + $gate.status)
+    if ($gate.status -eq "blocked" -and -not [string]::IsNullOrWhiteSpace($gate.reason)) {
+        Write-Host ("BLOCKED REASON: " + $gate.reason) -ForegroundColor Yellow
+    }
 }
 
 function Get-SourceChanges {
@@ -165,7 +168,7 @@ try {
     }
     $sourceChanges = Get-SourceChanges
     if (-not [string]::IsNullOrWhiteSpace($sourceChanges)) {
-        $gate.reason = "Uncommitted tracked or untracked source changes: commit or stash before acceptance."
+        $gate.reason = "Uncommitted tracked or untracked source changes: commit or stash before acceptance. Files: " + ($sourceChanges -replace "\r?\n", "; ")
         Write-Gate
         exit 1
     }
