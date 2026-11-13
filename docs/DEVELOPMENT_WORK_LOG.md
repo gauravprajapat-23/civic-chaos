@@ -44,7 +44,7 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 - Source audit found fixed-size mission guide offsets and potential overlap with civic HUD on narrow portrait displays. Replaced fixed guide bounds with deterministic viewport-relative `CivicMissionGuide.panel_bounds`, moved portrait HUD below the upper guide, and added `tests/game_qa_mission_guide_test.gd` covering 5 screen sizes, overlap and recovery actions.
 - How to Play now explains direct/municipal illegal-parking choice and the usable neighborhood projects, eliminating outdated onboarding.
 - Added `docs/qa/GAME_QA_01_PLAYABILITY_VISUAL_AUDIT.md` with a real player path from menu through tutorial, wrong-way, parking choices, cleanup, finale, Free Roam, support services and save/restore plus PC/mobile viewport & Android evidence matrix.
-- Commits `53a2f54`, `230e2b8`, `df65fd4`, `7155577`, `bb64fd0`, `c7dd3ae`.
+- Commits `53a2f54`, `230e2b8`, `df65fd4`, `7155577`, `bb64fd0`, `c7dd3ae`, `499bc80` (vertical scroll), `988445c` (scroll regression).
 - **Status: Code committed; NO local Godot result yet for these edits.** Manual walkthrough, screenshots, Android tactile performance and art/audio evaluation are open. Rerun focused QA and full acceptance at exact new commit; no GitHub Actions manually triggered.
 
 
