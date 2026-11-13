@@ -38,7 +38,9 @@ static func layout_for(viewport: Vector2) -> Rect2:
     if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
         return Rect2()
     var left: float = 8.0 if viewport.x < 600.0 else 12.0
-    var top: float = 80.0 if viewport.y < 560.0 else 120.0
+    # Narrow portrait: reserve the upper strip for the objective guide.
+    # On landscape/desktop they occupy opposite corners instead.
+    var top: float = 250.0 if viewport.x < 600.0 else (80.0 if viewport.y < 560.0 else 120.0)
     var available_width: float = maxf(0.0, viewport.x - left * 2.0)
     var width: float = minf(348.0, available_width)
     var height: float = minf(260.0, maxf(0.0, viewport.y - top - 8.0))
