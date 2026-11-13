@@ -14,10 +14,10 @@ var _last_state: Dictionary = {}
 func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_IGNORE
     set_anchors_preset(Control.PRESET_TOP_LEFT)
-    offset_left = 12.0
-    offset_top = 120.0
-    offset_right = 360.0
-    offset_bottom = 320.0
+    # Prevent the HUD from extending off-screen on narrow portrait devices.
+    # This changes presentation only, never the civic metrics data source.
+    get_viewport().size_changed.connect(_fit)
+    _fit()
     var panel := PanelContainer.new()
     panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_child(panel)
@@ -32,6 +32,26 @@ func _ready() -> void:
     roam_label = _line(content)
     feedback_label = _line(content)
     render_state({})
+
+## UX-02: pure geometry helper makes small-display behavior testable.
+static func layout_for(viewport: Vector2) -> Rect2:
+    if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
+        return Rect2()
+    var left: float = 8.0 if viewport.x < 600.0 else 12.0
+    var top: float = 80.0 if viewport.y < 560.0 else 120.0
+    var available_width: float = maxf(0.0, viewport.x - left * 2.0)
+    var width: float = minf(348.0, available_width)
+    var height: float = minf(260.0, maxf(0.0, viewport.y - top - 8.0))
+    return Rect2(Vector2(left, top), Vector2(width, height))
+
+func _fit() -> void:
+    var bounds: Rect2 = layout_for(get_viewport().get_visible_rect().size)
+    if bounds.size.x <= 0.0 or bounds.size.y <= 0.0:
+        return
+    offset_left = bounds.position.x
+    offset_top = bounds.position.y
+    offset_right = bounds.end.x
+    offset_bottom = bounds.end.y
 
 func _line(parent: VBoxContainer) -> Label:
     var label := Label.new()
