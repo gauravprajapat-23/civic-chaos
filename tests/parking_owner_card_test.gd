@@ -33,6 +33,28 @@ func _run() -> void:
     if actions.size() != 2 or actions[1] != "report":
         _fail("existing report action was not preserved")
         return
+    panel.render_card({
+        "can_inspect": false, "can_report": true,
+        "report_action": "request_owner",
+        "alternative_action": "request_service",
+        "alternative_label": "Municipal assistance",
+        "can_alternative": true
+    })
+    if not panel.alternative_button.visible or panel.alternative_button.disabled:
+        _fail("municipal option was not displayed")
+        return
+    panel.alternative_button.pressed.emit()
+    if actions.size() != 3 or actions[2] != "request_service":
+        _fail("municipal action did not emit its separate typed response")
+        return
+    panel.render_card({"can_inspect": false, "can_report": false})
+    if panel.alternative_button.visible or not panel.alternative_button.disabled:
+        _fail("stale municipal option remained available on an unrelated card")
+        return
+    panel.alternative_button.pressed.emit()
+    if actions.size() != 3:
+        _fail("hidden municipal action bypassed permissions")
+        return
     panel.dismiss()
     panel.queue_free()
     print("CIVIC_CHAOS_PARKING_OWNER_CARD_PASS")
