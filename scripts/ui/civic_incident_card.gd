@@ -98,7 +98,7 @@ func _fit() -> void:
     # A bounded scroll viewport is essential with multi-line evidence on
     # landscape phones. Content is scrollable vertically, never sideways.
     panel.custom_minimum_size = bounds
-    detail_scroll.custom_minimum_size.y = maxf(0.0, bounds.y - 16.0)
+    detail_scroll.custom_minimum_size.y = 0.0
 
 func present(data: Dictionary) -> void:
     if backdrop == null:
