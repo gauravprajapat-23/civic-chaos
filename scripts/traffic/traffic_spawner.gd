@@ -96,6 +96,9 @@ func advance_fixed(tick: int, delta: float) -> void:
 	for vehicle in active_vehicles:
 		var observation: Dictionary = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
 		observations[vehicle.get_instance_id()] = apply_stop_line_observation(vehicle, observation)
+	# Capture actual evaluations; do not throttle or reuse stale lead
+	# observations just to report lower CPU cost.
+	work_budget.record_sensor_checks(observations.size())
 	for vehicle in active_vehicles:
 		var observation: Dictionary = observations[vehicle.get_instance_id()]
 		if observation.get("detected", false):
