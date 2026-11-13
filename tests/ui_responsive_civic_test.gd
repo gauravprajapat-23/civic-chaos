@@ -22,7 +22,7 @@ func _run() -> void:
         if panel_size.x <= 0.0 or panel_size.y <= 0.0 or panel_size.x > viewport.x or panel_size.y > viewport.y:
             _fail("incident panel escaped viewport " + str(viewport))
             return
-    if Hud.layout_for(Vector2.ZERO) != Rect2() or Card.panel_bounds(Vector2.INF, 720) != Vector2.ZERO:
+    if Hud.layout_for(Vector2.ZERO) != Rect2() or Card.panel_bounds(Vector2(INF, 720)) != Vector2.ZERO:
         _fail("invalid viewport geometry was accepted")
         return
 
@@ -47,7 +47,9 @@ func _run() -> void:
         _fail("layout changed authoritative civic score rendering")
         return
     var action_log: Array[String] = []
-    card.action_selected.connect(func(action: String) -> void: action_log.append(action))
+    card.action_selected.connect(func(action: String) -> void:
+        action_log.append(action)
+    )
     card.present({"title": "Long incident evidence", "location": "Market Chowk",
         "evidence": "A blocked crossing and delayed pedestrians.",
         "can_inspect": true, "can_report": false})
