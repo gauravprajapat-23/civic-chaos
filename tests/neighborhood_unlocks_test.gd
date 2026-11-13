@@ -68,8 +68,8 @@ func _run() -> void:
     if not is_instance_valid(roam.support_beacon) or not roam.support_beacon.visible:
         _fail("earned North Market Watch did not show a physical navigation beacon")
         return
-    if roam.support_beacon is CollisionObject3D:
-        _fail("visual navigation beacon unexpectedly blocks physical gameplay")
+    if roam.support_beacon.get_child_count() != 0:
+        _fail("visual beacon unexpectedly contains interactive child nodes")
         return
     var place: Dictionary = CivicFreeRoamChallenges.site(
         str(roam.active_event["site_id"]), str(roam.active_event["kind"]))
