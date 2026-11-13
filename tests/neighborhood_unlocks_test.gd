@@ -68,6 +68,12 @@ func _run() -> void:
     if not is_instance_valid(roam.support_beacon) or not roam.support_beacon.visible:
         _fail("earned North Market Watch did not show a physical navigation beacon")
         return
+    if not is_instance_valid(roam.neighborhood_improvements) or not roam.neighborhood_improvements.project_visible(0):
+        _fail("real third resolution did not improve the public planter in the city")
+        return
+    if roam.neighborhood_improvements.project_visible(1) or roam.neighborhood_improvements.project_visible(2):
+        _fail("unearned projects were revealed before ten or twenty-five completions")
+        return
     if roam.support_beacon.get_child_count() != 0:
         _fail("visual beacon unexpectedly contains interactive child nodes")
         return
@@ -86,6 +92,9 @@ func _run() -> void:
         return
     if roam.checkpoint_state() != previous:
         _fail("visual unlock mutated the saved mission or checkpoint schema")
+        return
+    if not roam.neighborhood_improvements.project_visible(0):
+        _fail("checkpoint restore did not rebuild earned city improvement")
         return
     stage.queue_free()
     print("CIVIC_CHAOS_NEIGHBORHOOD_UNLOCKS_PASS")
