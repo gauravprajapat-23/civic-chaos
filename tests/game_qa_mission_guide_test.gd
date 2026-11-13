@@ -43,6 +43,11 @@ func _run() -> void:
     if rect == null or rect.mouse_filter == Control.MOUSE_FILTER_STOP:
         _fail("mission guide frame not accessible")
         return
+    var scroll: ScrollContainer = guide_node.get_node_or_null(
+        "GuideFrame/GuidePanel/MissionGuideScroll") as ScrollContainer
+    if scroll == null or scroll.horizontal_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED:
+        _fail("small-screen mission guide needs vertical scroll without sideways overflow")
+        return
     guide_node.update_guide({
         "title": "Market Chowk",
         "objective": "Inspect the real incident near the north road",
