@@ -9,6 +9,7 @@ var _cursor: int = 0
 var _last_tick: int = -1
 var _sensor_cache: Dictionary = {}
 var _timings_us: Array[int] = []
+var _sensor_checks: Array[int] = []
 const TIMING_WINDOW := 120
 
 func configure(agent_limit: int, decisions_per_tick: int, sensor_interval: int = DEFAULT_SENSOR_INTERVAL) -> bool:
@@ -27,6 +28,7 @@ func reset_runtime() -> void:
     _last_tick = -1
     _sensor_cache.clear()
     _timings_us.clear()
+    _sensor_checks.clear()
 
 func select_decisions(tick: int, sorted_agent_ids: PackedInt32Array) -> PackedInt32Array:
     var selected := PackedInt32Array()
@@ -64,10 +66,34 @@ func record_duration_us(duration_us: int) -> void:
     if _timings_us.size() > TIMING_WINDOW:
         _timings_us.remove_at(0)
 
+## Count actual lead-sensor evaluations on every simulated traffic tick.
+## These are observations, NOT skipped/approximated safety checks. Keep the
+## telemetry bounded and separate from gameplay or decision scheduling.
+func record_sensor_checks(count: int) -> void:
+    if count < 0:
+        return
+    _sensor_checks.append(count)
+    if _sensor_checks.size() > TIMING_WINDOW:
+        _sensor_checks.remove_at(0)
+
 func metrics() -> Dictionary:
     var total := 0
     var peak := 0
     for duration in _timings_us:
         total += duration
         peak = maxi(peak, duration)
-    return {"sample_count": _timings_us.size(), "average_us": float(total) / float(maxi(_timings_us.size(), 1)), "peak_us": peak, "agent_limit": maximum_agents, "decisions_per_tick": maximum_decisions_per_tick}
+    var sensor_total := 0
+    var sensor_peak := 0
+    for checks in _sensor_checks:
+        sensor_total += checks
+        sensor_peak = maxi(sensor_peak, checks)
+    return {
+        "sample_count": _timings_us.size(),
+        "average_us": float(total) / float(maxi(_timings_us.size(), 1)),
+        "peak_us": peak,
+        "sensor_sample_count": _sensor_checks.size(),
+        "sensor_checks_average": float(sensor_total) / float(maxi(_sensor_checks.size(), 1)),
+        "sensor_checks_peak": sensor_peak,
+        "agent_limit": maximum_agents,
+        "decisions_per_tick": maximum_decisions_per_tick
+    }
