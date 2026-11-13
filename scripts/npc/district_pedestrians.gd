@@ -26,6 +26,10 @@ const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd"
 const NpcPersonality = preload("res://scripts/npc/npc_personality.gd")
 const NpcBlackboard = preload("res://scripts/npc/npc_blackboard.gd")
 const NpcStability = preload("res://scripts/npc/npc_decision_stability.gd")
+const NpcDailyRoutine = preload("res://scripts/npc/npc_daily_routine.gd")
+## AI-03 feature gate: retain the accepted GAME-024 walking behavior by default.
+@export var daily_routines_enabled: bool = false
+var _routine_activity: Array[String] = []
 ## AI-02 staged integration: disabled until GAME-024 full acceptance.
 ## Safety checks/reservation authority remain in the physical walker code.
 @export var stable_crossing_decisions_enabled: bool = false
@@ -124,6 +128,7 @@ func _ready() -> void:
         personality.patience = 0.0
         personality.rule_compliance = 1.0
         _crossing_personalities.append(personality)
+        _routine_activity.append("commute")
         _sidestep_offsets.append(0.0)
         _blocked_frames.append(0)
         _crossing.append(false)
@@ -243,6 +248,10 @@ func _physics_process(delta: float) -> void:
                 can_walk = false
         if recovering or _yield_to_player(index, delta):
             can_walk = false
+        elif can_walk and _routine_rest_at_safe_sidewalk(index, side):
+            # Never apply a routine pause on the carriageway or override
+            # player avoidance, collision recovery or crossing reservations.
+            can_walk = false
         elif can_walk:
             can_walk = _advance_clear_walker(index, delta, length)
         if can_walk:
@@ -279,6 +288,30 @@ func _physics_process(delta: float) -> void:
         _movement_samples_us.append(maxi(0, Time.get_ticks_usec() - profile_start_us))
         if _movement_samples_us.size() > PROFILE_WINDOW:
             _movement_samples_us.remove_at(0)
+
+## The daily schedule is computed, not stored in the v1 checkpoint. A
+## pause is allowed only away from road conflict space and while outside an
+## occupied crosswalk; original movement clearance remains the authority.
+func _routine_rest_at_safe_sidewalk(index: int, side: int) -> bool:
+    if not daily_routines_enabled or _crossing[index] or _walker_in_crossing_conflict(index, side):
+        return false
+    var near_incident: bool = false
+    if not _reaction_context.is_empty():
+        var witness: Node3D = _walkers[index]["root"]
+        var incident_at: Vector3 = _reaction_context["position"]
+        near_incident = witness.global_position.distance_squared_to(incident_at) <= 100.0
+    var plan: Dictionary = NpcDailyRoutine.plan(index, _decision_tick, near_incident, near_incident)
+    if not bool(plan.get("ok", false)):
+        return false
+    _routine_activity[index] = str(plan["activity"])
+    if bool(plan["assist"]) and (not is_instance_valid(_reaction_label) or not _reaction_label.visible):
+        _show_reaction(index, "I'll help keep our street safe.")
+    return bool(plan["pause"])
+
+func routine_activity(index: int) -> String:
+    if index < 0 or index >= _routine_activity.size():
+        return ""
+    return _routine_activity[index]
 
 ## When somebody is already embedded, create small local separation.
 ## A separate fallback is needed because planning from overlapping positions
@@ -826,6 +859,8 @@ func restore_checkpoint(raw: Variant, reservations_state: Variant) -> bool:
     # reset it after successful preflight, so a prior city's policy cannot
     # suppress crossing decisions in the restored world.
     reset_crossing_decisions()
+    for index in range(_routine_activity.size()):
+        _routine_activity[index] = "commute"
     _elapsed = float(data["elapsed"])
     for index in range(data["walkers"].size()):
         var record: Dictionary = data["walkers"][index]
