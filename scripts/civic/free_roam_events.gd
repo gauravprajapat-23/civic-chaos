@@ -374,6 +374,8 @@ func guidance_state() -> Dictionary:
         objective = str(info["inspect_goal"]) if stage == 0 else (
             str(info["collect_goal"]) if stage == 1 else str(info["deposit_goal"]))
         objective += " | %ds left" % maxi(0, int(active_event["deadline_tick"]) - tick)
+        if is_instance_valid(support_beacon) and support_beacon.visible:
+            objective += " | Follow the blue community beacon"
     return {"title": "Free Roam | %s" % label,
         "objective": objective, "speaker": "Neighborhood Radio",
         "dialogue": feedback, "target": target, "has_target": available,
