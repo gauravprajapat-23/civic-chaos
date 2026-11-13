@@ -22,6 +22,34 @@ static func rotating_goal(resolved: int) -> Dictionary:
         "target": ROTATION_SIZE,
         "remaining": ROTATION_SIZE - progress
     }
+## PROG-02: support stations are unlocked across the district, offering
+## real on-world navigation assistance. Never bypass a real interaction.
+const SUPPORT_THRESHOLDS: Array[int] = [3, 10, 25]
+const SUPPORT_NAMES: Array[String] = [
+    "North Market Watch", "East Community Logistics", "South Priority Response"
+]
+
+static func neighborhood_support(resolved: int) -> Dictionary:
+    if resolved < 0 or resolved > 1000000000:
+        return {}
+    var unlocked: Array[String] = []
+    var next_at: int = 0
+    var next_name: String = ""
+    for index in range(SUPPORT_THRESHOLDS.size()):
+        if resolved >= SUPPORT_THRESHOLDS[index]:
+            unlocked.append(SUPPORT_NAMES[index])
+        elif next_at == 0:
+            next_at = SUPPORT_THRESHOLDS[index]
+            next_name = SUPPORT_NAMES[index]
+    return {
+        "unlocked": unlocked,
+        "source_beacon": resolved >= 3,
+        "destination_beacon": resolved >= 10,
+        "priority_alert": resolved >= 25,
+        "next_at": next_at,
+        "next_name": next_name
+    }
+
 const BADGES: Array[String] = [
     "First Responder", "Neighborhood Helper", "Market Guardian", "Civic Champion"
 ]
@@ -66,5 +94,6 @@ static func overview(reputation: int, resolved: int, processed: Dictionary) -> D
         "next_goal": next_goal,
         "next_title": next_title,
         "remaining": maxi(0, next_goal - count),
-        "rotating_goal": rotating_goal(count)
+        "rotating_goal": rotating_goal(count),
+        "neighborhood_support": neighborhood_support(count)
     }
