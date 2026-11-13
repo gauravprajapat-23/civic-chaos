@@ -30,12 +30,24 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | PROG-01 | P1 | Reputation ranks and offline rotating civic goals | USER REPORTED FOCUSED TESTS PASS — LATEST FULL GATE UNCONFIRMED | Save/replay/anti-farming tests, clear return incentive |
 | PROG-02 | P1 | Neighborhood support unlocks with physical Free Roam navigation benefits | CODE COMMITTED — GODOT TEST PENDING | Audited-receipt thresholds, visual beacon, stage transition, reload consistency |
 | PROG-03 | P1 | Visible neighborhood improvement projects earned from real civic work | CODE COMMITTED — LOCAL TESTS / VISUAL QA PENDING | Tier gates, no extra scores, physically non-blocking objects, checkpoint reconstruction |
+| PROG-04 | P1 | Usable community garden, kiosk and solar response information services | CODE COMMITTED — GODOT REGRESSION PENDING | E/USE gated at real location, audited unlock, no score mutation, valid save replay |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — PROG-02 restore failure hardening / PROG-04 service interactions
+- User ran Godot 4.7.2 import and `neighborhood_improvements_test.gd` successfully on PROG-03 source revision `65a9862`, but `neighborhood_unlocks_test.gd` stopped at "existing checkpoint could not restore unlocked support"; later tests in that loop were NOT executed. No new full gate acceptance can be inferred.
+- **Restore fix (`ef68a67`):** a rigorously validated checkpoint identical to the already-staged Free Roam state now uses a safe idempotent restore (resyncing navigation/improvements) rather than attempting to restage the exact same live evidence collider. Different checkpoints still take the existing preflight and physical restoration path; save format unchanged. Added an explicit checkpoint-valid assertion before the test's same-state load to distinguish any remaining validation error.
+- **PROG-04:** Added `CivicNeighborhoodService` E/USE targets under earned improvements only, using the existing player raycast interaction layer (16), a small stationary hitbox and no physics movement authority.
+  - Garden at 3 verified completions: inspect own validated volunteer progression.
+  - Community kiosk at 10: inspect current local civic event and destination neighborhood.
+  - Solar response point at 25: inspect the incident's real priority tier and remaining time.
+- Only proximity-checked real player interactions are answered, after revalidation of earned state; no score, mission, reward, timeout, teleport, checkpoint format or world traffic mutations. Locked services disable their interaction layer.
+- Updated `tests/neighborhood_improvements_test.gd` for the deliberate service hitbox, `tests/neighborhood_unlocks_test.gd` for verified third-completion use, spoofed/locked access, no score/reward mutation and checkpoint idempotence; added `tests/neighborhood_service_test.gd` for service lock/unlock behavior.
+- **CODE COMMITTED; NO LOCAL GODOT RESULTS YET for this revision.** Priority: Godot import + `neighborhood_unlocks_test.gd` + `neighborhood_improvements_test.gd` + `neighborhood_service_test.gd`, then Free Roam save/restart tests and full gate. Commit generated `.gd.uid` files first.
 
 ### 2026-11-13 — PROG-03 district improvement projects
 - Created `scripts/world/neighborhood_improvements.gd` with three visible, **non-colliding**, simple 3D city upgrades unlocked by audited Free Roam resolutions: restored market planters (3), a community information kiosk (10), and solar-style street lighting (25). These are deliberately cosmetic props in the current Market Chowk rather than invented new accessible districts.
