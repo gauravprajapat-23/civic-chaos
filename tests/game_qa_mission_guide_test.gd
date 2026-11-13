@@ -27,6 +27,9 @@ func _run() -> void:
         if hud.end.x > dimensions.x or card.x > dimensions.x:
             _fail("existing civic overlay exceeds viewport")
             return
+        if guide.intersects(hud):
+            _fail("mission guide overlaps civic HUD at " + str(dimensions))
+            return
     if Guide.panel_bounds(Vector2(INF, 720)) != Rect2():
         _fail("invalid mission guide viewport accepted")
         return
