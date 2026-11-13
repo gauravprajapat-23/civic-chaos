@@ -33,7 +33,7 @@ static func plan(slot: int, tick: int, incident_nearby: bool = false, safe_to_he
     var assist: bool = false
     if incident_nearby and safe_to_help and tick % ASSIST_CHECK_INTERVAL == 0:
         var person: CivicNpcPersonality = PERSONALITY.new() as CivicNpcPersonality
-        person.patience = 0.0
+        person.patience = 0.0 if slot % 3 == 0 else 1.0
         person.empathy = 1.0 if slot % 3 == 0 else 0.25
         var board: CivicNpcBlackboard = BLACKBOARD.new() as CivicNpcBlackboard
         if board.update_snapshot(slot, tick, {
