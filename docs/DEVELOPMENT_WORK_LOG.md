@@ -26,7 +26,7 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | CODE COMMITTED — TEST PENDING | Screenshot comparison at PC and mobile aspect ratios |
-| STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | TODO | Distinct tested consequences, no duplicate rewards |
+| STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | FIRST PARKING CHOICE CODE COMMITTED — TEST PENDING | Distinct tested consequences, no duplicate rewards |
 | PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | TODO | Save/replay/anti-farming tests, clear return incentive |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
@@ -34,6 +34,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — UX-01 menu test failure + STORY-CHOICE-01 parking choices
+- User's local Godot import passed on the earlier `b175734` revision; `menu_ux_test.gd` failed because the guide's dynamically constructed VBoxContainer lacked the exact `VBoxContainer` name required by the test. The test stopped the loop; other UX fixture results were not supplied.
+- **Fix:** set the runtime guide container name to `VBoxContainer` (`c158713`). Still needs a new Godot test run on latest SHA.
+- **New gameplay choice:** the illegal-parking detail card offers both a direct owner request and optional municipal assistance after the same physical evidence inspection. The direct owner request remains faster; municipal response requires a fixed 80-tick dispatch delay before the SAME authorized owner safely relocates the vehicle. The scored outcome differs (direct cooperation is higher) but both paths require verified car movement and pedestrian route reopening. Neither response grants permission to move a car directly or bypass physics.
+- **Persistence:** optional `response_kind` field preserves the choice without changing the v1 checkpoint version; absent field is treated as legacy direct-owner route. Invalid actions and duplicates are refused; no extra mission reward.
+- Commits: `81c4779` incident-card optional second action; `9d41f41` parking branch and persistence; `16d21f9` card option tests; `b1f97fc` parking choice regression.
+- **Status:** CODE COMMITTED; this branch's Godot import, UX re-test and new parking-choice fixtures remain **UNVERIFIED**. Existing full GAME-024 acceptance predates these edits.
+- Next: rerun menu, card, parking choice, parking checkpoint, physical parking live tests; then full local GAME-024 gate; only afterward perform a GUI playthrough of both choices and record screenshots/elapsed recovery time.
 
 ### 2026-11-13 — AI-03 routine safety hardening
 - Reviewed the opt-in daily routine implementation against pedestrian recovery and physics-safety contracts.
@@ -73,6 +82,9 @@ $godot = "C:\Godot\Godot_v4.7.2-stable_win64_console.exe"
 & $godot --headless --path . --script res://tests/npc_decision_stability_test.gd
 & $godot --headless --path . --script res://tests/world_pedestrian_checkpoint_test.gd
 & $godot --headless --path . --script res://tests/pedestrian_crossing_recovery_test.gd
+& $godot --headless --path . --script res://tests/parking_owner_card_test.gd
+& $godot --headless --path . --script res://tests/parking_response_choice_test.gd
+& $godot --headless --path . --script res://tests/parking_checkpoint_test.gd
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\verify_game024.ps1 -ExpectedBranch "fix/aud-001-game024-gate-hardening" -Timeout 120
 ```
 
