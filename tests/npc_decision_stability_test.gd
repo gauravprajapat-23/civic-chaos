@@ -5,6 +5,7 @@ const Personality = preload("res://scripts/npc/npc_personality.gd")
 const Blackboard = preload("res://scripts/npc/npc_blackboard.gd")
 const Stability = preload("res://scripts/npc/npc_decision_stability.gd")
 const Pedestrians = preload("res://scripts/npc/district_pedestrians.gd")
+const DailyRoutine = preload("res://scripts/npc/npc_daily_routine.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -17,6 +18,8 @@ func _run() -> void:
     if not _test_snapshot_and_replay():
         return
     if not _test_physical_crossing_adapter():
+        return
+    if not _test_daily_routine_and_safe_assistance():
         return
     print("CIVIC_CHAOS_NPC_DECISION_STABILITY_PASS")
     quit(0)
@@ -182,6 +185,54 @@ func _test_physical_crossing_adapter() -> bool:
     walkers._decision_tick = 0
     if not walkers.crossing_decision(0, true):
         return _fail("policy reset retained prior crossing inertia")
+    stage.queue_free()
+    return true
+
+## AI-03: deterministic activity slots, conditional civic assistance and
+## physical walker opt-in must not mutate the GAME-024 checkpoint.
+func _test_daily_routine_and_safe_assistance() -> bool:
+    var morning: Dictionary = DailyRoutine.plan(0, 0)
+    var market: Dictionary = DailyRoutine.plan(0, 1800)
+    var break_time: Dictionary = DailyRoutine.plan(0, 3000)
+    var home: Dictionary = DailyRoutine.plan(0, 3600)
+    if morning.get("activity") != "commute" or market.get("activity") != "market":
+        return _fail("routine did not follow scheduled morning/market phases")
+    if break_time.get("activity") != "break" or not break_time.get("pause", false):
+        return _fail("routine did not provide a scheduled sidewalk break")
+    if home.get("activity") != "return_home" or home.get("pause", true):
+        return _fail("routine did not resume returning home")
+    if DailyRoutine.plan(0, 3000) != break_time:
+        return _fail("routine planner was not deterministic")
+    if DailyRoutine.plan(-1, 0).get("ok", true):
+        return _fail("routine planner accepted a negative walker identity")
+    var helpful: Dictionary = DailyRoutine.plan(0, 240, true, true)
+    if not helpful.get("assist", false) or helpful.get("activity") != "offer_help":
+        return _fail("empathetic NPC did not offer a safe civic reaction")
+    if DailyRoutine.plan(0, 240, true, false).get("assist", true):
+        return _fail("assistance ignored an unsafe real-world context")
+    if DailyRoutine.plan(0, 241, true, true).get("assist", true):
+        return _fail("civic assistance did not respect its fixed tick interval")
+    if DailyRoutine.plan(1, 240, true, true).get("assist", true):
+        return _fail("different NPC personalities did not change helping behavior")
+    var stage := Node3D.new()
+    root.add_child(stage)
+    var walkers := Pedestrians.new()
+    walkers.pedestrian_count = 1
+    walkers.set_physics_process(false)
+    stage.add_child(walkers)
+    if walkers._walkers.size() != 1:
+        return _fail("routine fixture has no physical pedestrian")
+    var saved: Dictionary = walkers.checkpoint_state()
+    if walkers._routine_rest_at_safe_sidewalk(0, 0):
+        return _fail("disabled AI routine unexpectedly paused a pedestrian")
+    walkers.daily_routines_enabled = true
+    walkers._decision_tick = 3000
+    if not walkers._routine_rest_at_safe_sidewalk(0, 0):
+        return _fail("opt-in routine did not pause a safe sidewalk walker")
+    if walkers.routine_activity(0) != "break":
+        return _fail("routine activity was not exposed to presentation")
+    if walkers.checkpoint_state() != saved:
+        return _fail("visual routine changed the existing pedestrian save schema")
     stage.queue_free()
     return true
 
