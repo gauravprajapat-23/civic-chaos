@@ -1,10 +1,10 @@
 ﻿{
     "milestone":  "GAME-024",
-    "status":  "blocked",
-    "verified_at_utc":  "2026-11-13T09:29:54.2988613Z",
+    "status":  "passed",
+    "verified_at_utc":  "2026-11-13T10:15:32.4666872Z",
     "expected_branch":  "fix/aud-001-game024-gate-hardening",
     "branch":  "fix/aud-001-game024-gate-hardening",
-    "commit":  "ac46337ef44bcab57ab1eb356e3cae88ac2e8749",
+    "commit":  "88e2b108066b43378a0b8385e84af37720269060",
     "godot_version":  "4.7.2.stable.official.ed1daf0bf",
     "import_passed":  true,
     "python_runner_checks_passed":  true,
@@ -211,9 +211,9 @@
     "full_regression_exit_code":  0,
     "regression_tests_run":  113,
     "regression_expected_tests":  113,
-    "regression_source_commit":  "ac46337ef44bcab57ab1eb356e3cae88ac2e8749",
+    "regression_source_commit":  "88e2b108066b43378a0b8385e84af37720269060",
     "source_unchanged":  true,
-    "readiness_evidence_passed":  false,
+    "readiness_evidence_passed":  true,
     "regression_report":  "build/game-024-regression.json",
-    "reason":  "Independent evidence validation failed. Inspect build/game-024-verification-logs/postgate-evidence.log"
+    "reason":  "Exact source revision passed import, focused tests, full suite and negative-path checks."
 }

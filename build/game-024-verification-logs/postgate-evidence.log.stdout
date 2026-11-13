@@ -1,13 +1,7 @@
 ﻿{
-  "ready": false,
-  "branch": "",
-  "commit": "",
-  "issues": [
-    "worktree_not_clean_or_git_unavailable",
-    "git_branch_unavailable",
-    "current_git_commit_unavailable",
-    "verification_branch_mismatch",
-    "verification_commit_mismatch"
-  ]
+  "ready": true,
+  "branch": "fix/aud-001-game024-gate-hardening",
+  "commit": "88e2b108066b43378a0b8385e84af37720269060",
+  "issues": []
 }
 
