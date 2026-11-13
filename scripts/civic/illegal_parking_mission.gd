@@ -22,6 +22,7 @@ const PEDESTRIAN_SPEED: float = 1.6
 const WITNESS_WAIT_X: float = WALK_START.x + 1.0
 const WITNESS_WAIT_EPSILON: float = 0.025
 const OWNER_SPEED: float = 1.35
+const SERVICE_RESPONSE_TICKS: int = 80
 const CAR_SPEED: float = 1.5
 const BLOCKED_FRAMES_REQUIRED: int = 10
 const MAX_INTERACTION_DISTANCE: float = 3.0
@@ -45,6 +46,8 @@ var relocation_complete: bool = false
 var pedestrian_recovered: bool = false
 var finished: bool = false
 var owner_agreed: bool = false
+## Optional v1 extension; legacy checkpoints default to owner cooperation.
+var response_kind: String = "request_owner"
 var feedback: String = "Find the illegally parked car blocking the north footpath."
 var _parking_route: PackedVector3Array = PackedVector3Array([
     VEHICLE_START, Vector3(24.0, 0.0, -8.5), PARKING_BAY
@@ -292,8 +295,11 @@ func incident_card_state() -> Dictionary:
         "location": "Market Chowk east north footpath",
         "evidence": "An orange car occupies the walking path. Witness blocked for %d physics frames." % blocking_frames,
         "phase": phase, "hint": feedback,
-        "report_label": "Ask owner to relocate",
+        "report_label": "Ask owner politely (faster)",
         "report_action": "request_owner",
+        "alternative_label": "Request municipal assistance (slower)",
+        "alternative_action": "request_service",
+        "can_alternative": inspected and requested_tick < 0 and not finished,
         "can_inspect": observed_blockage and not inspected and not finished,
         "can_report": inspected and requested_tick < 0 and not finished,
         "reported": requested_tick >= 0,
@@ -313,7 +319,7 @@ func perform_incident_action(actor: Node, action: String) -> bool:
         inspected = true
         _say("Evidence recorded: the footpath is obstructed. Ask the owner to relocate.")
         return true
-    if action != "request_owner" or not inspected or requested_tick >= 0:
+    if not ["request_owner", "request_service"].has(action) or not inspected or requested_tick >= 0:
         return false
     var distance_m: float = player.global_position.distance_to(parking_owner.global_position)
     var permissions := PackedStringArray(["report"])
@@ -325,11 +331,20 @@ func perform_incident_action(actor: Node, action: String) -> bool:
     if not session.missions.record_event(MISSION_ID, "owner_contacted"):
         return false
     requested_tick = tick
+    response_kind = action
+    # The authorized owner moves the vehicle in either branch. The municipal
+    # path first coordinates the response after a fixed dispatch interval.
     owner_agreed = true
-    _say("Owner: You're right. I'll move it to the marked bay; please keep the path clear.")
+    if response_kind == "request_service":
+        _say("Municipal help desk: Request recorded. Staff will contact the owner.")
+    else:
+        _say("Owner: You're right. I'll move it to the marked bay; please keep the path clear.")
     return true
 
 func _advance_owner_and_car(delta: float) -> void:
+    # A municipal dispatch must not instantly move the obstructing car.
+    if response_kind == "request_service" and tick - requested_tick < SERVICE_RESPONSE_TICKS:
+        return
     if not relocation_started:
         if not is_instance_valid(parking_owner):
             return
@@ -337,7 +352,8 @@ func _advance_owner_and_car(delta: float) -> void:
         if parking_owner.position.distance_to(OWNER_DESTINATION) <= 0.12:
             # Record exact endpoint for reproducible owner checkpoints.
             parking_owner.position = OWNER_DESTINATION
-            if session.incidents.transition(incident_id, CivicIncidentManager.INTERVENTION, tick, "owner_accepted_safe_relocation"):
+            if session.incidents.transition(incident_id, CivicIncidentManager.INTERVENTION, tick,
+                "municipal_supervised_relocation" if response_kind == "request_service" else "owner_accepted_safe_relocation"):
                 intervention_tick = tick
                 relocation_started = true
                 _say("Owner reached the vehicle. Moving to a marked bay, away from the footpath.")
@@ -409,8 +425,13 @@ func _complete_recovery() -> void:
     if not session.incidents.transition(incident_id, CivicIncidentManager.RESOLVED, tick, "actual_pedestrian_route_reopened"):
         return
     session.missions.record_event(MISSION_ID, "pedestrian_route_recovered")
+    var result_scores: Dictionary = {"safety": 15, "trust": 20, "cooperation": 20}
+    if response_kind == "request_service":
+        # An official response restores safety but builds less neighborly
+        # cooperation than a successful direct request.
+        result_scores = {"safety": 15, "trust": 15, "cooperation": 10}
     session.metrics.apply_outcome("parking:%d:reopened" % incident_id, tick,
-        {"safety": 15, "trust": 20, "cooperation": 20}, "verified_pedestrian_recovery")
+        result_scores, "verified_pedestrian_recovery")
     var reward: int = session.missions.claim_reward(MISSION_ID)
     pedestrian_recovered = true
     finished = true
@@ -466,6 +487,7 @@ func snapshot() -> Dictionary:
         "requested_tick": requested_tick,
         "intervention_tick": intervention_tick,
         "owner_agreed": owner_agreed,
+        "response_kind": response_kind,
         "owner_progress": owner_fraction,
         "relocation_started": relocation_started,
         "relocation_complete": relocation_complete,
@@ -520,6 +542,13 @@ static func checkpoint_valid(raw: Variant, civic: Variant, failures: Array = [])
         if not (data.get(flag) is bool):
             failures.append("flag_" + flag)
             return false
+    var selected_response: Variant = data.get("response_kind", "request_owner")
+    if not (selected_response is String) or not ["request_owner", "request_service"].has(selected_response):
+        failures.append("response_kind")
+        return false
+    if int(data["requested_tick"]) < 0 and selected_response != "request_owner":
+        failures.append("response_without_request")
+        return false
     if not (data.get("feedback") is String):
         failures.append("feedback")
         return false
@@ -653,6 +682,7 @@ func restore(raw: Variant) -> bool:
     requested_tick = int(data["requested_tick"])
     intervention_tick = int(data["intervention_tick"])
     owner_agreed = bool(data["owner_agreed"])
+    response_kind = str(data.get("response_kind", "request_owner"))
     relocation_started = bool(data["relocation_started"])
     relocation_complete = bool(data["relocation_complete"])
     pedestrian_recovered = bool(data["pedestrian_recovered"])
@@ -682,7 +712,7 @@ func guidance_state() -> Dictionary:
         objective = "Give the moving vehicle space to reach the marked bay."
         show = false
     elif requested_tick >= 0:
-        objective = "Owner agreed; wait safely for the relocation."
+        objective = "Municipal team contacting owner; wait safely." if response_kind == "request_service" else "Owner agreed; wait safely for the relocation."
         show = false
     elif inspected:
         objective = "Return to the owner and ask for relocation."
