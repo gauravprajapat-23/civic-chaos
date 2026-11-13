@@ -27,13 +27,26 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | RESPONSIVE TEST PASSED — DEVICE REVIEW PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
-| PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | RANKS/BADGES FOCUSED TESTS PASS; ROTATING GOAL CODE COMMITTED — FULL GATE PENDING | Save/replay/anti-farming tests, clear return incentive |
+| PROG-01 | P1 | Reputation ranks and offline rotating civic goals | USER REPORTED FOCUSED TESTS PASS — LATEST FULL GATE UNCONFIRMED | Save/replay/anti-farming tests, clear return incentive |
+| PROG-02 | P1 | Neighborhood support unlocks with physical Free Roam navigation benefits | CODE COMMITTED — GODOT TEST PENDING | Audited-receipt thresholds, visual beacon, stage transition, reload consistency |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — PROG-02 neighborhood support unlocks
+- User reported the PROG-01 rotating-goal focused test batch passed. No exact-revision full gate JSON was provided for that batch; the **last explicit full acceptance** remains `dd8645c` with 109/109 tests.
+- Implemented three earnable neighborhood support tiers, derived from real unique Free Roam completion receipts at **3 / 10 / 25** activities:
+  - **North Market Watch (3):** visible blue source beacon above the current civic incident (helps locate evidence).
+  - **East Community Logistics (10):** beacon moves to the physical return destination after pickup.
+  - **South Priority Response (25):** stronger visual beacon for urgent priority incidents.
+- Navigation aid uses a non-colliding `MeshInstance3D`, respects the event stage, and is rebuilt after checkpoint loading. No movement teleports, score multipliers, event deadline changes, extra rewards, source data fields, or checkpoint-schema modifications.
+- Added `tests/neighborhood_unlocks_test.gd`, exercising **three real resolved incidents** to unlock a visual aid, verifying beacon position, score/save integrity and checkpoint rehydration. Extended `tests/volunteer_progression_test.gd` for all threshold boundaries.
+- Commits: `54977be` progression, `a0bddb5` world beacon, `2666b50` guidance, `01a7958` thresholds test, `d16cbc2` / `21d1741` live test.
+- **Status:** CODE COMMITTED; not yet imported or run on the user's local Godot 4.7.2. Commit generated `.gd.uid` files before running full acceptance. Manual visual and Android-device confirmation remain required.
+- Next: run `neighborhood_unlocks_test.gd`, `volunteer_progression_test.gd`, `free_roam_live_events_test.gd`, `free_roam_event_restart_test.gd`, `free_roam_legacy_migration_test.gd` and `world_pedestrian_checkpoint_test.gd` before full gate.
 
 ### 2026-11-13 — PROG-01 verified foundation and offline rotating civic goals
 - User's Godot 4.7.2 local import passed, followed by **5/5 focused tests**: `volunteer_progression_test.gd`, `free_roam_live_events_test.gd`, `free_roam_event_restart_test.gd`, `free_roam_director_checkpoint_test.gd`, and `civic_hud_test.gd` on commit `fe232ef`. This is **not** a new full-GAME-024 acceptance.
