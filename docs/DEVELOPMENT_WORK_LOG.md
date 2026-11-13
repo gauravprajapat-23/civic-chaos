@@ -22,11 +22,11 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 | ID | Priority | Task | State | Acceptance evidence |
 |---|---|---|---|---|
-| UX-01 | P1 | Responsive start menu and accessible How to Play guide | CODE COMMITTED — TEST PENDING | Godot import; menu navigation focused test; keyboard/touch review |
+| UX-01 | P1 | Responsive start menu and accessible How to Play guide | FOCUSED GODOT TEST PASSED — VISUAL REVIEW PENDING | Godot import; menu navigation focused test; keyboard/touch review |
 | QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
-| UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | CODE COMMITTED — TEST PENDING | Screenshot comparison at PC and mobile aspect ratios |
-| STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | FIRST PARKING CHOICE CODE COMMITTED — TEST PENDING | Distinct tested consequences, no duplicate rewards |
+| UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | RESPONSIVE TEST PASSED — DEVICE REVIEW PENDING | Screenshot comparison at PC and mobile aspect ratios |
+| STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
 | PROG-01 | P1 | Reputation ranks, daily requests and neighborhood unlocks with no pay-to-win civic authority | TODO | Save/replay/anti-farming tests, clear return incentive |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
@@ -34,6 +34,12 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — Focused UX and choice tests passed; full acceptance blocked
+- User ran Godot 4.7.2 import successfully at commit `77ae2a6`, then **7/7 focused scripts passed**: `menu_ux_test.gd`, `ui_responsive_civic_test.gd`, `parking_owner_card_test.gd`, `parking_response_choice_test.gd`, `illegal_parking_live_test.gd`, `parking_checkpoint_test.gd`, `multi_incident_checkpoint_test.gd`.
+- GAME-024 full acceptance reported **blocked** twice without an inline reason. No focused test PASS lines appeared in the gate output; its exact preflight/runner failure remains **unknown** until reading `build/game-024-verification.json`.
+- Updated the acceptance script at `179be3d` to print `BLOCKED REASON` and, for source-cleanliness failures, the changed file list. The gate still fails closed and preserves its existing acceptance criteria.
+- **Do not mark the full regression or current release acceptance passed.** Next: inspect the JSON `reason`, `git status --short` and relevant log, remedy the actual failure, rerun at the exact latest commit.
 
 ### 2026-11-13 — UX-01 menu test failure + STORY-CHOICE-01 parking choices
 - User's local Godot import passed on the earlier `b175734` revision; `menu_ux_test.gd` failed because the guide's dynamically constructed VBoxContainer lacked the exact `VBoxContainer` name required by the test. The test stopped the loop; other UX fixture results were not supplied.
