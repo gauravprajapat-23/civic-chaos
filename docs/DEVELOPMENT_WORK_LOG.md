@@ -29,12 +29,20 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
 | PROG-01 | P1 | Reputation ranks and offline rotating civic goals | USER REPORTED FOCUSED TESTS PASS — LATEST FULL GATE UNCONFIRMED | Save/replay/anti-farming tests, clear return incentive |
 | PROG-02 | P1 | Neighborhood support unlocks with physical Free Roam navigation benefits | CODE COMMITTED — GODOT TEST PENDING | Audited-receipt thresholds, visual beacon, stage transition, reload consistency |
+| PROG-03 | P1 | Visible neighborhood improvement projects earned from real civic work | CODE COMMITTED — LOCAL TESTS / VISUAL QA PENDING | Tier gates, no extra scores, physically non-blocking objects, checkpoint reconstruction |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-13 — PROG-03 district improvement projects
+- Created `scripts/world/neighborhood_improvements.gd` with three visible, **non-colliding**, simple 3D city upgrades unlocked by audited Free Roam resolutions: restored market planters (3), a community information kiosk (10), and solar-style street lighting (25). These are deliberately cosmetic props in the current Market Chowk rather than invented new accessible districts.
+- Integrated `CivicNeighborhoodImprovements` under active Free Roam; objects are placed only after source receipt validation and recomputed after each real incident resolution and checkpoint restoration. Existing traffic/collision/mission/reward and checkpoint formats remain untouched.
+- Added HUD progress readout for improvements and next project. New `tests/neighborhood_improvements_test.gd` checks tier boundaries, receipt fraud rejection, no duplicate props and JSON replay. Extended `tests/neighborhood_unlocks_test.gd` to verify the first improvement appears after **three real physical incident resolutions** and returns after checkpoint restore.
+- Commits: `31b9ebf` model, `ce11e13` integration, `5b300bf` unit regression, `c9b0729` HUD, `c6a9d26` physical integration regression.
+- **Status: CODE COMMITTED; unverified at this revision.** Run local Godot import and targeted tests, check newly generated `.gd.uid` files, and rerun the full gate on the exact revision. Visual/manual playtest and Android QA remain mandatory. No GitHub Actions manually triggered.
 
 ### 2026-11-13 — PROG-02 neighborhood support unlocks
 - User reported the PROG-01 rotating-goal focused test batch passed. No exact-revision full gate JSON was provided for that batch; the **last explicit full acceptance** remains `dd8645c` with 109/109 tests.
