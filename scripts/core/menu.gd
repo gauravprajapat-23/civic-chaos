@@ -87,6 +87,7 @@ func _build_guide() -> void:
     surface.set_content_margin_all(18)
     guide_panel.add_theme_stylebox_override("panel", surface)
     var layout := VBoxContainer.new()
+    layout.name = "VBoxContainer"
     layout.add_theme_constant_override("separation", 12)
     guide_panel.add_child(layout)
     var title := Label.new()
