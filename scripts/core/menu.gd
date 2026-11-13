@@ -115,10 +115,13 @@ func _build_guide() -> void:
         + "STORY OBJECTIVES\\n"
         + "1. Inspect the footpath tutorial.\\n"
         + "2. Report wrong-way traffic and wait for safe towing.\\n"
-        + "3. Talk to the illegal-parking owner; reclaim the sidewalk.\\n"
+        + "3. Inspect illegal parking; request the owner or municipal help.\\n"
         + "4. Clean the market and finish the district.\\n\\n"
         + "AFTER THE FINALE\\n"
         + "Continue in Free Roam. Collect litter, return fallen signs and store misplaced cones.\\n"
+        + "Earn volunteer badges and neighborhood support by resolving real incidents.\\n"
+        + "At 3, 10 and 25 completions, the market gains usable community projects.\\n"
+        + "Approach a service point and press E / USE for local guidance.\\n"
         + "Follow the objective guide and interact close to marked objects."
     ).replace("\\n", "\n")
     instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
