@@ -38,6 +38,12 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-13 — Exact 113/113 suite accepted by runner; Git probe failed in independent validator
+- User supplied exact report at commit `ac46337ef44bcab57ab1eb356e3cae88ac2e8749`: **113/113 regression cases**, `full_regression_passed=True`, `source_unchanged=True`; the independent checker returned `branch=""`, `commit=""` and Git evidence issues. This is a genuine **blocked** gate, not a Godot test failure.
+- Root cause at the process level remains **unconfirmed**. `tools/check_game024_gate.py` previously swallowed exceptions/failed exit codes from **any one** of its three Git subprocess calls and replaced both otherwise-valid branch and commit with blanks. The strict runner had independently obtained a real commit.
+- Updated Git evidence probe to check branch, commit and status **separately**, keep any successful data, and include specific Git exit codes/stderr or exception types in the checker `issues` list. Existing strict commit equality, tree cleanliness, replay/negative tests and inventory checks remain enforced. Commit `4c7c215`.
+- Next: update local checkout, run `python tools/check_game024_gate.py` against the existing reports for a precise diagnostic. Since those reports were generated at an older SHA, `verification_commit_mismatch` is expected **until the full gate is rerun on the new commit**; use the Git-specific issues to locate an environment/configuration problem first. Never treat a stale report as pass.
+
 ### 2026-11-13 — Independent postgate evidence validation blocked
 - User ran `tools/verify_game024.ps1` and all **24/24 focused GAME-024 tests passed**. The script then set provisional `passed`, indicating its full regression and other acceptance conditions had passed; the **final independent evidence checker blocked** and downgraded the result.
 - Exact unmet condition(s) are **not known**: the original script only printed a generic "Independent evidence validation failed" line. The source of truth is `build/game-024-verification-logs/postgate-evidence.log` or `postgate-evidence.log.stdout` on the user's Windows machine.
