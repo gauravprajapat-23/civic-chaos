@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-13 — GAME-QA-01 screenshot: How to Play content wraps one letter per line
+- User-provided screenshot shows the How to Play modal frame at healthy width but instruction text squeezed into a narrow sliver, forcing single-character lines. Classified **P1 UI readability blocker**.
+- Root cause: the wrapping `Label` nested directly under `ScrollContainer` lacked a useful minimum content width; scrolling container vertical expansion did not guarantee text-layout width.
+- Fix in `scripts/core/menu.gd`: explicitly size the instruction label to the responsive panel width minus safe content margins/scrollbar, expand horizontally, keep vertical scroll, disable horizontal scrolling. Existing start/navigation logic is untouched.
+- Extended `tests/menu_ux_test.gd` with checks for actual text width and no horizontal overflow. Commits `33007ae`, `02242be`.
+- **LOCAL GODOT TEST AND VISUAL RECHECK PENDING.** Reopen How to Play at 1037×676 (reported image), 320×568 and 740×360; text must display words/paragraphs, not one letter per line. Later committed edits invalidate the previously accepted `88e2b10` full gate baseline.
+
+
+
 ### 2026-11-13 — GAME-024 fully accepted; GAME-QA-01 gameplay/visual audit started
 - User supplied **complete GAME-024 acceptance at exactly `88e2b108066b43378a0b8385e84af37720269060`**: status `passed`, 113/113 full regression tests, 24 focused tests, independent evidence `True`, Godot import/negative-path gate passed. This is an accepted **engineering baseline**, not a claim of manual game quality or acceptance of newer commits.
 - Source audit found fixed-size mission guide offsets and potential overlap with civic HUD on narrow portrait displays. Replaced fixed guide bounds with deterministic viewport-relative `CivicMissionGuide.panel_bounds`, moved portrait HUD below the upper guide, and added `tests/game_qa_mission_guide_test.gd` covering 5 screen sizes, overlap and recovery actions.
