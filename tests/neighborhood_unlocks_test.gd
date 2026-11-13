@@ -93,11 +93,24 @@ func _run() -> void:
     var prior_scores: Dictionary = civic.metrics.scores.duplicate(true)
     var prior_rewards: Dictionary = civic.metrics.processed_events.duplicate(true)
     var old_feedback: String = roam.feedback
+    # The previous delivery can happen within the garden's 3m radius.
+    # Make the remote rejection deterministic instead of assuming distance.
+    actor.global_position = garden.global_position + Vector3(0.0, 0.0, 10.0)
+    if actor.global_position.distance_to(garden.global_position) <= 3.0:
+        _fail("remote-access fixture was not actually outside service range")
+        return
     garden.interact(actor)
     if roam.feedback != old_feedback:
         _fail("remote garden use incorrectly provided civic information")
         return
     actor.global_position = garden.global_position + Vector3(0.0, 0.0, 1.3)
+    var impostor := Node3D.new()
+    stage.add_child(impostor)
+    impostor.global_position = actor.global_position
+    garden.interact(impostor)
+    if roam.feedback != old_feedback:
+        _fail("unauthorized nearby actor could use the garden service")
+        return
     garden.interact(actor)
     if not roam.feedback.contains("MARKET GARDEN") or not roam.feedback.contains("3 verified"):
         _fail("earned garden service did not provide verified progress")
