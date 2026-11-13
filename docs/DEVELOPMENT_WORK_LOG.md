@@ -39,6 +39,16 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-13 — ART-CAR-02 visual detail and physical car/actor avoidance
+- User requested more recognizable cars, and improved interaction when the player or NPC pedestrians come into contact with moving cars.
+- **Physical change:** `scripts/traffic/traffic_spawner.gd` now enables the existing physics obstacle sweep for *all* spawned physical vehicles, not only expanded-city cars. Each vehicle samples its forthcoming footprint and brakes when layer-2 player, layer-8 pedestrian, other vehicle or protruding street obstacle would be hit; the fixed route, collision box, save schema, speed law and RNG remain unchanged. Pure abstract traffic-agent tests continue to function without a collider. This avoids introducing dynamic rigid-body impulses or damage while stopping actor penetration.
+- **Pedestrian spawn hardening:** `_spawn_is_clear` avoids currently known live traffic positions when a spawner is connected. This intentionally avoids unsafe `direct_space_state` queries in `_ready()`; physics-frame pedestrian path probes remain unchanged. Changes `ba82bf0`, `588da95`.
+- **Visual:** additional window center pillars, door seams, running boards, wheel-arch trim, bumper intake, chrome waistline, fog lamps and central brake strip. Rear light emission responds to real vehicle stop state; no new colliders or traffic RNG draws. `4d06a00`, `9f7525f`.
+- **Regression:** `tests/vehicle_actor_safety_test.gd` stages a physically collidable player then a pedestrian in a real lane, requires a moving car to brake before contact and resume after clearance. `tests/vehicle_visuals_test.gd` now verifies styling features and brake-light state. `bca329e`, `37183f7`.
+- **Status: CODE COMMITTED, LOCAL GODOT VERIFICATION PENDING.** Run import, `vehicle_actor_safety_test.gd`, `vehicle_visuals_test.gd`, `player_vehicle_contact_test.gd`, `vehicle_scene_contract_test.gd`, `traffic_checkpoint_invariants_test.gd`, `world_pedestrian_checkpoint_test.gd`, and full GAME-024 gate. Confirm real Android controls and moving-car safety before release. No GitHub Actions manually triggered.
+
+
+
 ### 2026-11-13 — ART-CAR-01 sedan visual replacement, no traffic changes
 - User requested the existing Civic Chaos vehicle look recognizably like a car instead of a toy-like box.
 - Inspected the actual traffic scene `scenes/traffic/vehicle_agent.tscn`, root `CivicVehicleAgent`, existing four named wheels and authoritative `CollisionBody/CollisionShape3D` (BoxShape3D 1.6×1.2×3.0). Kept the scene contract and unchanged collision, node paths, route physics and save model.
