@@ -405,7 +405,7 @@ try {
             }
         } catch {
             $evidenceIssues = ("Checker output could not be parsed: " +
-                ($readiness.output.Trim() -replace "\\r?\\n", " "))
+                ($readiness.output.Trim() -replace "\r?\n", " "))
         }
         if ([string]::IsNullOrWhiteSpace($evidenceIssues)) {
             $evidenceIssues = ("exit_code={0}, engine_error={1}, timed_out={2}" -f `
