@@ -38,6 +38,12 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-13 — PROG-04 remote-access fixture correction
+- User reported Godot 4.7.2 headless import **PASSED**, then `neighborhood_unlocks_test.gd` failed with `remote garden use incorrectly provided civic information`; the test loop halted before later cases. The output alone does not show a proximity bypass.
+- Review identified the fixture left its player at the last real Free Roam delivery, which can be within 3m of the garden service. Its purported "remote" attempt did not set or assert a remote position.
+- Corrected `tests/neighborhood_unlocks_test.gd`: explicitly position the player **10 metres** from the service and assert distance >3m, verify remote denial, then place the genuine player within 1.3m. Added a nearby spoofed actor check before verifying authorized service feedback. The production rule still rejects distant actors and non-player objects; no permission or safety rule was relaxed.
+- Commit `34d5004`. **TEST RE-RUN PENDING**. If still failing, inspect the next exact error before changing gameplay rules.
+
 ### 2026-11-13 — PROG-02 restore failure hardening / PROG-04 service interactions
 - User ran Godot 4.7.2 import and `neighborhood_improvements_test.gd` successfully on PROG-03 source revision `65a9862`, but `neighborhood_unlocks_test.gd` stopped at "existing checkpoint could not restore unlocked support"; later tests in that loop were NOT executed. No new full gate acceptance can be inferred.
 - **Restore fix (`ef68a67`):** a rigorously validated checkpoint identical to the already-staged Free Roam state now uses a safe idempotent restore (resyncing navigation/improvements) rather than attempting to restage the exact same live evidence collider. Different checkpoints still take the existing preflight and physical restoration path; save format unchanged. Added an explicit checkpoint-valid assertion before the test's same-state load to distinguish any remaining validation error.
