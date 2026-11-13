@@ -109,6 +109,16 @@ func render_state(state: Dictionary) -> void:
                 category, " | PRIORITY" if bool(state.get("free_roam_priority", false)) else ""]
             if not location_id.is_empty():
                 roam_label.text += "\nDISTRICT | %s" % location_id.replace("_", " ").capitalize()
+        var volunteer: Dictionary = state.get("volunteer_progress", {})
+        if not volunteer.is_empty():
+            roam_label.text += "\nVOLUNTEER | %s" % str(volunteer.get("rank", ""))
+            var goal: int = int(volunteer.get("next_goal", 0))
+            if goal > 0:
+                roam_label.text += "\nNEXT BADGE | %s (%d/%d)" % [
+                    str(volunteer.get("next_title", "")),
+                    int(volunteer.get("activities", 0)), goal]
+            else:
+                roam_label.text += "\nBADGES | All milestones reached"
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
 
 func current_state() -> Dictionary:
