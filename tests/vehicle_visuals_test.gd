@@ -50,6 +50,24 @@ func _run() -> void:
         if piece is CollisionObject3D or piece is CollisionShape3D:
             _fail("decorative car mesh contains a gameplay collider")
             return
+    for detail_name in [
+        "CabinCenterPillar_L", "CabinCenterPillar_R",
+        "DoorSeam_L", "RunningBoard_R", "FrontArch_L", "RearArch_R",
+        "FogLamp_L", "RearWindowBrakeStrip"
+    ]:
+        if not (details.get_node_or_null(detail_name) is MeshInstance3D):
+            _fail("enhanced car missing styling detail: " + detail_name)
+            return
+    details.set_braking(true)
+    var brake: MeshInstance3D = details.get_node("RearWindowBrakeStrip") as MeshInstance3D
+    var brake_paint: StandardMaterial3D = brake.material_override as StandardMaterial3D
+    if brake_paint == null or brake_paint.emission.r < 0.8:
+        _fail("car brake lights did not activate")
+        return
+    details.set_braking(false)
+    if brake_paint.emission.r >= 0.8:
+        _fail("car brake lights did not release")
+        return
     var visual: MeshInstance3D = car.get_node("Visual") as MeshInstance3D
     if not (visual.mesh is BoxMesh) or (visual.mesh as BoxMesh).size.y >= 1.0:
         _fail("tall cuboid body was not reshaped into sedan proportions")
