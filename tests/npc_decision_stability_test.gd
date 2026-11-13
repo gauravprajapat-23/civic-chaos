@@ -4,6 +4,7 @@ extends SceneTree
 const Personality = preload("res://scripts/npc/npc_personality.gd")
 const Blackboard = preload("res://scripts/npc/npc_blackboard.gd")
 const Stability = preload("res://scripts/npc/npc_decision_stability.gd")
+const Pedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -14,6 +15,8 @@ func _run() -> void:
     if not _test_help_safety_and_invalid_inputs():
         return
     if not _test_snapshot_and_replay():
+        return
+    if not _test_physical_crossing_adapter():
         return
     print("CIVIC_CHAOS_NPC_DECISION_STABILITY_PASS")
     quit(0)
@@ -142,6 +145,44 @@ func _test_snapshot_and_replay() -> bool:
     if restored.decide(personality, board, 2026) != first.decide(personality, board, 2026):
         return _fail("restored agent diverged from same fixed-tick source state")
     print("CIVIC_CHAOS_REPLAY_STATE npc_stability=" + JSON.stringify(trace_a))
+    return true
+
+## AI-02: isolated real pedestrian adapter. Even with utility AI enabled,
+## physical red/occupied crossing safety is a hard veto; hysteresis may only
+## delay the next legal entrance. Disabled behavior stays unchanged.
+func _test_physical_crossing_adapter() -> bool:
+    var stage := Node3D.new()
+    root.add_child(stage)
+    var walkers := Pedestrians.new()
+    walkers.pedestrian_count = 1
+    walkers.set_physics_process(false)
+    stage.add_child(walkers)
+    if walkers.checkpoint_state()["walkers"].size() != 1:
+        return _fail("stable crossing fixture did not stage one pedestrian")
+    var before: Dictionary = walkers.checkpoint_state()
+    if not walkers.crossing_decision(0, true):
+        return _fail("opt-in disabled crossing changed legacy permission")
+    walkers.stable_crossing_decisions_enabled = true
+    walkers._decision_tick = 10
+    if not walkers.crossing_decision(0, true):
+        return _fail("safe utility crossing was not permitted")
+    if walkers.crossing_decision(0, false):
+        return _fail("utility AI crossed an unsafe road")
+    walkers._decision_tick = 11
+    if walkers.crossing_decision(0, true):
+        return _fail("crossing cooldown failed to prevent immediate flip")
+    walkers._decision_tick = 17
+    if not walkers.crossing_decision(0, true):
+        return _fail("stable policy could not resume legal crossing")
+    if walkers.crossing_decision(-1, true) or walkers.crossing_decision(5, true):
+        return _fail("invalid walker index bypassed crossing policy")
+    if walkers.checkpoint_state() != before:
+        return _fail("utility decision modified v1 pedestrian checkpoint data")
+    walkers.reset_crossing_decisions()
+    walkers._decision_tick = 0
+    if not walkers.crossing_decision(0, true):
+        return _fail("policy reset retained prior crossing inertia")
+    stage.queue_free()
     return true
 
 func _fail(reason: String) -> bool:
