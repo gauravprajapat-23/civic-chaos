@@ -125,6 +125,14 @@ func render_state(state: Dictionary) -> void:
                     str(rotation.get("title", "")),
                     int(rotation.get("completed", 0)),
                     int(rotation.get("target", 4))]
+        var projects: Dictionary = state.get("neighborhood_projects", {})
+        if not projects.is_empty():
+            var opened: Array = projects.get("unlocked", [])
+            roam_label.text += "\nNEIGHBORHOOD | %d improvements" % opened.size()
+            var upcoming: String = str(projects.get("next_name", ""))
+            if not upcoming.is_empty():
+                roam_label.text += "\nNEXT PROJECT | %s (%d to go)" % [
+                    upcoming, int(projects.get("remaining", 0))]
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
 
 func current_state() -> Dictionary:
