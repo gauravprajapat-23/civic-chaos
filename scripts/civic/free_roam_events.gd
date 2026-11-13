@@ -35,6 +35,9 @@ var last_location_id: String = ""
 var _current_target: String = ""
 var primary: CivicCleanupTarget
 var receiver: CivicCleanupTarget
+## A non-colliding visual aid, reconstructed from audited receipts on load.
+## It never grants physical access, changes deadlines, or enters checkpoints.
+var support_beacon: MeshInstance3D
 var feedback: String = "Free Roam | Keep an eye out for civic issues around Market Chowk."
 
 func _init() -> void:
@@ -121,6 +124,7 @@ func _start_event(kind: String, instance_id: int) -> bool:
         "incident_id": int(created["id"]), "stage": 0, "site_id": site_id,
         "tier": Challenges.tier(instance_id),
         "deadline_tick": Challenges.deadline(instance_id, int(director.active[instance_id]["end_tick"]))}
+    _sync_support_beacon()
     var info: Dictionary = Challenges.details(kind)
     var place: Dictionary = Challenges.site(site_id, kind)
     _say("NEW %s FREE ROAM EVENT | %s at %s. Inspect the evidence." % [
@@ -185,6 +189,45 @@ func _notify_witness(phase: String) -> void:
         npc_reaction_requested.emit(to_global(site["source"]),
             str(active_event["kind"]), phase, int(active_event["instance"]))
 
+func _sync_support_beacon() -> void:
+    if is_instance_valid(support_beacon):
+        support_beacon.visible = false
+    if active_event.is_empty() or session == null:
+        return
+    var progress: Dictionary = Progression.overview(
+        session.metrics.reputation(), resolved_total, session.metrics.processed_events)
+    if progress.is_empty():
+        return
+    var support: Dictionary = progress.get("neighborhood_support", {})
+    var stage: int = int(active_event["stage"])
+    var show: bool = bool(support.get("source_beacon", false)) and stage < 2
+    show = show or (bool(support.get("destination_beacon", false)) and stage == 2)
+    if not show:
+        return
+    var site: Dictionary = Challenges.site(str(active_event["site_id"]), str(active_event["kind"]))
+    if site.is_empty():
+        return
+    if not is_instance_valid(support_beacon):
+        support_beacon = MeshInstance3D.new()
+        support_beacon.name = "NeighborhoodSupportBeacon"
+        support_beacon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        var sphere := SphereMesh.new()
+        sphere.radius = 0.42
+        sphere.height = 0.84
+        support_beacon.mesh = sphere
+        var paint := StandardMaterial3D.new()
+        paint.albedo_color = Color(0.15, 0.85, 0.96, 0.85)
+        paint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+        paint.emission_enabled = true
+        paint.emission = Color(0.05, 0.7, 1.0)
+        support_beacon.material_override = paint
+        add_child(support_beacon)
+    var priority: bool = bool(support.get("priority_alert", false)) and str(active_event["tier"]) == "priority"
+    support_beacon.scale = Vector3.ONE * (1.65 if priority else 1.0)
+    var location: Vector3 = site["source"] if stage < 2 else site["destination"]
+    support_beacon.position = location + Vector3(0.0, 2.5, 0.0)
+    support_beacon.visible = true
+
 func _clear_targets() -> void:
     # queue_free() is deferred. Retire collision and E/USE immediately so a
     # same-frame reload or new incident cannot interact with ghost props.
@@ -197,6 +240,8 @@ func _clear_targets() -> void:
     primary = null
     receiver = null
     _current_target = ""
+    if is_instance_valid(support_beacon):
+        support_beacon.visible = false
 
 func _set_carried(value: bool) -> void:
     if is_instance_valid(primary):
@@ -264,6 +309,7 @@ func perform_incident_action(actor: Node, action: String) -> bool:
     if action == collect_action and _current_target == "primary" and stage == 1:
         active_event["stage"] = 2
         _set_carried(true)
+        _sync_support_beacon()
         _say("Collected. Carry it to the %s." % str(info["carry_target"]))
         _notify_witness("carried")
         return true
@@ -473,6 +519,7 @@ func restore_checkpoint(raw: Variant) -> bool:
     last_location_id = new_last
     if not active_event.is_empty() and int(active_event["stage"]) >= 2:
         _set_carried(true)
+    _sync_support_beacon()
     if active_event.is_empty():
         feedback = "Free Roam | Explore the district; another civic activity may appear."
     else:
