@@ -49,14 +49,33 @@ func _initialize() -> void:
         _fail("traffic average work time metric incorrect")
         return
 
+    # PERF-02: measured per-tick sensor work is bounded telemetry, not a
+    # substitute for real collision/signal observations.
+    for i in range(130):
+        budget.record_sensor_checks(i % 7)
+    if budget.metrics()["sensor_sample_count"] != 120:
+        _fail("sensor work window exceeded the bounded history")
+        return
+    if budget.metrics()["sensor_checks_peak"] != 6:
+        _fail("sensor work peak did not match recorded evaluations")
+        return
+    if not is_equal_approx(float(budget.metrics()["sensor_checks_average"]), 3.0):
+        _fail("sensor work average did not match retained sample window")
+        return
+    var work_before: Dictionary = budget.metrics()
+    budget.record_sensor_checks(-1)
+    if budget.metrics() != work_before:
+        _fail("invalid sensor work count changed measured telemetry")
+        return
+
     # A fresh generation uses tick 1 again. Without a reset, an older
     # _last_tick silently starves every decision until the old clock catches
     # up; stale observations and timing samples also survive incorrectly.
     budget.update_sensor(30, {"gap": 1.0})
     budget.select_decisions(100, ids)
     budget.reset_runtime()
-    if not budget.cached_sensor(30).is_empty() or budget.metrics()["sample_count"] != 0:
-        _fail("new generation inherited sensor cache or timing samples")
+    if not budget.cached_sensor(30).is_empty() or budget.metrics()["sample_count"] != 0 or budget.metrics()["sensor_sample_count"] != 0:
+        _fail("new generation inherited sensor cache or workload timing samples")
         return
     if budget.maximum_agents != 12 or budget.maximum_decisions_per_tick != 2 or budget.sensor_interval_ticks != 4:
         _fail("runtime reset destroyed configured work limits")
