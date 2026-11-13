@@ -31,7 +31,7 @@ func _run() -> void:
         return
     spawner.active_vehicles.append(car)
 
-    var walkers := Pedestrians.new() as CivicDistrictPedestrians
+    var walkers := Pedestrians.new()
     walkers.pedestrian_count = 1
     stage.add_child(walkers)
     walkers.set_physics_process(false)
