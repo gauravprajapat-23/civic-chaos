@@ -38,6 +38,12 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-13 — Independent postgate evidence validation blocked
+- User ran `tools/verify_game024.ps1` and all **24/24 focused GAME-024 tests passed**. The script then set provisional `passed`, indicating its full regression and other acceptance conditions had passed; the **final independent evidence checker blocked** and downgraded the result.
+- Exact unmet condition(s) are **not known**: the original script only printed a generic "Independent evidence validation failed" line. The source of truth is `build/game-024-verification-logs/postgate-evidence.log` or `postgate-evidence.log.stdout` on the user's Windows machine.
+- Updated `tools/verify_game024.ps1` to include the checker's specific `issues` list in the gate report and console message, retaining fail-closed behavior. Commits `399a24a`, `3495b54`; no validation flags or acceptance thresholds were weakened.
+- **No new full GAME-024 PASS is claimed.** Next inspect the already-written checker log, repair the specific evidence mismatch, and rerun acceptance on the resulting exact Git commit.
+
 ### 2026-11-13 — PROG-04 remote-access fixture correction
 - User reported Godot 4.7.2 headless import **PASSED**, then `neighborhood_unlocks_test.gd` failed with `remote garden use incorrectly provided civic information`; the test loop halted before later cases. The output alone does not show a proximity bypass.
 - Review identified the fixture left its player at the last real Free Roam delivery, which can be within 3m of the garden service. Its purported "remote" attempt did not set or assert a remote position.
