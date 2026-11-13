@@ -486,6 +486,18 @@ func _spawn_is_clear(candidate: Vector3) -> bool:
         offset.y = 0.0
         if offset.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
             return false
+    # Spawning a walker into the side of an existing car is not recoverable
+    # by ordinary forward sweeps. Use the same physical geometry clearance
+    # as during walking, even if no spawner was wired at startup.
+    var probe := SphereShape3D.new()
+    probe.radius = BODY_RADIUS + 0.12
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = probe
+    query.transform = Transform3D(Basis.IDENTITY, to_global(candidate) + Vector3.UP * 0.9)
+    query.collision_mask = 4
+    query.margin = 0.02
+    if not get_world_3d().direct_space_state.intersect_shape(query, 12).is_empty():
+        return false
     return true
 
 ## The lane-relative right side is opposite for opposing walkers; deterministic
