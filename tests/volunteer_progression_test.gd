@@ -66,6 +66,27 @@ func _run() -> void:
     if Progression.overview(620, 10, replay).get("rotating_goal") != goals.get("rotating_goal"):
         _fail("rotating goal did not survive JSON replay")
         return
+    var north: Dictionary = Progression.neighborhood_support(3)
+    var east: Dictionary = Progression.neighborhood_support(10)
+    var south: Dictionary = Progression.neighborhood_support(25)
+    if Progression.neighborhood_support(2).get("source_beacon", true):
+        _fail("navigation unlocked before three verified activities")
+        return
+    if not north.get("source_beacon", false) or north.get("destination_beacon", true):
+        _fail("north support unlock violates the 3-completion threshold")
+        return
+    if not east.get("destination_beacon", false) or east.get("priority_alert", true):
+        _fail("east support unlock violates the 10-completion threshold")
+        return
+    if not south.get("priority_alert", false) or south["unlocked"].size() != 3:
+        _fail("priority neighborhood support unlock violates the 25-completion threshold")
+        return
+    if Progression.neighborhood_support(-1) != {}:
+        _fail("invalid neighborhood completion count was accepted")
+        return
+    if goals.get("neighborhood_support", {}) != east:
+        _fail("neighborhood unlock status did not derive from audited receipts")
+        return
     var hud := HUD.new() as CivicStatusHUD
     root.add_child(hud)
     await process_frame
