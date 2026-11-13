@@ -102,7 +102,14 @@ PASS touch_layout_test.gd
 PASS performance_capture_test.gd
 PASS city_road_alignment_test.gd
 PASS outer_intersection_priority_test.gd
+PASS menu_ux_test.gd
+PASS neighborhood_improvements_test.gd
+PASS neighborhood_service_test.gd
+PASS neighborhood_unlocks_test.gd
 PASS outer_intersection_movement_test.gd
 PASS outer_intersection_restore_test.gd
+PASS parking_response_choice_test.gd
+PASS ui_responsive_civic_test.gd
+PASS volunteer_progression_test.gd
 Report: C:\Users\gauravp\Projects\civic-chaos\build\game-024-regression.json
 
