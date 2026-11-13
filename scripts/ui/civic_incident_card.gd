@@ -7,6 +7,7 @@ signal dismissed
 
 var backdrop: ColorRect
 var panel: PanelContainer
+var detail_scroll: ScrollContainer
 var title_label: Label
 var location_label: Label
 var evidence_label: Label
@@ -34,9 +35,18 @@ func _ready() -> void:
     panel.name = "IncidentPanel"
     panel.mouse_filter = Control.MOUSE_FILTER_STOP
     center.add_child(panel)
+    # Keep long evidence/choice text within the visible display instead
+    # of growing the modal beyond mobile safe bounds.
+    detail_scroll = ScrollContainer.new()
+    detail_scroll.name = "IncidentScroll"
+    detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    panel.add_child(detail_scroll)
     var layout := VBoxContainer.new()
+    layout.name = "IncidentContent"
+    layout.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     layout.add_theme_constant_override("separation", 9)
-    panel.add_child(layout)
+    detail_scroll.add_child(layout)
     title_label = _line(layout, "Title", 21)
     location_label = _line(layout, "Location", 15)
     evidence_label = _line(layout, "Evidence", 16)
@@ -71,11 +81,24 @@ func _action(container: VBoxContainer, caption: String, node_name: String) -> Bu
     container.add_child(button)
     return button
 
+## UX-02 pure bounds: the modal can scroll when copy exceeds available
+## height, while the three existing action buttons retain 52px touch targets.
+static func panel_bounds(screen: Vector2) -> Vector2:
+    if not screen.is_finite() or screen.x <= 0.0 or screen.y <= 0.0:
+        return Vector2.ZERO
+    return Vector2(minf(470.0, maxf(0.0, screen.x - 24.0)),
+        minf(520.0, maxf(0.0, screen.y - 24.0)))
+
 func _fit() -> void:
-    if panel == null:
+    if panel == null or detail_scroll == null:
         return
-    var screen: Vector2 = get_viewport().get_visible_rect().size
-    panel.custom_minimum_size = Vector2(minf(470.0, maxf(180.0, screen.x - 32.0)), 0.0)
+    var bounds: Vector2 = panel_bounds(get_viewport().get_visible_rect().size)
+    if bounds.x <= 0.0 or bounds.y <= 0.0:
+        return
+    # A bounded scroll viewport is essential with multi-line evidence on
+    # landscape phones. Content is scrollable vertically, never sideways.
+    panel.custom_minimum_size = bounds
+    detail_scroll.custom_minimum_size.y = maxf(0.0, bounds.y - 16.0)
 
 func present(data: Dictionary) -> void:
     if backdrop == null:
