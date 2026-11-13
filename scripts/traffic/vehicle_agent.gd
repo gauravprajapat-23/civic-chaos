@@ -121,6 +121,12 @@ func advance_fixed(delta: float) -> void:
     _travel(travel)
     if active:
         _place_on_lane()
+    # Brake lamps are cosmetic and never control vehicle movement. An
+    # obstacle stop or explicit stop command illuminates rear lamps.
+    var visual_details: Node = get_node_or_null("DetailVisuals")
+    if visual_details != null and visual_details.has_method("set_braking"):
+        visual_details.call("set_braking",
+            stop_requested or next_speed < 0.15 or desired_speed < 0.6)
     if is_instance_valid(feedback) and feedback.has_method("observe_vehicle"):
         feedback.call("observe_vehicle", speed_mps, active, stop_requested)
 
