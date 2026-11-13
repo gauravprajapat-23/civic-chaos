@@ -119,6 +119,12 @@ func render_state(state: Dictionary) -> void:
                     int(volunteer.get("activities", 0)), goal]
             else:
                 roam_label.text += "\nBADGES | All milestones reached"
+            var rotation: Dictionary = volunteer.get("rotating_goal", {})
+            if not rotation.is_empty():
+                roam_label.text += "\nCIVIC GOAL | %s (%d/%d)" % [
+                    str(rotation.get("title", "")),
+                    int(rotation.get("completed", 0)),
+                    int(rotation.get("target", 4))]
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
 
 func current_state() -> Dictionary:
