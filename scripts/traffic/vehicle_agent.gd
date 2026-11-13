@@ -85,6 +85,10 @@ func configure(graph: CivicRoadGraph, lane_ids: PackedInt32Array, vehicle_profil
     clear_lead_observation()
     active = true
     _place_on_lane()
+    # Presentation only; do not draw from the traffic RNG or alter route state.
+    var visual_details: Node = get_node_or_null("DetailVisuals")
+    if visual_details != null and visual_details.has_method("set_lane_variant"):
+        visual_details.call("set_lane_variant", int(lane_ids[0]))
     return true
 
 func advance_fixed(delta: float) -> void:
