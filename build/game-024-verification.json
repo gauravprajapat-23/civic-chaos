@@ -1,17 +1,17 @@
 ﻿{
     "milestone":  "GAME-024",
     "status":  "blocked",
-    "verified_at_utc":  "2026-11-14T06:19:44.3463371Z",
+    "verified_at_utc":  "2026-11-14T07:33:55.4488340Z",
     "expected_branch":  "fix/aud-001-game024-gate-hardening",
     "branch":  "fix/aud-001-game024-gate-hardening",
-    "commit":  "8949785ef9a01da99af5016d588452c622e1c209",
+    "commit":  "c634faaf77d0aa8dbb7a93c55eabd3db9eb4ad4e",
     "godot_version":  "4.7.2.stable.official.ed1daf0bf",
     "import_passed":  true,
     "python_runner_checks_passed":  true,
     "python_runner_test_count":  34,
     "source_preflight_passed":  true,
-    "source_files_checked":  219,
-    "static_resources_checked":  388,
+    "source_files_checked":  222,
+    "static_resources_checked":  392,
     "focused_tests":  [
                           {
                               "name":  "free_roam_director_checkpoint_test.gd",
@@ -209,11 +209,11 @@
     "full_regression_passed":  false,
     "full_regression_timed_out":  false,
     "full_regression_exit_code":  1,
-    "regression_tests_run":  125,
-    "regression_expected_tests":  125,
-    "regression_source_commit":  "8949785ef9a01da99af5016d588452c622e1c209",
+    "regression_tests_run":  127,
+    "regression_expected_tests":  127,
+    "regression_source_commit":  "c634faaf77d0aa8dbb7a93c55eabd3db9eb4ad4e",
     "source_unchanged":  false,
     "readiness_evidence_passed":  false,
     "regression_report":  "build/game-024-regression.json",
-    "reason":  "Full local regression failed (exit 1, timeout False, 125/125 fixtures, report SHA 8949785ef9a01da99af5016d588452c622e1c209, failing fixtures: traffic_spawner_test.gd, traffic_transaction_stress_test.gd, report error: ). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
+    "reason":  "Full local regression failed (exit 1, timeout False, 127/127 fixtures, report SHA c634faaf77d0aa8dbb7a93c55eabd3db9eb4ad4e, failing fixtures: traffic_spawner_test.gd, traffic_transaction_stress_test.gd, report error: ). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
 }

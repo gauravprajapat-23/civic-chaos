@@ -34,7 +34,7 @@ test_spawn_safety_is_before_active_vehicle_append (test_traffic_spawn_indentatio
 test_try_spawn_body_uses_tabs_without_space_indented_statements (test_traffic_spawn_indentation.TrafficSpawnerIndentationTests.test_try_spawn_body_uses_tabs_without_space_indented_statements) ... ok
 
 ----------------------------------------------------------------------
-Ran 34 tests in 4.381s
+Ran 34 tests in 5.698s
 
 OK
 

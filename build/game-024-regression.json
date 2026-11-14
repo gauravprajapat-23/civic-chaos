@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "godot": "C:\\Godot\\Godot_v4.7.2-stable_win64_console.exe",
-  "source_commit": "8949785ef9a01da99af5016d588452c622e1c209",
+  "source_commit": "c634faaf77d0aa8dbb7a93c55eabd3db9eb4ad4e",
   "tests": [
     {
       "test": "smoke_test.gd",
@@ -13,7 +13,7 @@
       "markers": [
         "CIVIC_CHAOS_SMOKE_PASS"
       ],
-      "duration_seconds": 1.159,
+      "duration_seconds": 3.696,
       "log": "build/regression-logs/smoke_test.gd.log"
     },
     {
@@ -26,7 +26,7 @@
       "markers": [
         "CIVIC_CHAOS_DETERMINISM_PASS"
       ],
-      "duration_seconds": 0.309,
+      "duration_seconds": 0.883,
       "log": "build/regression-logs/determinism_test.gd.log",
       "replay_state": [
         "CIVIC_CHAOS_REPLAY_STATE clock=[1,2,3]",
@@ -44,7 +44,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_PASS"
       ],
-      "duration_seconds": 0.313,
+      "duration_seconds": 0.923,
       "log": "build/regression-logs/player_controller_test.gd.log"
     },
     {
@@ -57,7 +57,7 @@
       "markers": [
         "CIVIC_CHAOS_LIFECYCLE_PASS"
       ],
-      "duration_seconds": 0.306,
+      "duration_seconds": 0.999,
       "log": "build/regression-logs/lifecycle_test.gd.log"
     },
     {
@@ -70,7 +70,7 @@
       "markers": [
         "CIVIC_CHAOS_LANE_GRAPH_PASS"
       ],
-      "duration_seconds": 0.311,
+      "duration_seconds": 1.212,
       "log": "build/regression-logs/lane_graph_test.gd.log"
     },
     {
@@ -83,7 +83,7 @@
       "markers": [
         "CIVIC_CHAOS_ROUTING_PASS"
       ],
-      "duration_seconds": 0.322,
+      "duration_seconds": 0.792,
       "log": "build/regression-logs/lane_routing_test.gd.log"
     },
     {
@@ -96,7 +96,7 @@
       "markers": [
         "CIVIC_CHAOS_JUNCTION_PASS"
       ],
-      "duration_seconds": 0.395,
+      "duration_seconds": 0.693,
       "log": "build/regression-logs/junction_test.gd.log"
     },
     {
@@ -109,7 +109,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_PASS"
       ],
-      "duration_seconds": 0.309,
+      "duration_seconds": 0.495,
       "log": "build/regression-logs/vehicle_agent_test.gd.log"
     },
     {
@@ -122,7 +122,7 @@
       "markers": [
         "CIVIC_CHAOS_FOLLOWING_PASS"
       ],
-      "duration_seconds": 0.305,
+      "duration_seconds": 0.63,
       "log": "build/regression-logs/car_following_test.gd.log"
     },
     {
@@ -135,7 +135,7 @@
       "markers": [
         "CIVIC_CHAOS_SIGNAL_PASS"
       ],
-      "duration_seconds": 0.305,
+      "duration_seconds": 0.359,
       "log": "build/regression-logs/signal_phases_test.gd.log"
     },
     {
@@ -148,7 +148,7 @@
       "markers": [
         "CIVIC_CHAOS_RESERVATIONS_PASS"
       ],
-      "duration_seconds": 0.305,
+      "duration_seconds": 0.385,
       "log": "build/regression-logs/intersection_reservations_test.gd.log"
     },
     {
@@ -159,7 +159,7 @@
       "engine_error_detected": true,
       "expected_marker": "CIVIC_CHAOS_SPAWNER_PASS",
       "markers": [],
-      "duration_seconds": 26.925,
+      "duration_seconds": 27.105,
       "log": "build/regression-logs/traffic_spawner_test.gd.log",
       "output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\nERROR: 20-agent demand or throughput assertion failed\n   at: push_error (core/variant/variant_utility.cpp:1023)\n   GDScript backtrace (most recent call first):\n       [0] _fail (res://tests/traffic_spawner_test.gd:41)\n       [1] _run (res://tests/traffic_spawner_test.gd:31)\n",
       "failure_reasons": [
@@ -178,7 +178,7 @@
       "markers": [
         "CIVIC_CHAOS_NPC_PERSONALITY_PASS"
       ],
-      "duration_seconds": 0.314,
+      "duration_seconds": 0.353,
       "log": "build/regression-logs/npc_personality_test.gd.log"
     },
     {
@@ -191,7 +191,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_BEHAVIOR_PASS"
       ],
-      "duration_seconds": 0.321,
+      "duration_seconds": 0.596,
       "log": "build/regression-logs/vehicle_behavior_test.gd.log"
     },
     {
@@ -204,7 +204,7 @@
       "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_PASS"
       ],
-      "duration_seconds": 0.314,
+      "duration_seconds": 0.369,
       "log": "build/regression-logs/pedestrian_navigation_test.gd.log"
     },
     {
@@ -217,7 +217,7 @@
       "markers": [
         "CIVIC_CHAOS_SOCIAL_INFLUENCE_PASS"
       ],
-      "duration_seconds": 0.316,
+      "duration_seconds": 0.379,
       "log": "build/regression-logs/social_influence_test.gd.log"
     },
     {
@@ -230,7 +230,7 @@
       "markers": [
         "CIVIC_CHAOS_AI_LOD_PASS"
       ],
-      "duration_seconds": 0.326,
+      "duration_seconds": 0.363,
       "log": "build/regression-logs/ai_lod_scheduler_test.gd.log"
     },
     {
@@ -243,7 +243,7 @@
       "markers": [
         "CIVIC_CHAOS_INCIDENT_PASS"
       ],
-      "duration_seconds": 0.312,
+      "duration_seconds": 0.361,
       "log": "build/regression-logs/incident_lifecycle_test.gd.log"
     },
     {
@@ -256,7 +256,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_PASS"
       ],
-      "duration_seconds": 0.319,
+      "duration_seconds": 0.464,
       "log": "build/regression-logs/wrong_way_scenario_test.gd.log"
     },
     {
@@ -269,7 +269,7 @@
       "markers": [
         "CIVIC_CHAOS_PARKING_PASS"
       ],
-      "duration_seconds": 0.325,
+      "duration_seconds": 0.363,
       "log": "build/regression-logs/parking_capacity_test.gd.log"
     },
     {
@@ -282,7 +282,7 @@
       "markers": [
         "CIVIC_CHAOS_DEADLOCK_PASS"
       ],
-      "duration_seconds": 0.338,
+      "duration_seconds": 0.35,
       "log": "build/regression-logs/deadlock_detector_test.gd.log"
     },
     {
@@ -295,7 +295,7 @@
       "markers": [
         "CIVIC_CHAOS_DEADLOCK_RECOVERY_PASS"
       ],
-      "duration_seconds": 0.322,
+      "duration_seconds": 0.357,
       "log": "build/regression-logs/deadlock_recovery_test.gd.log"
     },
     {
@@ -308,7 +308,7 @@
       "markers": [
         "CIVIC_CHAOS_MISSIONS_PASS"
       ],
-      "duration_seconds": 0.327,
+      "duration_seconds": 0.363,
       "log": "build/regression-logs/mission_framework_test.gd.log"
     },
     {
@@ -321,7 +321,7 @@
       "markers": [
         "CIVIC_CHAOS_CITY_METRICS_PASS"
       ],
-      "duration_seconds": 0.332,
+      "duration_seconds": 0.354,
       "log": "build/regression-logs/city_metrics_test.gd.log"
     },
     {
@@ -334,7 +334,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_INTERACTIONS_PASS"
       ],
-      "duration_seconds": 0.324,
+      "duration_seconds": 0.38,
       "log": "build/regression-logs/player_civic_interactions_test.gd.log"
     },
     {
@@ -347,7 +347,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_MISSION_PASS"
       ],
-      "duration_seconds": 0.316,
+      "duration_seconds": 0.491,
       "log": "build/regression-logs/wrong_way_mission_test.gd.log",
       "replay_state": [
         "CIVIC_CHAOS_REPLAY_STATE wrong_way={\"duplicate_reward\":0,\"incident\":\"resolved\",\"mission\":\"completed\",\"queue\":0,\"reward\":100}"
@@ -364,7 +364,7 @@
       "markers": [
         "CIVIC_CHAOS_EVENT_DIRECTOR_PASS"
       ],
-      "duration_seconds": 0.31,
+      "duration_seconds": 0.361,
       "log": "build/regression-logs/event_director_test.gd.log"
     },
     {
@@ -377,7 +377,7 @@
       "markers": [
         "CIVIC_CHAOS_NEIGHBORHOOD_PASS"
       ],
-      "duration_seconds": 0.31,
+      "duration_seconds": 0.572,
       "log": "build/regression-logs/neighborhood_test.gd.log"
     },
     {
@@ -390,7 +390,7 @@
       "markers": [
         "CIVIC_CHAOS_HUD_PASS"
       ],
-      "duration_seconds": 0.357,
+      "duration_seconds": 0.41,
       "log": "build/regression-logs/civic_hud_test.gd.log"
     },
     {
@@ -403,7 +403,7 @@
       "markers": [
         "CIVIC_CHAOS_AGENT_FEEDBACK_PASS"
       ],
-      "duration_seconds": 0.323,
+      "duration_seconds": 0.401,
       "log": "build/regression-logs/agent_feedback_test.gd.log"
     },
     {
@@ -416,7 +416,7 @@
       "markers": [
         "CIVIC_CHAOS_DEBUG_TELEMETRY_PASS"
       ],
-      "duration_seconds": 0.311,
+      "duration_seconds": 0.39,
       "log": "build/regression-logs/debug_telemetry_test.gd.log"
     },
     {
@@ -429,7 +429,7 @@
       "markers": [
         "CIVIC_CHAOS_TOUCH_CONTROLS_PASS"
       ],
-      "duration_seconds": 0.32,
+      "duration_seconds": 0.46,
       "log": "build/regression-logs/touch_controls_test.gd.log"
     },
     {
@@ -442,7 +442,7 @@
       "markers": [
         "CIVIC_CHAOS_GRAPHICS_LOD_PASS"
       ],
-      "duration_seconds": 0.304,
+      "duration_seconds": 0.355,
       "log": "build/regression-logs/graphics_lod_test.gd.log"
     },
     {
@@ -455,7 +455,7 @@
       "markers": [
         "CIVIC_CHAOS_TRAFFIC_BUDGET_PASS"
       ],
-      "duration_seconds": 0.312,
+      "duration_seconds": 0.393,
       "log": "build/regression-logs/traffic_budget_test.gd.log",
       "replay_state": [
         "CIVIC_CHAOS_REPLAY_STATE traffic_budget={\"average_us\":69.5,\"limits\":[12,2,4],\"peak_us\":129,\"post_reset_samples\":0,\"window\":120}"
@@ -472,7 +472,7 @@
       "markers": [
         "CIVIC_CHAOS_TRAFFIC_STOP_LINE_PASS"
       ],
-      "duration_seconds": 0.404,
+      "duration_seconds": 0.539,
       "log": "build/regression-logs/traffic_stop_line_test.gd.log"
     },
     {
@@ -485,7 +485,7 @@
       "markers": [
         "CIVIC_CHAOS_TRAFFIC_BRAKING_PASS"
       ],
-      "duration_seconds": 0.4,
+      "duration_seconds": 0.667,
       "log": "build/regression-logs/traffic_braking_test.gd.log"
     },
     {
@@ -498,7 +498,7 @@
       "markers": [
         "CIVIC_CHAOS_WORLD_COLLISION_PASS"
       ],
-      "duration_seconds": 0.49,
+      "duration_seconds": 0.756,
       "log": "build/regression-logs/world_collision_test.gd.log"
     },
     {
@@ -511,7 +511,7 @@
       "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_COLLISION_PASS"
       ],
-      "duration_seconds": 6.321,
+      "duration_seconds": 6.87,
       "log": "build/regression-logs/pedestrian_collision_test.gd.log"
     },
     {
@@ -524,7 +524,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_OBSTACLE_PASS"
       ],
-      "duration_seconds": 4.195,
+      "duration_seconds": 4.244,
       "log": "build/regression-logs/vehicle_obstacle_test.gd.log"
     },
     {
@@ -537,7 +537,7 @@
       "markers": [
         "CIVIC_CHAOS_CITY_TRAFFIC_PASS"
       ],
-      "duration_seconds": 0.517,
+      "duration_seconds": 0.64,
       "log": "build/regression-logs/city_traffic_test.gd.log"
     },
     {
@@ -550,7 +550,7 @@
       "markers": [
         "CIVIC_CHAOS_SURFACE_AND_PLAYER_PASS"
       ],
-      "duration_seconds": 1.98,
+      "duration_seconds": 1.611,
       "log": "build/regression-logs/surface_player_test.gd.log"
     },
     {
@@ -563,7 +563,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_PEDESTRIAN_CONTACT_PASS"
       ],
-      "duration_seconds": 4.634,
+      "duration_seconds": 4.418,
       "log": "build/regression-logs/player_pedestrian_contact_test.gd.log"
     },
     {
@@ -576,7 +576,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_VEHICLE_CONTACT_PASS"
       ],
-      "duration_seconds": 4.882,
+      "duration_seconds": 4.759,
       "log": "build/regression-logs/player_vehicle_contact_test.gd.log"
     },
     {
@@ -589,7 +589,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_SAFE_RESTORE_PASS"
       ],
-      "duration_seconds": 1.281,
+      "duration_seconds": 0.577,
       "log": "build/regression-logs/player_safe_restore_test.gd.log"
     },
     {
@@ -602,7 +602,7 @@
       "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_CROWD_AVOIDANCE_PASS"
       ],
-      "duration_seconds": 15.402,
+      "duration_seconds": 14.7,
       "log": "build/regression-logs/pedestrian_crowd_avoidance_test.gd.log"
     },
     {
@@ -615,7 +615,7 @@
       "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_SPAWN_SEPARATION_PASS"
       ],
-      "duration_seconds": 6.014,
+      "duration_seconds": 6.086,
       "log": "build/regression-logs/pedestrian_spawn_separation_test.gd.log"
     },
     {
@@ -628,7 +628,7 @@
       "markers": [
         "CIVIC_CHAOS_BUILDING_DISTANCE_LOD_PASS"
       ],
-      "duration_seconds": 0.389,
+      "duration_seconds": 0.453,
       "log": "build/regression-logs/building_distance_lod_test.gd.log"
     },
     {
@@ -641,7 +641,7 @@
       "markers": [
         "CIVIC_CHAOS_CITY_SIGNAL_STOP_LINE_PASS"
       ],
-      "duration_seconds": 0.409,
+      "duration_seconds": 0.529,
       "log": "build/regression-logs/city_signal_stop_line_test.gd.log"
     },
     {
@@ -654,7 +654,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_WORLD_OBSTACLE_PASS"
       ],
-      "duration_seconds": 2.899,
+      "duration_seconds": 3.0,
       "log": "build/regression-logs/vehicle_world_obstacle_test.gd.log"
     },
     {
@@ -667,7 +667,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_SPAWN_OCCUPANCY_PASS"
       ],
-      "duration_seconds": 0.392,
+      "duration_seconds": 0.54,
       "log": "build/regression-logs/vehicle_spawn_occupancy_test.gd.log"
     },
     {
@@ -680,7 +680,7 @@
       "markers": [
         "CIVIC_CHAOS_GAMEPLAY_SESSION_PASS"
       ],
-      "duration_seconds": 2.986,
+      "duration_seconds": 3.043,
       "log": "build/regression-logs/gameplay_session_test.gd.log"
     },
     {
@@ -693,7 +693,7 @@
       "markers": [
         "CIVIC_CHAOS_TWO_WAY_LANE_SEPARATION_PASS"
       ],
-      "duration_seconds": 0.298,
+      "duration_seconds": 0.47,
       "log": "build/regression-logs/two_way_lane_separation_test.gd.log"
     },
     {
@@ -706,7 +706,7 @@
       "markers": [
         "CIVIC_CHAOS_PEDESTRIAN_CROSSING_RECOVERY_PASS"
       ],
-      "duration_seconds": 0.483,
+      "duration_seconds": 0.792,
       "log": "build/regression-logs/pedestrian_crossing_recovery_test.gd.log"
     },
     {
@@ -719,7 +719,7 @@
       "markers": [
         "CIVIC_CHAOS_GAMEPLAY_PERSISTENCE_PASS"
       ],
-      "duration_seconds": 2.889,
+      "duration_seconds": 3.051,
       "log": "build/regression-logs/gameplay_persistence_test.gd.log"
     },
     {
@@ -732,7 +732,7 @@
       "markers": [
         "CIVIC_CHAOS_GAMEPLAY_INCIDENT_CARD_PASS"
       ],
-      "duration_seconds": 2.989,
+      "duration_seconds": 3.131,
       "log": "build/regression-logs/gameplay_incident_card_test.gd.log"
     },
     {
@@ -745,7 +745,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_LIVE_MISSION_PASS"
       ],
-      "duration_seconds": 15.555,
+      "duration_seconds": 15.802,
       "log": "build/regression-logs/wrong_way_live_mission_test.gd.log"
     },
     {
@@ -758,7 +758,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_REPORT_POST_PASS"
       ],
-      "duration_seconds": 0.356,
+      "duration_seconds": 0.361,
       "log": "build/regression-logs/wrong_way_report_post_test.gd.log"
     },
     {
@@ -771,7 +771,7 @@
       "markers": [
         "CIVIC_CHAOS_AUTHORIZED_TOW_ROUTE_PASS"
       ],
-      "duration_seconds": 0.613,
+      "duration_seconds": 0.725,
       "log": "build/regression-logs/authorized_tow_route_test.gd.log"
     },
     {
@@ -784,7 +784,7 @@
       "markers": [
         "CIVIC_CHAOS_AUTHORIZED_TOW_OBSTACLE_PASS"
       ],
-      "duration_seconds": 3.283,
+      "duration_seconds": 3.423,
       "log": "build/regression-logs/authorized_tow_obstacle_test.gd.log"
     },
     {
@@ -797,7 +797,7 @@
       "markers": [
         "CIVIC_CHAOS_WRONG_WAY_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 15.648,
+      "duration_seconds": 15.786,
       "log": "build/regression-logs/wrong_way_checkpoint_test.gd.log"
     },
     {
@@ -810,7 +810,7 @@
       "markers": [
         "CIVIC_CHAOS_MISSION_GUIDE_PASS"
       ],
-      "duration_seconds": 0.327,
+      "duration_seconds": 0.354,
       "log": "build/regression-logs/mission_guide_test.gd.log"
     },
     {
@@ -823,7 +823,7 @@
       "markers": [
         "CIVIC_CHAOS_MISSION_GUIDANCE_FLOW_PASS"
       ],
-      "duration_seconds": 0.733,
+      "duration_seconds": 0.846,
       "log": "build/regression-logs/mission_guidance_flow_test.gd.log"
     },
     {
@@ -836,7 +836,7 @@
       "markers": [
         "CIVIC_CHAOS_ILLEGAL_PARKING_LIVE_PASS"
       ],
-      "duration_seconds": 19.156,
+      "duration_seconds": 18.864,
       "log": "build/regression-logs/illegal_parking_live_test.gd.log"
     },
     {
@@ -849,7 +849,7 @@
       "markers": [
         "CIVIC_CHAOS_ILLEGAL_PARKING_OBSTACLE_PASS"
       ],
-      "duration_seconds": 9.191,
+      "duration_seconds": 9.256,
       "log": "build/regression-logs/illegal_parking_obstacle_test.gd.log"
     },
     {
@@ -862,7 +862,7 @@
       "markers": [
         "CIVIC_CHAOS_PARKING_OWNER_CARD_PASS"
       ],
-      "duration_seconds": 0.316,
+      "duration_seconds": 0.339,
       "log": "build/regression-logs/parking_owner_card_test.gd.log"
     },
     {
@@ -875,7 +875,7 @@
       "markers": [
         "CIVIC_CHAOS_PARKING_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 18.879,
+      "duration_seconds": 19.176,
       "log": "build/regression-logs/parking_checkpoint_test.gd.log"
     },
     {
@@ -888,7 +888,7 @@
       "markers": [
         "CIVIC_CHAOS_MULTI_INCIDENT_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 34.132,
+      "duration_seconds": 34.822,
       "log": "build/regression-logs/multi_incident_checkpoint_test.gd.log"
     },
     {
@@ -901,7 +901,7 @@
       "markers": [
         "CIVIC_CHAOS_SAVE_RESILIENCE_PASS"
       ],
-      "duration_seconds": 0.298,
+      "duration_seconds": 0.643,
       "log": "build/regression-logs/save_resilience_test.gd.log"
     },
     {
@@ -914,7 +914,7 @@
       "markers": [
         "CIVIC_CHAOS_CHECKPOINT_TRANSACTION_PASS"
       ],
-      "duration_seconds": 0.305,
+      "duration_seconds": 0.527,
       "log": "build/regression-logs/checkpoint_transaction_test.gd.log"
     },
     {
@@ -927,7 +927,7 @@
       "markers": [
         "CIVIC_CHAOS_SAVE_GENERATION_CONSISTENCY_PASS"
       ],
-      "duration_seconds": 0.299,
+      "duration_seconds": 0.499,
       "log": "build/regression-logs/save_generation_consistency_test.gd.log"
     },
     {
@@ -940,7 +940,7 @@
       "markers": [
         "CIVIC_CHAOS_WORLD_TRAFFIC_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 0.51,
+      "duration_seconds": 0.802,
       "log": "build/regression-logs/world_traffic_checkpoint_test.gd.log"
     },
     {
@@ -953,7 +953,7 @@
       "markers": [
         "CIVIC_CHAOS_WORLD_JUNCTION_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 1.782,
+      "duration_seconds": 2.199,
       "log": "build/regression-logs/world_junction_checkpoint_test.gd.log"
     },
     {
@@ -966,7 +966,7 @@
       "markers": [
         "CIVIC_CHAOS_WORLD_PEDESTRIAN_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 0.389,
+      "duration_seconds": 0.769,
       "log": "build/regression-logs/world_pedestrian_checkpoint_test.gd.log"
     },
     {
@@ -979,7 +979,7 @@
       "markers": [
         "CIVIC_CHAOS_WORLD_TRANSACTION_ROLLBACK_PASS"
       ],
-      "duration_seconds": 3.764,
+      "duration_seconds": 4.224,
       "log": "build/regression-logs/world_transaction_rollback_test.gd.log"
     },
     {
@@ -990,7 +990,7 @@
       "engine_error_detected": true,
       "expected_marker": "CIVIC_CHAOS_TRAFFIC_TRANSACTION_STRESS_PASS",
       "markers": [],
-      "duration_seconds": 2.153,
+      "duration_seconds": 2.429,
       "log": "build/regression-logs/traffic_transaction_stress_test.gd.log",
       "output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\nERROR: prepare failed before explicit abort on attempt 0\n   at: push_error (core/variant/variant_utility.cpp:1023)\n   GDScript backtrace (most recent call first):\n       [0] _fail (res://tests/traffic_transaction_stress_test.gd:119)\n       [1] _run (res://tests/traffic_transaction_stress_test.gd:53)\n",
       "failure_reasons": [
@@ -1009,7 +1009,7 @@
       "markers": [
         "CIVIC_CHAOS_MARKET_CLEANUP_LIVE_PASS"
       ],
-      "duration_seconds": 2.796,
+      "duration_seconds": 5.113,
       "log": "build/regression-logs/market_cleanup_live_test.gd.log"
     },
     {
@@ -1022,7 +1022,7 @@
       "markers": [
         "CIVIC_CHAOS_MARKET_CLEANUP_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 2.896,
+      "duration_seconds": 3.135,
       "log": "build/regression-logs/market_cleanup_checkpoint_test.gd.log"
     },
     {
@@ -1035,7 +1035,7 @@
       "markers": [
         "CIVIC_CHAOS_MARKET_CLEANUP_CARD_PASS"
       ],
-      "duration_seconds": 0.305,
+      "duration_seconds": 0.534,
       "log": "build/regression-logs/market_cleanup_card_test.gd.log"
     },
     {
@@ -1048,7 +1048,7 @@
       "markers": [
         "CIVIC_CHAOS_DISTRICT_CAMPAIGN_UNLOCK_PASS"
       ],
-      "duration_seconds": 0.305,
+      "duration_seconds": 0.502,
       "log": "build/regression-logs/district_campaign_unlock_test.gd.log"
     },
     {
@@ -1061,7 +1061,7 @@
       "markers": [
         "CIVIC_CHAOS_DISTRICT_FINALE_UI_PASS"
       ],
-      "duration_seconds": 0.402,
+      "duration_seconds": 0.701,
       "log": "build/regression-logs/district_finale_ui_test.gd.log"
     },
     {
@@ -1074,7 +1074,7 @@
       "markers": [
         "CIVIC_CHAOS_DISTRICT_FINALE_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 0.315,
+      "duration_seconds": 0.636,
       "log": "build/regression-logs/district_finale_checkpoint_test.gd.log"
     },
     {
@@ -1087,7 +1087,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_DIRECTOR_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 0.304,
+      "duration_seconds": 0.687,
       "log": "build/regression-logs/free_roam_director_checkpoint_test.gd.log"
     },
     {
@@ -1100,7 +1100,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_LIVE_EVENTS_PASS"
       ],
-      "duration_seconds": 2.249,
+      "duration_seconds": 2.594,
       "log": "build/regression-logs/free_roam_live_events_test.gd.log"
     },
     {
@@ -1113,7 +1113,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_EVENT_RESTART_PASS"
       ],
-      "duration_seconds": 0.689,
+      "duration_seconds": 0.97,
       "log": "build/regression-logs/free_roam_event_restart_test.gd.log"
     },
     {
@@ -1126,7 +1126,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_CARD_PASS"
       ],
-      "duration_seconds": 0.306,
+      "duration_seconds": 0.538,
       "log": "build/regression-logs/free_roam_card_test.gd.log"
     },
     {
@@ -1139,7 +1139,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_EXPIRY_PASS"
       ],
-      "duration_seconds": 12.787,
+      "duration_seconds": 13.086,
       "log": "build/regression-logs/free_roam_expiry_test.gd.log"
     },
     {
@@ -1152,7 +1152,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_DYNAMIC_LOCATIONS_PASS"
       ],
-      "duration_seconds": 9.073,
+      "duration_seconds": 10.145,
       "log": "build/regression-logs/free_roam_dynamic_locations_test.gd.log"
     },
     {
@@ -1165,7 +1165,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_NPC_REACTIONS_PASS"
       ],
-      "duration_seconds": 0.579,
+      "duration_seconds": 1.422,
       "log": "build/regression-logs/free_roam_npc_reactions_test.gd.log"
     },
     {
@@ -1178,7 +1178,7 @@
       "markers": [
         "CIVIC_CHAOS_FREE_ROAM_LEGACY_MIGRATION_PASS"
       ],
-      "duration_seconds": 0.493,
+      "duration_seconds": 1.35,
       "log": "build/regression-logs/free_roam_legacy_migration_test.gd.log"
     },
     {
@@ -1191,7 +1191,7 @@
       "markers": [
         "CIVIC_CHAOS_NPC_UTILITY_PASS"
       ],
-      "duration_seconds": 0.311,
+      "duration_seconds": 0.565,
       "log": "build/regression-logs/npc_utility_test.gd.log"
     },
     {
@@ -1204,7 +1204,7 @@
       "markers": [
         "CIVIC_CHAOS_NPC_PERSONALITY_CONTRACT_PASS"
       ],
-      "duration_seconds": 0.31,
+      "duration_seconds": 0.546,
       "log": "build/regression-logs/npc_personality_contract_test.gd.log"
     },
     {
@@ -1217,7 +1217,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_SCENE_CONTRACT_PASS"
       ],
-      "duration_seconds": 0.309,
+      "duration_seconds": 0.614,
       "log": "build/regression-logs/vehicle_scene_contract_test.gd.log"
     },
     {
@@ -1230,7 +1230,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_FEEDBACK_OPTIONAL_PASS"
       ],
-      "duration_seconds": 0.303,
+      "duration_seconds": 0.702,
       "log": "build/regression-logs/vehicle_feedback_optional_test.gd.log"
     },
     {
@@ -1243,7 +1243,7 @@
       "markers": [
         "CIVIC_CHAOS_TRAFFIC_CHECKPOINT_INVARIANTS_PASS"
       ],
-      "duration_seconds": 0.396,
+      "duration_seconds": 0.79,
       "log": "build/regression-logs/traffic_checkpoint_invariants_test.gd.log"
     },
     {
@@ -1256,7 +1256,7 @@
       "markers": [
         "CIVIC_CHAOS_TRAFFIC_RECONFIGURE_ATOMICITY_PASS"
       ],
-      "duration_seconds": 0.4,
+      "duration_seconds": 0.8,
       "log": "build/regression-logs/traffic_reconfigure_atomicity_test.gd.log"
     },
     {
@@ -1269,7 +1269,7 @@
       "markers": [
         "CIVIC_CHAOS_CHECKPOINT_RECORD_SHAPES_PASS"
       ],
-      "duration_seconds": 0.86,
+      "duration_seconds": 1.581,
       "log": "build/regression-logs/checkpoint_record_shapes_test.gd.log"
     },
     {
@@ -1282,7 +1282,7 @@
       "markers": [
         "CIVIC_CHAOS_CHECKPOINT_LOAD_QUEUE_PASS"
       ],
-      "duration_seconds": 0.862,
+      "duration_seconds": 2.104,
       "log": "build/regression-logs/checkpoint_load_queue_test.gd.log"
     },
     {
@@ -1295,7 +1295,7 @@
       "markers": [
         "CIVIC_CHAOS_CHECKPOINT_ORPHANED_RECORDS_PASS"
       ],
-      "duration_seconds": 0.962,
+      "duration_seconds": 1.993,
       "log": "build/regression-logs/checkpoint_orphaned_records_test.gd.log"
     },
     {
@@ -1308,7 +1308,7 @@
       "markers": [
         "CIVIC_CHAOS_PLAYER_CHECKPOINT_ATOMICITY_PASS"
       ],
-      "duration_seconds": 0.312,
+      "duration_seconds": 0.989,
       "log": "build/regression-logs/player_checkpoint_atomicity_test.gd.log"
     },
     {
@@ -1321,7 +1321,7 @@
       "markers": [
         "CIVIC_CHAOS_NPC_DECISION_STABILITY_PASS"
       ],
-      "duration_seconds": 0.5,
+      "duration_seconds": 0.991,
       "log": "build/regression-logs/npc_decision_stability_test.gd.log",
       "replay_state": [
         "CIVIC_CHAOS_REPLAY_STATE npc_stability=[\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\",\"wait\"]"
@@ -1338,7 +1338,7 @@
       "markers": [
         "CIVIC_CHAOS_TOUCH_LAYOUT_PASS"
       ],
-      "duration_seconds": 0.311,
+      "duration_seconds": 0.73,
       "log": "build/regression-logs/touch_layout_test.gd.log"
     },
     {
@@ -1351,7 +1351,7 @@
       "markers": [
         "CIVIC_CHAOS_PERFORMANCE_CAPTURE_PASS"
       ],
-      "duration_seconds": 0.49,
+      "duration_seconds": 1.309,
       "log": "build/regression-logs/performance_capture_test.gd.log"
     },
     {
@@ -1364,7 +1364,7 @@
       "markers": [
         "CIVIC_CHAOS_CITY_ROAD_ALIGNMENT_PASS"
       ],
-      "duration_seconds": 0.302,
+      "duration_seconds": 0.725,
       "log": "build/regression-logs/city_road_alignment_test.gd.log"
     },
     {
@@ -1377,7 +1377,7 @@
       "markers": [
         "CIVIC_CHAOS_OUTER_INTERSECTION_PRIORITY_PASS"
       ],
-      "duration_seconds": 0.394,
+      "duration_seconds": 1.081,
       "log": "build/regression-logs/outer_intersection_priority_test.gd.log"
     },
     {
@@ -1390,7 +1390,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_ART_04A_JUMP_CLEARANCE_PASS"
       ],
-      "duration_seconds": 3.984,
+      "duration_seconds": 4.133,
       "log": "build/regression-logs/car_art_04a_jump_clearance_test.gd.log"
     },
     {
@@ -1403,7 +1403,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_ART_04A_SIDE_CONTACT_PASS"
       ],
-      "duration_seconds": 2.248,
+      "duration_seconds": 2.427,
       "log": "build/regression-logs/car_art_04a_side_contact_test.gd.log"
     },
     {
@@ -1416,7 +1416,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_ART_04BC_VISUAL_PASS"
       ],
-      "duration_seconds": 0.298,
+      "duration_seconds": 0.827,
       "log": "build/regression-logs/car_art_04bc_visual_test.gd.log"
     },
     {
@@ -1429,7 +1429,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_ART_04D_MATERIALS_PASS"
       ],
-      "duration_seconds": 0.304,
+      "duration_seconds": 0.47,
       "log": "build/regression-logs/car_art_04d_materials_test.gd.log"
     },
     {
@@ -1442,7 +1442,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_ART_04E_AIRBORNE_GUARD_PASS"
       ],
-      "duration_seconds": 0.768,
+      "duration_seconds": 0.834,
       "log": "build/regression-logs/car_art_04e_airborne_guard_test.gd.log"
     },
     {
@@ -1455,7 +1455,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_CHARACTER_CLEARANCE_PASS"
       ],
-      "duration_seconds": 1.222,
+      "duration_seconds": 1.393,
       "log": "build/regression-logs/car_character_clearance_test.gd.log"
     },
     {
@@ -1468,7 +1468,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_SAFE_04_CHECKPOINT_PASS"
       ],
-      "duration_seconds": 0.39,
+      "duration_seconds": 0.642,
       "log": "build/regression-logs/car_safe_04_checkpoint_test.gd.log"
     },
     {
@@ -1481,7 +1481,7 @@
       "markers": [
         "CIVIC_CHAOS_CAR_SAFE_05_BACKPRESSURE_PASS"
       ],
-      "duration_seconds": 0.395,
+      "duration_seconds": 1.079,
       "log": "build/regression-logs/car_safe_05_backpressure_test.gd.log"
     },
     {
@@ -1494,7 +1494,7 @@
       "markers": [
         "CIVIC_CHAOS_GAME_QA_MISSION_GUIDE_PASS"
       ],
-      "duration_seconds": 0.302,
+      "duration_seconds": 0.478,
       "log": "build/regression-logs/game_qa_mission_guide_test.gd.log"
     },
     {
@@ -1507,8 +1507,34 @@
       "markers": [
         "CIVIC_CHAOS_MENU_UX_PASS"
       ],
-      "duration_seconds": 0.296,
+      "duration_seconds": 0.47,
       "log": "build/regression-logs/menu_ux_test.gd.log"
+    },
+    {
+      "test": "mobile_joystick_layout_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "engine_error_detected": false,
+      "expected_marker": "CIVIC_CHAOS_MOBILE_JOYSTICK_LAYOUT_PASS",
+      "markers": [
+        "CIVIC_CHAOS_MOBILE_JOYSTICK_LAYOUT_PASS"
+      ],
+      "duration_seconds": 0.371,
+      "log": "build/regression-logs/mobile_joystick_layout_test.gd.log"
+    },
+    {
+      "test": "mobile_joystick_test.gd",
+      "passed": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "engine_error_detected": false,
+      "expected_marker": "CIVIC_CHAOS_MOBILE_JOYSTICK_PASS",
+      "markers": [
+        "CIVIC_CHAOS_MOBILE_JOYSTICK_PASS"
+      ],
+      "duration_seconds": 0.355,
+      "log": "build/regression-logs/mobile_joystick_test.gd.log"
     },
     {
       "test": "neighborhood_improvements_test.gd",
@@ -1520,7 +1546,7 @@
       "markers": [
         "CIVIC_CHAOS_NEIGHBORHOOD_IMPROVEMENTS_PASS"
       ],
-      "duration_seconds": 0.33,
+      "duration_seconds": 0.362,
       "log": "build/regression-logs/neighborhood_improvements_test.gd.log"
     },
     {
@@ -1533,7 +1559,7 @@
       "markers": [
         "CIVIC_CHAOS_NEIGHBORHOOD_SERVICE_PASS"
       ],
-      "duration_seconds": 0.204,
+      "duration_seconds": 0.709,
       "log": "build/regression-logs/neighborhood_service_test.gd.log"
     },
     {
@@ -1546,7 +1572,7 @@
       "markers": [
         "CIVIC_CHAOS_NEIGHBORHOOD_UNLOCKS_PASS"
       ],
-      "duration_seconds": 4.541,
+      "duration_seconds": 4.817,
       "log": "build/regression-logs/neighborhood_unlocks_test.gd.log"
     },
     {
@@ -1559,7 +1585,7 @@
       "markers": [
         "CIVIC_CHAOS_OUTER_INTERSECTION_MOVEMENT_PASS"
       ],
-      "duration_seconds": 4.649,
+      "duration_seconds": 5.215,
       "log": "build/regression-logs/outer_intersection_movement_test.gd.log"
     },
     {
@@ -1572,7 +1598,7 @@
       "markers": [
         "CIVIC_CHAOS_OUTER_INTERSECTION_RESTORE_PASS"
       ],
-      "duration_seconds": 0.398,
+      "duration_seconds": 0.933,
       "log": "build/regression-logs/outer_intersection_restore_test.gd.log"
     },
     {
@@ -1585,7 +1611,7 @@
       "markers": [
         "CIVIC_CHAOS_PARKING_RESPONSE_CHOICE_PASS"
       ],
-      "duration_seconds": 3.776,
+      "duration_seconds": 3.911,
       "log": "build/regression-logs/parking_response_choice_test.gd.log"
     },
     {
@@ -1598,7 +1624,7 @@
       "markers": [
         "CIVIC_CHAOS_UI_RESPONSIVE_CIVIC_PASS"
       ],
-      "duration_seconds": 0.314,
+      "duration_seconds": 0.655,
       "log": "build/regression-logs/ui_responsive_civic_test.gd.log"
     },
     {
@@ -1611,7 +1637,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_ACTOR_SAFETY_PASS"
       ],
-      "duration_seconds": 3.778,
+      "duration_seconds": 3.882,
       "log": "build/regression-logs/vehicle_actor_safety_test.gd.log"
     },
     {
@@ -1624,7 +1650,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_PEDESTRIAN_RECOVERY_PASS"
       ],
-      "duration_seconds": 0.499,
+      "duration_seconds": 0.636,
       "log": "build/regression-logs/vehicle_pedestrian_recovery_test.gd.log"
     },
     {
@@ -1637,7 +1663,7 @@
       "markers": [
         "CIVIC_CHAOS_VEHICLE_VISUALS_PASS"
       ],
-      "duration_seconds": 0.315,
+      "duration_seconds": 0.477,
       "log": "build/regression-logs/vehicle_visuals_test.gd.log"
     },
     {
@@ -1650,17 +1676,17 @@
       "markers": [
         "CIVIC_CHAOS_VOLUNTEER_PROGRESSION_PASS"
       ],
-      "duration_seconds": 0.31,
+      "duration_seconds": 0.489,
       "log": "build/regression-logs/volunteer_progression_test.gd.log"
     }
   ],
-  "expected_test_count": 125,
+  "expected_test_count": 127,
   "missing_tests": [],
   "passed": false,
   "import": {
     "returncode": 0,
     "timed_out": false,
-    "elapsed_seconds": 10.004,
+    "elapsed_seconds": 23.645,
     "output_tail": "Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org\n\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Started Project initialization (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Scanning file structure...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Loading global class names...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Verifying GDExtensions...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Creating autoload scripts...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Initializing plugins...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mfirst_scan_filesystem\u001b[22m | Starting file scan...\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mfirst_scan_filesystem\u001b[22m\n\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Started Loading editor (5 steps)\u001b[39m\u001b[0m\n[   0% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading editor layout...\u001b[39m\u001b[0m\n[  16% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading docks...\u001b[39m\u001b[0m\n[  33% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Reopening scenes...\u001b[39m\u001b[0m\n[  50% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading central editor layout...\u001b[39m\u001b[0m\n[  66% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Loading plugin window layout...\u001b[39m\u001b[0m\n[  83% ] \u001b[90m\u001b[1mloading_editor_layout\u001b[22m | Editor layout ready.\u001b[39m\u001b[0m\n\u001b[92m[ DONE ]\u001b[39m \u001b[1mloading_editor_layout\u001b[22m\n\u001b[0m\n"
   },
   "negative_path_passed": true,

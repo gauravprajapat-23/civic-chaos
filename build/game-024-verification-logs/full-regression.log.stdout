@@ -112,6 +112,8 @@ PASS car_safe_04_checkpoint_test.gd
 PASS car_safe_05_backpressure_test.gd
 PASS game_qa_mission_guide_test.gd
 PASS menu_ux_test.gd
+PASS mobile_joystick_layout_test.gd
+PASS mobile_joystick_test.gd
 PASS neighborhood_improvements_test.gd
 PASS neighborhood_service_test.gd
 PASS neighborhood_unlocks_test.gd
