@@ -39,6 +39,14 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-SAFE-03 unblock Godot parser and guard traffic spawn indentation
+- User's exact Godot 4.7.2 console output revealed a **syntax blocker** at `scripts/traffic/traffic_spawner.gd:233`: `Used space character for indentation instead of tab as used before in the file`. Godot editor import displayed script errors despite allowing the terminal session to continue; four earlier focused tests still passed, but `traffic_checkpoint_invariants_test.gd` could not load `CivicTrafficSpawner`. Later tests were **not executed**.
+- Corrected only the two misindented comments and `vehicle.physics_obstacle_checks_enabled = true` inside `try_spawn()`, preserving the intended character-avoidance physics and tick behavior. Commit `c14487e`.
+- Added Python guard `tests/test_traffic_spawn_indentation.py` to require tab indentation in `try_spawn()` and verify actor clearance is enabled before the spawn occupancy check, and checked before appending the car. Commit `0f56f0b`.
+- **Status: FIX COMMITTED, GODOT IMPORT AND TRAFFIC REGRESSION RE-RUN PENDING.** Note that Godot may print `SCRIPT ERROR` while returning exit code 0: inspect output explicitly as well as `$LASTEXITCODE`. Re-run safety, actor overlap/recovery, checkpoint, junction tests, then the full GAME-024 gate. Do not export an APK based on the broken import.
+
+
+
 ### 2026-11-14 — CAR-SAFE-02 protected vehicle/person clearance and sedan polish
 - Source review: CivicVehicleAgent already used full oriented footprint sweeps with sub-metre samples, physical layer 4 car body, player collision layer 2, pedestrian collision layer 8, and player side-motion cast. Preserve deterministic route physics and existing save/checkpoint schema.
 - Added a **separate padded human clearance query** (45 cm on car sides/front/rear) at each prospective vehicle footprint step plus an immediate safety query before acceleration. People within the corridor hold traffic in place, instead of allowing visual/physical overlap. The car's actual collision shape remains unchanged; surface/road/prop queries are still done by the existing authoritative footprint.
