@@ -9,6 +9,14 @@ func _run() -> void:
     var controls: CivicTouchControls = Controls.new() as CivicTouchControls
     root.add_child(controls)
     await process_frame
+    # This fixture intentionally does not pre-create move_* actions.
+    # Live touch controls must initialize absent InputMap names before any
+    # joystick release/cleanup, while preserving existing key bindings.
+    for action in ["move_left", "move_right", "move_forward", "move_back",
+            "jump", "sprint", "interact", "pause_game"]:
+        if not InputMap.has_action(action):
+            _fail("touch controls failed to register action: " + action)
+            return
     if controls.joystick == null or controls.joystick.radius < 36.0:
         _fail("circular analog joystick missing")
         return
