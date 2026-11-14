@@ -568,6 +568,7 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         _connect_wrong_way_signals(restored_world)
     restore_guard.finish()
     free_roam_unlocked = has_cleanup and is_instance_valid(restored_cleanup) and restored_cleanup.finished and _campaign_ready()
+    _sync_living_city_npcs()
     _finale_acknowledged = bool(saved["campaign_checkpoint"]["finale_acknowledged"]) if has_finale else false
     if district_finale != null:
         district_finale.set_unlocked(free_roam_unlocked)
@@ -741,9 +742,23 @@ func _on_finale_continue() -> void:
     _on_interaction_message("FREE ROAM UNLOCKED | Explore Market Chowk. Civic events will appear periodically.")
     call_deferred("_save_free_roam_acknowledgement")
 
+## GAME-025 must not affect the original campaign's walker behavior.
+## The same toggle applies on Free Roam entry and after checkpoint restore.
+func _sync_living_city_npcs() -> void:
+    var pedestrians: Node = get_node_or_null("DistrictPedestrians")
+    if pedestrians != null and pedestrians.has_method("set_living_city_active"):
+        pedestrians.call("set_living_city_active", free_roam_unlocked and _finale_acknowledged)
+
+func _living_city_summary() -> Dictionary:
+    var pedestrians: Node = get_node_or_null("DistrictPedestrians")
+    if pedestrians != null and pedestrians.has_method("living_city_summary"):
+        return pedestrians.call("living_city_summary")
+    return {"active": false, "walkers": 0, "activities": {}}
+
 func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
     if not free_roam_unlocked or not _finale_acknowledged or gameplay_session == null or player == null:
         return
+    _sync_living_city_npcs()
     if not is_instance_valid(free_roam_world):
         var world: CivicFreeRoamEvents = FreeRoamEvents.new() as CivicFreeRoamEvents
         world.name = "FreeRoamEvents"
@@ -832,6 +847,13 @@ func _refresh_mission_guide() -> void:
     if free_roam_unlocked:
         if is_instance_valid(free_roam_world):
             state = free_roam_world.guidance_state()
+            var city_activity: Dictionary = _living_city_summary()
+            if bool(city_activity.get("active", false)):
+                var activities: Dictionary = city_activity.get("activities", {})
+                state["dialogue"] = "%s\nLIVING CITY | %d residents: %d commuting, %d at market, %d resting, %d heading home." % [
+                    str(state.get("dialogue", "")), int(city_activity.get("walkers", 0)),
+                    int(activities.get("commute", 0)), int(activities.get("market", 0)),
+                    int(activities.get("break", 0)), int(activities.get("return_home", 0))]
         else:
             state = {
                 "title": "Free Roam | Market Chowk",
@@ -1004,6 +1026,7 @@ func _process(delta: float) -> void:
         if is_instance_valid(free_roam_world):
             var roam_metrics: Dictionary = free_roam_world.hud_state()
             state.merge(roam_metrics, true)
+            state["living_city"] = _living_city_summary()
             state["incidents"] = 1 if not free_roam_world.active_event.is_empty() else 0
             state["scores"] = gameplay_session.metrics.scores.duplicate(true)
             state["reputation"] = gameplay_session.metrics.reputation()
