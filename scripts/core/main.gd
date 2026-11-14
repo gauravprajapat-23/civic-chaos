@@ -256,6 +256,12 @@ func _save_gameplay_checkpoint() -> bool:
                     _on_interaction_message("Free Roam save rejected: event state disagrees with civic ledger")
                     return false
                 payload["free_roam_checkpoint"] = roaming
+                if is_instance_valid(exploration_world):
+                    var exploration: Dictionary = exploration_world.checkpoint_state()
+                    if not CivicLivingCityExploration.checkpoint_valid(exploration):
+                        _on_interaction_message("Exploration save rejected: invalid visited places")
+                        return false
+                    payload["exploration_checkpoint"] = exploration
     # GAME-019: a generation includes the background world as well as civic
     # mission actors. Reject an incoherent background tick instead of storing
     # an apparently valid player file with incomplete world state.
@@ -283,6 +289,7 @@ static func checkpoint_record_types_valid(saved: Dictionary) -> bool:
         "cleanup_checkpoint",
         "campaign_checkpoint",
         "free_roam_checkpoint",
+        "exploration_checkpoint",
         "world_checkpoint"
     ]:
         if saved.has(record) and not (saved[record] is Dictionary):
@@ -350,6 +357,10 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
     var has_cleanup: bool = saved.has("cleanup_checkpoint")
     var has_finale: bool = saved.has("campaign_checkpoint")
     var has_roam: bool = saved.has("free_roam_checkpoint")
+    var has_exploration: bool = saved.has("exploration_checkpoint")
+    if has_exploration and (not has_roam or not CivicLivingCityExploration.checkpoint_valid(saved["exploration_checkpoint"])):
+        _on_interaction_message("Checkpoint rejected: invalid or orphaned neighborhood discoveries")
+        return false
     if has_roam and (not has_finale or not bool(saved["campaign_checkpoint"].get("finale_acknowledged", false))):
         _on_interaction_message("Checkpoint rejected: active Free Roam requires an acknowledged ending")
         return false
@@ -587,6 +598,12 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         district_finale.set_unlocked(free_roam_unlocked)
     if free_roam_unlocked and _finale_acknowledged:
         _start_free_roam_events(saved.get("free_roam_checkpoint", {}))
+        if is_instance_valid(exploration_world):
+            if has_exploration:
+                if not exploration_world.restore_checkpoint(saved["exploration_checkpoint"]):
+                    push_warning("Validated exploration record was not restored")
+            else:
+                exploration_world.restore_checkpoint({"schema_version": 1, "visited_ids": []})
     if free_roam_unlocked and not _finale_acknowledged:
         call_deferred("_present_campaign_finale")
     if has_parking and not has_cleanup and is_instance_valid(restored_parking) and restored_parking.finished:
