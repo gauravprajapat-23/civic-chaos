@@ -10,6 +10,7 @@ signal mission_completed
 
 const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const VehicleProfile = preload("res://scripts/traffic/vehicle_profile.gd")
+const CharacterArt = preload("res://scripts/rendering/low_poly_character.gd")
 const ReportPoint = preload("res://scripts/civic/wrong_way_report_marker.gd")
 const MISSION_ID: String = "market_wrong_way_live"
 const OFFENDER_DISTANCE: float = 28.0
@@ -569,17 +570,8 @@ func _create_marshal() -> void:
     marshal.name = "TrafficMarshal"
     marshal.position = Vector3(-19.5, 0.0, -8.0)
     add_child(marshal)
-    var actor := MeshInstance3D.new()
-    actor.name = "MarshalUniform"
-    actor.position.y = 0.95
-    var mesh := CapsuleMesh.new()
-    mesh.radius = 0.38
-    mesh.height = 1.9
-    actor.mesh = mesh
-    var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.88, 0.72, 0.22)
-    actor.material_override = material
-    marshal.add_child(actor)
+    CharacterArt.build(marshal, Color(0.82, 0.64, 0.20), Color(0.68, 0.46, 0.32),
+        Color(0.19, 0.25, 0.30), Color(0.16, 0.20, 0.22))
     var caption := Label3D.new()
     caption.text = "TRAFFIC MARSHAL"
     caption.position.y = 2.1
