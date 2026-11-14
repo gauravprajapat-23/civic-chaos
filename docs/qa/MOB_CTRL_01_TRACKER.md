@@ -85,3 +85,4 @@ Do **not** mark UX done on headless GDScript PASS alone: measure actual device f
 ## Progress log
 
 - **2026-11-14:** Added analog joystick, responsive joystick planning, real circular action controls, right-look button exclusion and tests. Source committed; user-run Godot verification pending.
+- **2026-11-14:** Strengthened multi-finger ownership regression, app-focus-out release, and corrected TouchScreenButton texture origin to match action hitbox rectangles (Godot `shape_centered` centers the shape within the texture, not the whole node at the rect center). Visual-hitbox alignment now has a focused assertion. All changes remain **unverified in Godot/Android**.
