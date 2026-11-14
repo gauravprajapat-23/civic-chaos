@@ -47,7 +47,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventScreenTouch:
         var touch := event as InputEventScreenTouch
-        if touch.pressed and _look_touch_index == -1 and touch.position.x > get_viewport().get_visible_rect().size.x * 0.45:
+        if touch.pressed and _look_touch_index == -1 and touch.position.x > get_viewport().get_visible_rect().size.x * 0.45 and _touch_can_look(touch.position):
             _look_touch_index = touch.index
             _last_touch_position = touch.position
         elif not touch.pressed and touch.index == _look_touch_index:
@@ -70,6 +70,15 @@ func _unhandled_input(event: InputEvent) -> void:
     elif event.is_action_pressed("interact"):
         try_interact()
         get_viewport().set_input_as_handled()
+
+## Ignore camera-look presses that begin over mobile action buttons.
+## Swipes beginning in the free right-hand view area remain independent
+## of the left joystick finger.
+func _touch_can_look(point: Vector2) -> bool:
+    for node in get_tree().get_nodes_in_group("civic_touch_controls"):
+        if node.has_method("look_touch_allowed") and not bool(node.call("look_touch_allowed", point)):
+            return false
+    return true
 
 func _physics_process(delta: float) -> void:
     # Physics-space queries execute on the physics tick, not from input events.
