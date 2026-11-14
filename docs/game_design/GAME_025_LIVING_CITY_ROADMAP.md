@@ -18,7 +18,7 @@ The campaign's four missions still gate Free Roam. Existing repeatable litter, f
 
 - **GAME-025-02:** Free Roam dispatch board and repeatable activity feed — source implemented, Godot verification pending. F7 / CALLS opens a paused board; Show on City Map follows the real live event target. No available incident means an honest all-clear view and cooldown; no fictional mission entries.
 - **GAME-025-03:** Four neighborhood discoveries and visual-only wayfinding signposts, map-selectable street-route destinations, and read-only exploration progress — source implemented; Godot and Android verification pending. Route overlays follow the existing street graph, not a new pedestrian navmesh.
-- **GAME-025-04:** Persistent volunteer goals earned only through verified event receipts; no timer-based score farming.
+- **GAME-025-04:** Persistent neighborhood discovery checkpoints and a receipt-gated Neighborhood Guide goal — source and tests committed; Godot/PC/Android acceptance pending. Recognition is display-only; existing verified Free Roam outcomes remain the sole source of score/badge progress.
 - **GAME-025-05:** Optimize crowd behavior under road/crossing pressure, audit Android controls and performance, and run full campaign-to-Free Roam acceptance.
 
 ### Verify on Windows
@@ -62,3 +62,13 @@ Require the marker `CIVIC_CHAOS_GAME025_LIVING_CITY_ROUTINES_PASS`, exit code 0,
 - The mission guide displays visited / total exploration progress during Free Roam. New zones never spawn during the original campaign, and no new StaticBody3D/collision layers are introduced.
 - Focused test: `res://tests/game025_neighborhood_exploration_test.gd`, success marker `CIVIC_CHAOS_GAME025_NEIGHBORHOOD_EXPLORATION_PASS`. Also run both AUD3 map tests, GAME-025 Living City/Dispatch tests, and Free Roam event/checkpoint regressions.
 - Verify PC/Android UI sizing of two map destination rows, character walking, 5 m visit triggers, live map route geometry, and no obstruction of traffic/crossings. Current source commits are not verified by local Godot execution.
+
+
+## GAME-025-04 — Persistent discoveries and explorer recognition
+
+- `CivicLivingCityExploration.checkpoint_state()` stores a deterministic list of visited zone IDs. Strict validation rejects unknown/duplicate IDs, unsupported schemas, and malformed records. `restore_checkpoint` emits no discovery event and is idempotent; repeat visits in the same or restored game are not counted twice.
+- The existing checksum-protected player checkpoint now includes optional `exploration_checkpoint` only with completed campaign and Free Roam state. Load preflight rejects a bad/orphaned nested record before restoring the live world; older Free Roam saves lacking this field remain compatible and start with zero visits.
+- A fresh landmark discovery schedules a best-effort save through the existing civic/traffic validity gate; F5 manual save remains available. An invalid world state can still refuse save, with no fabricated success acknowledgement.
+- `CivicVolunteerProgression.exploration_goal` displays **Neighborhood Guide** recognition after all four landmarks plus at least three audited Free Roam receipts. It grants **no extra points, currency or civic scores**. Existing volunteer ranks/badges continue to be based on actual `free_roam:*:resolved` receipts.
+- Focused test `res://tests/game025_exploration_progression_test.gd` checks real one-time discovery, JSON save round-trip, tampered zone IDs, duplicate IDs, orphaned record rejection, idempotent restore, and refusal to unlock a goal from false activity counters.
+- Acceptance includes new test plus `game025_neighborhood_exploration_test.gd`, `game025_dispatch_board_test.gd`, `free_roam_director_checkpoint_test.gd` and full campaign/save regression. Require zero Godot errors and a visible PASS marker before release. Confirm F5/F9 and exit/relaunch persistence on PC and Android; no manual GitHub Actions.
