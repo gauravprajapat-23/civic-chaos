@@ -22,6 +22,7 @@ $tests = @(
     "touch_layout_test.gd",
     "mobile_joystick_test.gd",
     "mobile_joystick_layout_test.gd",
+    "aud3_mobile_input_lifecycle_test.gd",
     "vehicle_scene_contract_test.gd",
     "vehicle_actor_safety_test.gd",
     "vehicle_pedestrian_recovery_test.gd",
