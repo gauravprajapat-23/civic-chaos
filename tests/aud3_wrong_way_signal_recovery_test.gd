@@ -41,6 +41,8 @@ func _run() -> void:
         _fail("car entering legal exit not recognized")
         return
     live.free()
+    upstream.free()
+    downstream.free()
     print("CIVIC_CHAOS_AUD3_WRONG_WAY_SIGNAL_RECOVERY_PASS")
     quit(0)
 
