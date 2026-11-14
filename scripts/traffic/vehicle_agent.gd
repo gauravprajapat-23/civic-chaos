@@ -114,9 +114,12 @@ func advance_fixed(delta: float) -> void:
     if is_finite(lead_gap_m):
         travel = CivicFollowingController.permitted_travel(travel, lead_gap_m, minimum_gap_m)
         next_speed = minf(next_speed, travel / delta)
-    if physics_obstacle_checks_enabled and travel > 0.0 and _path_has_vulnerable_obstacle(travel):
-        travel = 0.0
-        next_speed = 0.0
+    if physics_obstacle_checks_enabled:
+        # A character can enter a stationary car's path between fixed ticks.
+        # Hold the vehicle immediately rather than accelerating from overlap.
+        if not people_clear_at(global_transform) or (travel > 0.0 and _path_has_vulnerable_obstacle(travel)):
+            travel = 0.0
+            next_speed = 0.0
     speed_mps = next_speed
     _travel(travel)
     if active:
@@ -168,9 +171,39 @@ func _path_has_vulnerable_obstacle(travel: float) -> bool:
         var tangent: Vector3 = location["tangent"]
         var heading := atan2(-tangent.x, -tangent.z)
         var basis := Basis(Vector3.UP, heading)
-        if footprint_blocked_at(Transform3D(basis, location["position"])):
+        var proposed := Transform3D(basis, location["position"])
+        if not people_clear_at(proposed) or footprint_blocked_at(proposed):
             return true
     return false
+
+## CAR-SAFE-02: look ahead with a padded body-sized corridor around people.
+## The visible sedan uses no collision. This additional *query-only* volume
+## gives pedestrians / player room before the authoritative car footprint
+## reaches them. Do not expand the actual vehicle collider or modify saves.
+const HUMAN_BUFFER_M: float = 0.45
+
+func people_clear_at(vehicle_transform: Transform3D) -> bool:
+    if not is_inside_tree():
+        return true
+    var body: StaticBody3D = get_node_or_null("CollisionBody") as StaticBody3D
+    if body == null:
+        return true # Abstract traffic fixtures have no physical collider.
+    var collision: CollisionShape3D = body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collision == null or not (collision.shape is BoxShape3D):
+        return true
+    var footprint: BoxShape3D = collision.shape as BoxShape3D
+    var padded := BoxShape3D.new()
+    padded.size = Vector3(
+        footprint.size.x + HUMAN_BUFFER_M * 2.0,
+        footprint.size.y + 0.10,
+        footprint.size.z + HUMAN_BUFFER_M * 2.0)
+    var probe := PhysicsShapeQueryParameters3D.new()
+    probe.shape = padded
+    probe.transform = vehicle_transform * body.transform * collision.transform
+    probe.collision_mask = 2 | 8 # Player and pedestrian sensing layers.
+    probe.exclude = [body.get_rid()]
+    probe.margin = 0.01
+    return get_world_3d().direct_space_state.intersect_shape(probe, 16).is_empty()
 
 ## Reused by spawn validation and movement: floors support the car,
 ## while pedestrians, other cars, buildings, walls and street furniture block it.
