@@ -19,6 +19,11 @@ func _ready() -> void:
     joystick = Joystick.new() as CivicMobileJoystick
     joystick.name = "MovementJoystick"
     add_child(joystick)
+    # Touch controls can be instantiated by a scene before gameplay's
+    # keyboard mapping setup. Do not overwrite any existing bindings.
+    for action in ACTIONS:
+        if not InputMap.has_action(action):
+            InputMap.add_action(action)
     # One texture shared across buttons, rather than four per-button image builds.
     var action_texture: Texture2D = _button_texture()
     for i in range(ACTIONS.size()):
