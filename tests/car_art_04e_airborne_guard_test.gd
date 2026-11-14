@@ -29,7 +29,9 @@ func _run() -> void:
     car.feedback_enabled = false
     stage.add_child(car)
     var player: CivicPlayerController = PlayerScene.instantiate() as CivicPlayerController
-    player.global_position = Vector3(0, 1.35, 2.2)
+    # Local position is valid before entering the scene tree. Assigning
+    # global_position here calls get_global_transform() on an orphan node.
+    player.position = Vector3(0, 1.35, 2.2)
     stage.add_child(player)
     await physics_frame
     # The ordinary capsule at this height is above the car collision box.
