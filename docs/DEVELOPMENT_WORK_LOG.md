@@ -39,6 +39,13 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — MOB-CTRL-01 local regression: missing InputMap action on touch UI startup
+- User's CAR-ART-04E local gate at `7287d64` passed import and seven car tests, then failed with Godot `ERROR: The InputMap action "move_left" doesn't exist`. The standalone mobile touch test has no game input bootstrap; `CivicMobileJoystick.release_stick()` previously attempted `Input.action_release()` for missing names during desktop layout/cleanup.
+- Updated `scripts/ui/mobile_joystick.gd` to register only missing movement action names in `_ready()`, and to safely skip nonexistent actions on teardown; updated `scripts/ui/touch_controls.gd` to register only absent Jump/Run/Use/Pause action names. This preserves preexisting keyboard/gamepad mappings.
+- Strengthened `tests/touch_controls_test.gd` to verify all eight action names are present before interacting with the controls. Updated `docs/qa/MOB_CTRL_01_TRACKER.md` with local evidence. **Source committed, new Godot run pending.** No GitHub Actions triggered.
+
+
+
 ### 2026-11-14 — MOB-CTRL-01: Android circular joystick and improved touch controls
 - User requested PUBG-style **interaction familiarity**, not copied assets. Inspected live `scripts/ui/touch_controls.gd`: it created eight rectangular text buttons, four of which formed a directional cross; safe-area helper `CivicTouchLayout.plan()` was only staged and not connected to live controls.
 - Implemented original vector-drawn `CivicMobileJoystick` with finger ownership, deadzone, clamped analog axis strengths, normalized diagonal, and release/reset semantics. Replaced four-arrow movement hitboxes with joystick and kept Jump, Run, Use and Pause as original circular action buttons.
