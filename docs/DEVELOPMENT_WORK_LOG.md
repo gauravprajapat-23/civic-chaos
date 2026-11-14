@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — AUD3-FIX-01 mobile pause, USE and interrupted touch input
+- Implemented source-confirmed mobile touch Pause and USE integration. `CivicTouchControls` now emits `pause_requested` and `interact_requested` from TouchScreenButton presses; `scripts/core/main.gd` connects these to existing pause and player interaction paths independently of the keyboard-only `_unhandled_key_input()`.
+- Added `CivicTouchControls.cancel_active_touches()` and `set_controls_active()` to release joystick and action state when pausing, opening an incident card/finale, and on focus loss. `CivicPlayerController.cancel_mobile_look()` clears the held camera finger. The joystick won't capture touches if hidden behind modals. Existing Resume button restores touch controls.
+- Fixed invalid-to-valid touch layout recovery by re-enabling action buttons when a viewport returns to valid geometry.
+- Added `tests/aud3_mobile_input_lifecycle_test.gd` and included it in `tools/car_art_04e_verification.ps1`. Updated `docs/qa/GAME_IMPROVEMENT_AUDIT_2026_11_14.md` with precise acceptance steps.
+- **Current status: code and tests committed, Godot import/full regression and physical Android checks still pending.** No CI workflows or branches triggered. Use existing Android Debug export preset only after verification, signed release remains blocked.
+
+
+
 ### 2026-11-14 — AUD3 whole-game improvement audit started
 - Reviewed the approved `CIVIC_CHAOS_GAME_DESIGN.md`, release backlog, active gameplay orchestration, mission/event managers, mobile touch controls and joystick, player controller, civic HUD and mission guide, traffic backpressure, CAR-ART-04/MOB-CTRL-01 trackers and exact-revision release scripts.
 - Created `docs/qa/GAME_IMPROVEMENT_AUDIT_2026_11_14.md` with twelve actionable findings, source-confidence classifications, prioritized coding tasks and acceptance gates.
