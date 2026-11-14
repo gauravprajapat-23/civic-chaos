@@ -92,6 +92,25 @@ Fix: `CivicMobileJoystick._ready()` registers missing movement actions only, pre
 
 **Verification pending:** rerun the strict `tools/car_art_04e_verification.ps1` at the new SHA. Do not assume Android touch acceptance from this source-only fix.
 
+## AUD3-FIX-01 Integration (2026-11-14)
+
+- **Implemented:** mobile Pause and USE signals are connected to `CivicMain` instead of relying on the keyboard-only event handler. Pause uses the existing lifecycle and Resume UI and avoids a second toggle on the same tap.
+- **Implemented:** hiding touch controls for incident dialogs, finale, or pause releases joystick and action strengths; player look-finger capture is cancelled as well. Background focus loss and hiding a CanvasLayer also stop new joystick capture.
+- **Implemented:** recovering from a temporarily invalid viewport returns action buttons to visible on mobile.
+- **New test:** `tests/aud3_mobile_input_lifecycle_test.gd` covers signals, interruption, reset and hidden-input guard. Added to full local CAR-ART-04E preflight.
+- **Still pending:** Godot import and focused test run on current SHA, complete GAME-024 gate, and actual Android Pause → Resume / USE behavior and player movement tests.
+
+### Android debug export after successful local gate
+
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\car_art_04e_verification.ps1 -BuildApk
+if ($LASTEXITCODE -ne 0) { throw "Verification or Android debug export failed" }
+# Expected: build/android/civic-chaos-debug.apk
+```
+
+Requires Godot Android export templates and local Android SDK/JDK configuration. Does **not** make a signed store-release build or count as physical device acceptance.
+
 ## Progress log
 
 - **2026-11-14:** Added analog joystick, responsive joystick planning, real circular action controls, right-look button exclusion and tests. Source committed; user-run Godot verification pending.
