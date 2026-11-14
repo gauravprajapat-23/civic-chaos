@@ -60,8 +60,8 @@ func _run() -> void:
     if not cleanup.configure(stage, player, civic):
         _fail("physical cleanup props unavailable")
         return
-    if not _act(cleanup, player, "litter", 0, "inspect"):
-        _fail("evidence inspection failed")
+    if cleanup.inspected:
+        _fail("evidence must not be pre-inspected")
         return
     for index in range(2):
         if not _act(cleanup, player, "litter", index, "collect_litter") or not _act(cleanup, player, "bin", -1, "deposit_litter"):
