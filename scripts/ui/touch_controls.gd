@@ -100,42 +100,49 @@ func _layout() -> void:
         if display.size.x > 0 and display.size.y > 0 and actual.x > 0 and actual.y > 0:
             var ratio := Vector2(viewport.x / float(actual.x), viewport.y / float(actual.y))
             safe = Rect2(Vector2(display.position) * ratio, Vector2(display.size) * ratio)
-    var plan: Dictionary = Layout.joystick_plan(viewport, safe)
-    _layout_valid = bool(plan.get("ok", false))
-    if not _layout_valid:
+    _apply_plan(Layout.joystick_plan(viewport, safe), OS.has_feature("mobile"))
+
+## Apply the same geometry on desktop fixtures and Android. An invalid layout
+## always clears stale hitboxes; recovering one restores every visible target.
+func _apply_plan(plan: Dictionary, touch_device: bool) -> void:
+    var valid: bool = bool(plan.get("ok", false))
+    var rects: Dictionary = plan.get("rects", {}) if valid else {}
+    # A finger captured against previous coordinates must not keep moving
+    # the player after rotation, window resizing or a temporary bad layout.
+    if not valid or not _layout_valid or rects != _rects:
+        cancel_active_touches()
+    _layout_valid = valid
+    _rects = rects.duplicate()
+    if not valid:
         joystick.visible = false
-        joystick.release_stick()
         for key in ACTIONS:
             (buttons[key] as TouchScreenButton).visible = false
             (labels[key] as Label).visible = false
         return
-    var rects: Dictionary = plan["rects"]
-    _rects = rects
+
     joystick.configure(plan["joystick_center"], float(plan["joystick_radius"]))
-    joystick.visible = OS.has_feature("mobile")
-    if not joystick.visible:
+    joystick.visible = touch_device
+    if not touch_device:
         joystick.release_stick()
     for action in ACTIONS:
         var rect: Rect2 = rects[action]
         var button := buttons[action] as TouchScreenButton
         var label := labels[action] as Label
         var circle := button.shape as CircleShape2D
-        circle.radius = rect.size.x * 0.5
-        # Texture is positioned from its top-left; shape_centered only
-        # centers the collision circle *inside* that texture.
+        # Collision radius is in texture-local coordinates; scaling both the
+        # texture and circle keeps the visual and interactive sizes together.
+        circle.radius = 48.0
         button.position = rect.position
         button.scale = Vector2.ONE * (rect.size.x / 96.0)
-        # Collision hitbox in local coordinates must compensate visual scale.
-        circle.radius = 48.0
         label.position = rect.position
         label.size = rect.size
-        button.visible = OS.has_feature("mobile")
-        label.visible = OS.has_feature("mobile")
+        button.visible = touch_device
+        label.visible = touch_device
 
 ## Player uses this before claiming a look finger. Buttons should not
 ## accidentally turn the camera while tapping Jump, Run, Use or Pause.
 func look_touch_allowed(point: Vector2) -> bool:
-    if not _layout_valid:
+    if not visible or not _layout_valid:
         return true
     for rect_value in _rects.values():
         var rect: Rect2 = rect_value
