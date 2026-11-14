@@ -53,7 +53,9 @@ func _run() -> void:
     for detail_name in [
         "CabinCenterPillar_L", "CabinCenterPillar_R",
         "DoorSeam_L", "RunningBoard_R", "FrontArch_L", "RearArch_R",
-        "FogLamp_L", "RearWindowBrakeStrip"
+        "FogLamp_L", "RearWindowBrakeStrip", "GrilleSlat_0",
+        "GrilleSlat_1", "GrilleSlat_2", "FrontBadge",
+        "FrontSideMarker_L", "RearSideReflector_R"
     ]:
         if not (details.get_node_or_null(detail_name) is MeshInstance3D):
             _fail("enhanced car missing styling detail: " + detail_name)
