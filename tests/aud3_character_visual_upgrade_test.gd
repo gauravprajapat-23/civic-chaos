@@ -5,6 +5,13 @@ const PlayerScene = preload("res://scenes/player/player_root.tscn")
 const Owner = preload("res://scripts/civic/parking_owner.gd")
 
 func _initialize() -> void:
+    # Main._enter_tree normally installs these. Register actions in this
+    # isolated headless test so a stray physics frame cannot spam InputMap.
+    for action in ["look_left", "look_right", "look_up", "look_down",
+            "move_left", "move_right", "move_forward", "move_back",
+            "sprint", "jump", "interact"]:
+        if not InputMap.has_action(action):
+            InputMap.add_action(action)
     call_deferred("_run")
 
 func _run() -> void:
