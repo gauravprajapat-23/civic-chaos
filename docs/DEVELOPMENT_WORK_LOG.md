@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — AUD3 whole-game improvement audit started
+- Reviewed the approved `CIVIC_CHAOS_GAME_DESIGN.md`, release backlog, active gameplay orchestration, mission/event managers, mobile touch controls and joystick, player controller, civic HUD and mission guide, traffic backpressure, CAR-ART-04/MOB-CTRL-01 trackers and exact-revision release scripts.
+- Created `docs/qa/GAME_IMPROVEMENT_AUDIT_2026_11_14.md` with twelve actionable findings, source-confidence classifications, prioritized coding tasks and acceptance gates.
+- Highest-priority code findings: touch Pause is exposed as an on-screen action but handled only by `main.gd::_unhandled_key_input`; hidden modal touch-layer does not explicitly release a claimed joystick pointer; invalid-screen touch layout hides action buttons without restoring visible state after recovery.
+- Broader blockers: full GAME-024 gate not re-proven on current mobile source SHA; end-to-end human Story→Free Roam and physical Android touch/performance acceptance absent; traffic backpressure does not independently break existing jams.
+- **Audit-only commit; gameplay code unchanged.** No GitHub Actions, branch change, PR merge or release claimed. First implementation task is `AUD3-FIX-01` touch pause and modal input lifecycle.
+
+
+
 ### 2026-11-14 — MOB-CTRL-01 local regression: missing InputMap action on touch UI startup
 - User's CAR-ART-04E local gate at `7287d64` passed import and seven car tests, then failed with Godot `ERROR: The InputMap action "move_left" doesn't exist`. The standalone mobile touch test has no game input bootstrap; `CivicMobileJoystick.release_stick()` previously attempted `Input.action_release()` for missing names during desktop layout/cleanup.
 - Updated `scripts/ui/mobile_joystick.gd` to register only missing movement action names in `_ready()`, and to safely skip nonexistent actions on teardown; updated `scripts/ui/touch_controls.gd` to register only absent Jump/Run/Use/Pause action names. This preserves preexisting keyboard/gamepad mappings.
