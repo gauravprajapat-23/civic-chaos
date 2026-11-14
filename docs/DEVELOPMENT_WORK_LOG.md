@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04E actual airborne cabin penetration fixed (unverified)
+- User supplied local Godot results at `608d462`: import and direct fall test passed, but the corrected side-jump fixture exposed a **real** player/car penetration (`jumping player clipped into vehicle cabin`). The run stopped before any subsequent fixtures.
+- Root cause: the player uses horizontal capsule sweeps on car layer 4, but the capsule rises above the 1.2-m-tall vehicle physical box during a jump. Normal sweeps then allow horizontal movement into the car's footprint. Recovery after descent cannot prevent that initial ingress.
+- Implemented a cached `BoxShape3D` extended vertical **query-only** horizontal sweep in `scripts/player/player_controller.gd` that guards side approaches at jump height while keeping the world-only player floor collision mask and the traffic physics footprint unchanged. Moving outward from an existing overlap remains possible. Commit `7807fe9`.
+- Added `tests/car_art_04e_airborne_guard_test.gd` checking contact at raised height plus release when the vehicle moves away; registered in the CAR-ART-04E local acceptance runner. Commits `ed2727f`, `1ed3915`.
+- Updated `docs/qa/CAR_ART_04_TRACKER.md` with exact failed evidence and the new P0 verification condition; commit `1711fce`. **Godot tests and device playtest have not been rerun for this revision; keep release blocked pending actual evidence.**
+
+
+
 ### 2026-11-14 — CAR-ART-04E clean-source gate fix for generated test UID files
 - User's exact Windows output on `748b5bb`: CAR-ART-04E aborted at the initial clean-SHA check, listing six untracked `tests/*.gd.uid` sidecars created by Godot's editor import. This run did **not** execute any Godot tests. Earlier side-jump regression remains unverified after the previous fixture fix.
 - Updated `.gitignore` to ignore **only** `/tests/*.gd.uid`; gameplay source, test GDScript files, and non-test UID resources remain eligible for strict clean-SHA enforcement by both CAR-ART-04E and GAME-024 gates. This avoids deletion/force-add of generated local files and handles newly added tests automatically.
