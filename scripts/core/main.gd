@@ -22,6 +22,7 @@ const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const CityMap = preload("res://scripts/ui/civic_city_map.gd")
 const DispatchBoard = preload("res://scripts/ui/free_roam_dispatch_board.gd")
 const LivingExploration = preload("res://scripts/world/living_city_exploration.gd")
+const VolunteerProgression = preload("res://scripts/civic/volunteer_progression.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const CheckpointTransaction = preload("res://scripts/core/checkpoint_transaction.gd")
 const CheckpointLoadQueue = preload("res://scripts/core/checkpoint_load_queue.gd")
@@ -928,8 +929,15 @@ func _refresh_mission_guide() -> void:
         state = gameplay_session.guidance_state()
     if free_roam_unlocked and is_instance_valid(exploration_world):
         var visits: Dictionary = exploration_world.visit_state()
-        state["dialogue"] = "%s\nEXPLORE | %d / %d neighborhood landmarks visited. Select a destination on MAP." % [
-            str(state.get("dialogue", "")), int(visits["count"]), int(visits["total"])]
+        var recognition: Dictionary = {}
+        if is_instance_valid(free_roam_world) and gameplay_session != null:
+            recognition = VolunteerProgression.exploration_goal(
+                int(visits["count"]), free_roam_world.resolved_total,
+                gameplay_session.metrics.processed_events)
+        state["dialogue"] = "%s\nEXPLORE | %d / %d landmarks visited. %s" % [
+            str(state.get("dialogue", "")), int(visits["count"]), int(visits["total"]),
+            "Neighborhood Guide earned!" if bool(recognition.get("earned", false)) else
+            "Guide goal: 4 visits and 3 verified civic activities. Open MAP to explore."]
     var forward: Vector3 = -player.global_transform.basis.z
     if player.camera != null:
         forward = -player.camera.global_transform.basis.z
@@ -1126,6 +1134,9 @@ func _process(delta: float) -> void:
             state["living_city"] = _living_city_summary()
             if is_instance_valid(exploration_world):
                 state["city_discoveries"] = exploration_world.visit_state()
+                state["exploration_goal"] = VolunteerProgression.exploration_goal(
+                    int(state["city_discoveries"]["count"]), free_roam_world.resolved_total,
+                    gameplay_session.metrics.processed_events)
             state["incidents"] = 1 if not free_roam_world.active_event.is_empty() else 0
             state["scores"] = gameplay_session.metrics.scores.duplicate(true)
             state["reputation"] = gameplay_session.metrics.reputation()
