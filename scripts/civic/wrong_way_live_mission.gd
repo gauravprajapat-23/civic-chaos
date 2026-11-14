@@ -225,7 +225,10 @@ func _advance_cars(delta: float) -> void:
         # towed offender is already clear of it. Waiting until the tow has
         # fully left the district would miss cars that finished their route.
         var old_obstruction_clear: bool = tow_started and (tow_progress_m - TOW_GAP_M) >= OFFENDER_DISTANCE + 6.0
-        if (blocker_removed or old_obstruction_clear) and car.speed_mps > 0.8 and (car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 4.0):
+        # A car that has actually passed the incident is released even if it
+        # subsequently brakes for the normal junction light or ends its route.
+        # Movement before passing is required; never manufacture a release.
+        if (blocker_removed or old_obstruction_clear) and moved_ids.has(car.get_instance_id()) and _passed_incident(car):
             released_ids[car.get_instance_id()] = true
 
 func _actual_stopped_count() -> int:
@@ -237,9 +240,17 @@ func _actual_stopped_count() -> int:
             continue
         # Queues must be measured from physical motion, never spawn-at-rest.
         var id: int = car.get_instance_id()
-        if moved_ids.has(id) and car.current_route_index == 0 and car.speed_mps < 0.35:
+        if moved_ids.has(id) and not _passed_incident(car) and car.speed_mps < 0.35:
             count += 1
     return count
+
+## Distinguish the incident's upstream queue from ordinary vehicles waiting
+## at the downstream traffic light. Normal signal stops must never prevent
+## the sustained-recovery objective after the obstruction is gone.
+static func _passed_incident(car: CivicVehicleAgent) -> bool:
+    if car == null:
+        return false
+    return car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 6.0
 
 func _on_marker_activated(actor: Node) -> void:
     if not _can_interact(actor):
