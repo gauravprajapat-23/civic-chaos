@@ -1,11 +1,9 @@
 class_name CivicTouchLayout
 extends RefCounted
-## Pure responsive hitbox geometry for CivicTouchControls.
-## Staged only: no live Control or TouchScreenButton uses it until AUD-001
-## Godot import, regression, campaign and Android acceptance have passed.
-##
-## All rectangles share one viewport-space safe area, so the hitbox and
-## caption will eventually use the same origin and dimensions.
+## Responsive viewport-space hitbox geometry for CivicTouchControls.
+## plan() preserves the legacy D-pad contract for older regressions;
+## joystick_plan() drives the live mobile joystick and circular actions.
+## Both plans use one viewport-relative safe rectangle.
 
 const ACTIONS := [
     "move_forward", "move_back", "move_left", "move_right",
