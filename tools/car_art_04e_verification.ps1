@@ -13,6 +13,7 @@ New-Item -ItemType Directory -Path $evidence -Force | Out-Null
 $tests = @(
     "car_art_04a_jump_clearance_test.gd",
     "car_art_04a_side_contact_test.gd",
+    "car_art_04e_airborne_guard_test.gd",
     "car_art_04bc_visual_test.gd",
     "car_art_04d_materials_test.gd",
     "player_vehicle_contact_test.gd",
