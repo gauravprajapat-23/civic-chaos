@@ -311,6 +311,7 @@ static func checkpoint_envelope_valid(saved: Dictionary) -> bool:
         "cleanup_checkpoint",
         "campaign_checkpoint",
         "free_roam_checkpoint",
+        "exploration_checkpoint",
         "world_checkpoint"
     ]:
         if saved.has(record):
@@ -822,6 +823,10 @@ func _on_living_city_zone_discovered(_zone_id: String, title: String) -> void:
     if not free_roam_unlocked or not _finale_acknowledged:
         return
     _on_interaction_message("NEIGHBORHOOD DISCOVERED | %s | Explore more city landmarks on MAP." % title)
+    # Queue a best-effort checkpoint after the discovery callback completes.
+    # World/civic preflight remains authoritative; failed saves are not
+    # reported as successful and no score is granted for visiting a sign.
+    call_deferred("_save_gameplay_checkpoint")
 
 func _on_free_roam_npc_reaction(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
     var walkers: Node = get_node_or_null("DistrictPedestrians")
