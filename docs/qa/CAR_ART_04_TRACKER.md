@@ -1,7 +1,7 @@
 # CAR-ART-04 — Vehicle Collision & Visual Redesign Tracker
 
 **Branch:** `fix/aud-001-game024-gate-hardening`  
-**Status:** IN PROGRESS — 04A and 04B/C implementation committed; Godot/device acceptance pending  
+**Status:** IN PROGRESS — 04A–04D source and tests committed; Godot/device acceptance pending  
 **Scope:** Fix character sinking through open sedan; improve cabin, mirrors, materials and physical reliability without changing traffic/checkpoint behavior.  
 **Working rules:** Same branch, commits `[skip ci]`, no manual GitHub Actions, no merge without approval.
 
@@ -19,7 +19,7 @@ Screenshot (2026-11-14): player appears embedded in open-looking red car, side m
 | CAR-ART-04A-04 | P0 | Verify existing checkpoint, traffic, player-car collision behavior unaffected | **PENDING** | Exact revision full GAME-024 gate + regression |
 | CAR-ART-04B | P1 | Refine tapered cabin, inset windscreen/rear/side glass, pillar and roof positioning | **CODE COMMITTED** `485f392` | `car_art_04bc_visual_test.gd`, screenshots front/rear/side/3/4 |
 | CAR-ART-04C | P1 | Replace oversized mirrors with compact mounts, casing and rear-facing reflective glass | **CODE + TEST COMMITTED** `485f392`, `cb0d7e4` | `car_art_04bc_visual_test.gd`; review both sides in Godot |
-| CAR-ART-04D | P1 | Restrained real-world-inspired paint, window, trim, wheel and lighting palette | **TODO** | PC and Android GL-compatibility screenshot comparison |
+| CAR-ART-04D | P1 | Restrained paint with clearcoat, opaque window/mirror glass, tire/hub material contrast, light emission | **CODE + TEST COMMITTED** `a78ae39`, `d2bf7d6`, `8640e9b` | `car_art_04d_materials_test.gd`; PC/Android screenshots pending |
 | CAR-ART-04E | P0 | Full visual regression / Android APK playtest and performance comparison | **TODO** | Collision tests, GAME-024 and device measurement |
 
 **Important:** A committed change is not a passed test. Keep status **PENDING** until local outputs are recorded. Do not assert that the new player recovery eliminates all penetrations without a full playthrough.
@@ -49,6 +49,8 @@ foreach ($test in @(
     "car_art_04a_jump_clearance_test.gd",
     "car_art_04a_side_contact_test.gd",
     "car_art_04bc_visual_test.gd",
+    "car_art_04d_materials_test.gd",
+    "vehicle_visuals_test.gd",
     "player_vehicle_contact_test.gd",
     "car_character_clearance_test.gd",
     "vehicle_actor_safety_test.gd",
@@ -72,4 +74,5 @@ After focused checks, run the full `tools/verify_game024.ps1` gate on the **curr
 
 - **2026-11-14:** Screenshot and source diagnosis complete. Implemented 04A before visual changes to isolate a gameplay P0. The prior parking/traffic acceptance remains separate; the newly authored code has **not** yet received user-reported Godot test results.
 - **2026-11-14:** CAR-ART-04B/C code committed: repositioned glass within tapered cabin, reduced mirror projection, added attachment mounts, separate casing and blue-gray rear-facing metallic mirror glass. New geometry/material contract test; no colliders or traffic logic changed. **Test and visual results pending.**
-- Next implementation: **CAR-ART-04D — automotive paint, glazing and trim**, followed by 04E Android and full regression verification.
+- **2026-11-14:** CAR-ART-04D committed: subdued paint palette with restrained clearcoat, separate opaque mobile-friendly glazing and metallic mirror faces, more natural rubber/hub materials, less aggressive idle headlamp emission, higher wheel cylinder segments and PBR contract regression. **No actual rendered quality or Android FPS measured.**
+- Next: **CAR-ART-04E — exact-revision full Godot gate and physical Android/gameplay screenshot acceptance**, including rechecking 04A player jumping near cars.
