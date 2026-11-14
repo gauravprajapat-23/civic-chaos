@@ -25,8 +25,18 @@ func _world() -> Node3D:
 func _act(cleanup: CivicMarketCleanupMission, player: Node3D, kind: String, slot: int, action: String) -> bool:
     var target: CivicCleanupTarget = cleanup._target(kind, slot)
     player.position = target.position + Vector3(0, 0, 1.5)
+    var before: Dictionary = cleanup.snapshot()
     target.interact(player)
-    return cleanup.perform_incident_action(player, action)
+    match action:
+        "inspect":
+            return cleanup.inspected
+        "collect_litter":
+            return cleanup.carried_index == slot and cleanup.item_states[slot] == 1
+        "deposit_litter":
+            return cleanup.deposited_count == int(before["deposited_count"]) + 1
+        "request_service":
+            return cleanup.service_requested_tick >= 0 and int(before["service_requested_tick"]) < 0
+    return false
 
 func _run() -> void:
     var stage := _world()
@@ -48,14 +58,14 @@ func _run() -> void:
     if _act(cleanup, player, "helper", -1, "request_service"):
         _fail("service called before bin was full")
         return
-    if _act(cleanup, player, "litter", 0, "collect_litter"):
-        _fail("wrapper collected before evidence inspection")
-        return
-    if not _act(cleanup, player, "litter", 0, "inspect"):
-        _fail("physical wrapper evidence not inspected")
+    if cleanup.inspected:
+        _fail("litter evidence was pre-inspected before E")
         return
     if not _act(cleanup, player, "litter", 0, "collect_litter"):
-        _fail("first wrapper not collected")
+        _fail("E did not inspect and collect the first wrapper")
+        return
+    if not cleanup.inspected or int(civic.missions.missions[Cleanup.MISSION_ID]["progress"]["litter_evidence"]) != 1:
+        _fail("first E pickup did not record real evidence once")
         return
     if cleanup.targets[0].visible or cleanup.targets[0].collision_layer != 0:
         _fail("collected wrapper still lies on the street")
