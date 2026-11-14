@@ -2,7 +2,7 @@
 
 **Branch audited:** `fix/aud-001-game024-gate-hardening`  
 **Reference:** source as retrieved 2026-11-14, through the MOB-CTRL-01 InputMap fix (`c634faa`).  
-**Status:** CODE REVIEW / INITIAL TRIAGE — **not** a complete execution or player-experience audit.  
+**Status:** AUD3-FIX-01 source implemented, local Godot and device verification pending; **not** a complete execution or player-experience audit.  
 **Working agreement:** do not create a new branch, manually trigger GitHub Actions or merge PR #49. Use `[skip ci]` for subsequent commits.
 
 ## Product yardstick
@@ -71,6 +71,24 @@ The user recently reported import and seven focused vehicle tests passing at `72
 - Manual Story → Free Roam completed from fresh install, checkpoint replay is consistent, no unrecoverable traffic gridlock.
 - Android screenshots, FPS and thermal notes are attached to QA evidence.
 - Release remains **blocked** until these checks have real evidence.
+
+## AUD3-FIX-01 Implementation — Mobile Pause and Modal Input Safety
+
+**Implemented on 2026-11-14; acceptance unverified.**
+
+- `scripts/ui/touch_controls.gd` emits distinct `pause_requested` and `interact_requested` signals from the on-screen Pause and USE buttons. This avoids relying on the keyboard-only `_unhandled_key_input()` path and prevents double keyboard/touch toggles.
+- `scripts/core/main.gd` connects those signals to the existing `_toggle_pause()` and `player.try_interact()` with guards for active incident/finale screens. Pause hides the touch layer while paused; the existing paused Resume button re-enables controls.
+- New `cancel_active_touches()` releases joystick and action states before hiding for pause, incident-card and finale, and on focus loss. `CivicPlayerController.cancel_mobile_look()` clears the independently held camera finger. A hidden joystick now checks `is_visible_in_tree()` to avoid accepting new touches behind modal UI.
+- Valid layout restoration explicitly re-shows the on-screen action buttons after a temporarily invalid screen size.
+- `tests/aud3_mobile_input_lifecycle_test.gd` exercises touch-button signals, two-dimensional held movement, simultaneous action state, interrupted modal hides and hidden-input rejection. The test is registered in `tools/car_art_04e_verification.ps1`.
+- **Important:** the current implementation should not be called verified until the headless test and complete current-revision GAME-024 gate run cleanly. The Android Pause/USE and resume interaction require real device testing.
+
+### AUD3-FIX-01 acceptance
+
+1. Import in Godot 4.7.2 and run `aud3_mobile_input_lifecycle_test.gd`, `mobile_joystick_test.gd`, `touch_controls_test.gd`, `player_controller_test.gd`; no `ERROR:` or `SCRIPT ERROR:` is acceptable.
+2. Run `tools/car_art_04e_verification.ps1` with clean source and exact SHA; retain build reports.
+3. Run touch Pause → Resume, USE→ incident card → close, move + camera swipe + Pause, background/restore; no stuck input or double pause.
+4. Only after the local gate passes, export `Android Debug` APK using existing `export_presets.cfg`; a debug APK is not a signed production artifact.
 
 ## Audit history
 - 2026-11-14: Initial source-based improvement audit completed. No gameplay changes or GitHub Actions in this audit; future fixes are tracked here and in `docs/DEVELOPMENT_WORK_LOG.md`.
