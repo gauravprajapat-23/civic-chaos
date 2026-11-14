@@ -82,6 +82,16 @@ After focused tests pass, run `tools/car_art_04e_verification.ps1` (which also r
 
 Do **not** mark UX done on headless GDScript PASS alone: measure actual device finger coordination, HUD interference and visual readability. Screenshots/video from Android remain needed. Do not claim hardware performance until measured.
 
+## 2026-11-14 — Local failure: missing InputMap movement action
+
+The user ran `tools/car_art_04e_verification.ps1` at commit `7287d64`. Godot import, CAR-ART-04A/04B/04D and vehicle visuals fixtures all printed PASS. Immediately afterward the run emitted `ERROR: The InputMap action "move_left" doesn't exist` and stopped before accepting the mobile controls. **This is a real source integration bug, not a verified successful mobile-controls gate.**
+
+Root cause: `project.godot` does not declare the `move_*` input actions, and standalone test scenes do not necessarily execute the gameplay input setup. The new joystick's `release_stick()` called `Input.action_release()` unconditionally when `CivicTouchControls._layout()` hid it on desktop, triggering Godot's error. The joystick also assumed movement actions were already registered when pressing movement input.
+
+Fix: `CivicMobileJoystick._ready()` registers missing movement actions only, preserving existing keyboard/gamepad event bindings and deadzones. `_apply_actions()` safely skips an absent name during teardown or early lifecycle calls. `CivicTouchControls._ready()` registers missing Jump/Run/Use/Pause action names without replacing existing mappings. `touch_controls_test.gd` now verifies all required actions exist when the touch UI becomes ready. Commits `fc94203`, `319dd2f`, `997d01b`.
+
+**Verification pending:** rerun the strict `tools/car_art_04e_verification.ps1` at the new SHA. Do not assume Android touch acceptance from this source-only fix.
+
 ## Progress log
 
 - **2026-11-14:** Added analog joystick, responsive joystick planning, real circular action controls, right-look button exclusion and tests. Source committed; user-run Godot verification pending.
