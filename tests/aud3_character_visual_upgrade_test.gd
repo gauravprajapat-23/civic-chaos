@@ -19,9 +19,12 @@ func _run() -> void:
     if player.collision_layer != 2 or player.collision_mask != 1:
         _fail("player collision policy changed during art upgrade")
         return
-    # Isolated art test: avoid driving physics before Main registers inputs.
-    player.set_physics_process(false)
+    # A standalone SceneTree test does not instantiate Main, which normally
+    # registers input actions. Disable player simulation AFTER entering tree;
+    # pre-tree set_physics_process(false) is not sufficient for this fixture.
     root.add_child(player)
+    player.set_physics_process(false)
+    player.set_process_unhandled_input(false)
     await process_frame
     var visual := player.get_node("Visual") as Node3D
     if visual == null or visual.get_node_or_null("Head/Face") == null or visual.get_node_or_null("Head/HairCap") == null:
