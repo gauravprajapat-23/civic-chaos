@@ -19,6 +19,8 @@ func _run() -> void:
     if player.collision_layer != 2 or player.collision_mask != 1:
         _fail("player collision policy changed during art upgrade")
         return
+    # Isolated art test: avoid driving physics before Main registers inputs.
+    player.set_physics_process(false)
     root.add_child(player)
     await process_frame
     var visual := player.get_node("Visual") as Node3D
