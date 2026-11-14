@@ -60,6 +60,8 @@ var feedback: String = "Spot the wrong-way car and the actual queue."
 var _last_progress_tick: int = -1
 var _last_progress_signature: String = ""
 var _stalled: bool = false
+var _tow_hold_reason: String = ""
+var _tow_hold_frames: int = 0
 
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -448,6 +450,7 @@ func _advance_tow_convoy(delta: float) -> void:
             var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
             travel = minf(travel, stop_gap)
     if travel <= 0.0001:
+        _note_tow_hold("traffic signal or pedestrian crossing")
         tow_vehicle.speed_mps = 0.0
         return
     # Probe several intermediate footprints, including corners, BEFORE
@@ -457,9 +460,16 @@ func _advance_tow_convoy(delta: float) -> void:
         var candidate_progress: float = tow_progress_m + travel * float(index) / float(samples)
         var tow_pose: Transform3D = _tow_pose(candidate_progress, false)
         var offender_pose: Transform3D = _tow_pose(candidate_progress - TOW_GAP_M, true)
-        if tow_vehicle.footprint_blocked_at(tow_pose) or offender.footprint_blocked_at(offender_pose):
+        if tow_vehicle.footprint_blocked_at(tow_pose):
+            _note_tow_hold("tow-truck route physically occupied")
             tow_vehicle.speed_mps = 0.0
             return
+        if offender.footprint_blocked_at(offender_pose):
+            _note_tow_hold("offender route physically occupied")
+            tow_vehicle.speed_mps = 0.0
+            return
+    _tow_hold_frames = 0
+    _tow_hold_reason = ""
     tow_progress_m += travel
     tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
     offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
@@ -476,6 +486,18 @@ func _advance_tow_convoy(delta: float) -> void:
     # Only declare physical clearance once the whole convoy reaches the exit.
     if tow_progress_m >= _tow_route_length() - 0.01:
         _finish_tow_convoy()
+
+## Keep collision and signal rules authoritative, but identify what
+## actually prevents service movement rather than silently waiting forever.
+func _note_tow_hold(reason: String) -> void:
+    if _tow_hold_reason != reason:
+        _tow_hold_reason = reason
+        _tow_hold_frames = 0
+    _tow_hold_frames += 1
+    if _tow_hold_frames == 180 or (_tow_hold_frames > 180 and _tow_hold_frames % 600 == 0):
+        _announce("Tow delayed: %s. Keep the route and crossing clear." % reason)
+        print("CIVIC_TOW_HOLD reason=%s progress=%.2f/%.2f queue=%d released=%d tick=%d" % [
+            reason, tow_progress_m, _tow_route_length(), stopped_count, released_ids.size(), tick])
 
 func _update_tow_link() -> void:
     if not is_instance_valid(tow_cable) or not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
