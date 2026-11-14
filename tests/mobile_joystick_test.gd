@@ -35,6 +35,49 @@ func _run() -> void:
     if Input.get_action_strength("move_right") < 0.4:
         _fail("joystick analog strength missing")
         return
+    # Genuine touch index ownership: other fingers may look or jump.
+    stick.enabled_on_desktop = true
+    stick.visible = true
+    stick.release_stick()
+    var first := InputEventScreenTouch.new()
+    first.index = 3
+    first.position = Vector2(105, 310)
+    first.pressed = true
+    stick._input(first)
+    if stick.pointer_id != 3:
+        _fail("movement finger was not captured")
+        return
+    var second := InputEventScreenTouch.new()
+    second.index = 7
+    second.position = Vector2(145, 310)
+    second.pressed = true
+    stick._input(second)
+    if stick.pointer_id != 3:
+        _fail("second camera/action finger stole movement stick")
+        return
+    var drag := InputEventScreenDrag.new()
+    drag.index = 3
+    drag.position = Vector2(105, 250)
+    stick._input(drag)
+    if not Input.is_action_pressed("move_forward"):
+        _fail("captured movement finger stopped controlling forward motion")
+        return
+    var other_release := InputEventScreenTouch.new()
+    other_release.index = 7
+    other_release.pressed = false
+    other_release.position = second.position
+    stick._input(other_release)
+    if stick.pointer_id != 3:
+        _fail("second finger released first finger's joystick")
+        return
+    var first_release := InputEventScreenTouch.new()
+    first_release.index = 3
+    first_release.pressed = false
+    first_release.position = first.position
+    stick._input(first_release)
+    if stick.pointer_id != -1 or stick.value != Vector2.ZERO:
+        _fail("captured joystick finger release did not reset state")
+        return
     stick.release_stick()
     for action in CivicMobileJoystick.AXES:
         if Input.is_action_pressed(action):
