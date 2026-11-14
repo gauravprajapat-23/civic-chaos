@@ -67,6 +67,11 @@ func _apply_actions() -> void:
         else:
             Input.action_release(AXES[i])
 
+func _notification(what: int) -> void:
+    # Android may not deliver touch-up after the app loses focus.
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        release_stick()
+
 func _exit_tree() -> void:
     release_stick()
 
