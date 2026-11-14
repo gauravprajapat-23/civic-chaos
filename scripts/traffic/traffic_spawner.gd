@@ -447,7 +447,10 @@ func prepare_restore(data: Variant) -> bool:
 		car.physics_obstacle_checks_enabled = bool(item["obstacle_checks"])
 		car.clear_lead_observation()
 		car._place_on_lane()
-		if car.footprint_blocked_at(car.global_transform):
+		# Apply the same player/pedestrian buffer used by live spawning.
+		# A restored car may never be staged on top of a character merely
+		# because the smaller hard collider happens not to intersect yet.
+		if not car.people_clear_at(car.global_transform) or car.footprint_blocked_at(car.global_transform):
 			car.free()
 			valid = false
 			break
