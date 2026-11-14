@@ -12,6 +12,7 @@ const PALETTE: Array[Color] = [
 ]
 var _paint: StandardMaterial3D
 var _glass: StandardMaterial3D
+var _mirror_glass: StandardMaterial3D
 var _trim: StandardMaterial3D
 var _metal: StandardMaterial3D
 var _rubber: StandardMaterial3D
@@ -22,7 +23,8 @@ var _braking: bool = false
 
 func _ready() -> void:
     _paint = _material(PALETTE[0], 0.36, 0.36)
-    _glass = _material(Color(0.07, 0.18, 0.26), 0.13, 0.18)
+    _glass = _material(Color(0.10, 0.19, 0.25), 0.24, 0.08)
+    _mirror_glass = _material(Color(0.46, 0.58, 0.63), 0.12, 0.58)
     _trim = _material(Color(0.045, 0.06, 0.08), 0.72)
     _metal = _material(Color(0.58, 0.62, 0.67), 0.3, 0.54)
     _rubber = _material(Color(0.045, 0.05, 0.06), 0.95)
@@ -128,20 +130,30 @@ func _build_details() -> void:
     # of a monolithic tall cube. All pieces remain presentation-only.
     _box("Hood", Vector3(0, 0.83, -1.04), Vector3(1.53, 0.10, 0.77), _paint)
     _box("Trunk", Vector3(0, 0.83, 1.16), Vector3(1.52, 0.10, 0.54), _paint)
-    _box("Roof", Vector3(0, 1.29, 0.13), Vector3(1.27, 0.09, 0.95), _paint)
-    _box("Windscreen", Vector3(0, 1.055, -0.63),
-        Vector3(1.19, 0.41, 0.045), _glass, -0.37)
-    _box("RearGlass", Vector3(0, 1.045, 0.80),
-        Vector3(1.16, 0.40, 0.045), _glass, 0.34)
+    # The roof bridges the tapered cabin; glass sits within its silhouette.
+    _box("Roof", Vector3(0, 1.283, 0.13), Vector3(1.19, 0.08, 1.00), _paint)
+    _box("Windscreen", Vector3(0, 1.035, -0.607),
+        Vector3(1.12, 0.36, 0.035), _glass, -0.53)
+    _box("RearGlass", Vector3(0, 1.037, 0.755),
+        Vector3(1.10, 0.35, 0.035), _glass, 0.45)
     for side in [-1, 1]:
         var s: float = float(side)
         var label: String = "L" if side < 0 else "R"
-        _box("FrontSideWindow_" + label, Vector3(s * 0.689, 1.065, -0.25),
-            Vector3(0.028, 0.29, 0.56), _glass)
-        _box("RearSideWindow_" + label, Vector3(s * 0.689, 1.065, 0.45),
-            Vector3(0.028, 0.29, 0.43), _glass)
-        _box("Mirror_" + label, Vector3(s * 0.855, 0.99, -0.63),
-            Vector3(0.23, 0.14, 0.21), _trim)
+        # Keep both panes inset from the cabin corner instead of floating
+        # outside its tapered body. Small frames separate the two doors.
+        _box("FrontSideWindow_" + label, Vector3(s * 0.673, 1.04, -0.265),
+            Vector3(0.024, 0.235, 0.49), _glass)
+        _box("RearSideWindow_" + label, Vector3(s * 0.673, 1.04, 0.405),
+            Vector3(0.024, 0.235, 0.39), _glass)
+        # Three-piece compact mirror: a short arm attached at the door,
+        # dark housing and inset rear-facing metallic glass. Preserve the
+        # legacy Mirror_L/R names for visual contracts.
+        _box("MirrorMount_" + label, Vector3(s * 0.743, 0.972, -0.62),
+            Vector3(0.115, 0.055, 0.085), _trim)
+        _box("Mirror_" + label, Vector3(s * 0.811, 1.00, -0.65),
+            Vector3(0.145, 0.105, 0.165), _trim)
+        _box("MirrorGlass_" + label, Vector3(s * 0.811, 1.008, -0.56),
+            Vector3(0.119, 0.075, 0.012), _mirror_glass)
         _box("FrontLamp_" + label, Vector3(s * 0.56, 0.69, -1.483),
             Vector3(0.32, 0.13, 0.035), _headlamp)
         _box("RearLamp_" + label, Vector3(s * 0.56, 0.68, 1.485),
@@ -169,8 +181,8 @@ func _build_details() -> void:
     for side in [-1, 1]:
         var s: float = float(side)
         var label: String = "L" if side < 0 else "R"
-        _box("CabinCenterPillar_" + label, Vector3(s * 0.702, 1.075, 0.17),
-            Vector3(0.05, 0.38, 0.075), _trim)
+        _box("CabinCenterPillar_" + label, Vector3(s * 0.691, 1.055, 0.12),
+            Vector3(0.038, 0.34, 0.065), _trim)
         _box("RunningBoard_" + label, Vector3(s * 0.79, 0.35, 0.0),
             Vector3(0.055, 0.10, 1.62), _trim)
         _box("Waistline_" + label, Vector3(s * 0.812, 0.82, 0.02),
