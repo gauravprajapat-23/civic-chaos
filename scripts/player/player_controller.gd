@@ -31,6 +31,11 @@ var _gravity: float = 9.8
 var _look_touch_index: int = -1
 var _last_touch_position := Vector2.ZERO
 var _walk_animation_time: float = 0.0
+## CAR-ART-04E: a non-climbable car blocks horizontal travel even when
+## the player jumps above its short physical collider. Query-only, never a floor.
+var _airborne_vehicle_guard: BoxShape3D
+const VEHICLE_GUARD_HEIGHT_M: float = 2.7
+const VEHICLE_GUARD_WIDTH_M: float = 0.70
 
 func _ready() -> void:
     _safe_spawn = global_position
@@ -232,6 +237,39 @@ func _limit_horizontal_actor_motion(delta: float) -> void:
         var fractions: PackedFloat32Array = space.cast_motion(query)
         if fractions.size() >= 1:
             safe_fraction = minf(safe_fraction, clampf(fractions[0], 0.0, 1.0))
+    # The real vehicle box is only 1.2 m tall: ordinary capsule sweeps
+    # no longer detect the car at a jump's apex. Add a *horizontal-only*
+    # extended player footprint that reaches the vehicle below the jumper.
+    # It never affects floor detection, gravity, signals or NPC clearance.
+    if _airborne_vehicle_guard == null:
+        _airborne_vehicle_guard = BoxShape3D.new()
+        _airborne_vehicle_guard.size = Vector3(
+            VEHICLE_GUARD_WIDTH_M, VEHICLE_GUARD_HEIGHT_M,
+            VEHICLE_GUARD_WIDTH_M)
+    var overhead := PhysicsShapeQueryParameters3D.new()
+    overhead.shape = _airborne_vehicle_guard
+    overhead.transform = Transform3D(collider.global_transform.basis,
+        global_position + Vector3.UP * 0.45)
+    overhead.motion = horizontal_motion
+    overhead.collision_mask = 4
+    overhead.exclude = [get_rid()]
+    overhead.margin = 0.015
+    for overlap in space.intersect_shape(overhead, 8):
+        var obstacle := overlap.get("collider") as Node3D
+        if obstacle == null:
+            continue
+        var away: Vector3 = global_position - obstacle.global_position
+        away.y = 0.0
+        # If already intersecting the footprint, only outward motion is
+        # allowed. Never trap a character attempting to leave a stalled car.
+        if away.length_squared() > 0.0001 and horizontal_motion.dot(away) <= 0.0:
+            velocity.x = 0.0
+            velocity.z = 0.0
+            return
+    var overhead_fractions: PackedFloat32Array = space.cast_motion(overhead)
+    if overhead_fractions.size() >= 1:
+        safe_fraction = minf(safe_fraction,
+            clampf(overhead_fractions[0], 0.0, 1.0))
     if safe_fraction < 1.0:
         var allowance: float = maxf(0.0, safe_fraction - 0.01)
         velocity.x *= allowance
