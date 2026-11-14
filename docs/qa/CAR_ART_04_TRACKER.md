@@ -1,7 +1,7 @@
 # CAR-ART-04 — Vehicle Collision & Visual Redesign Tracker
 
 **Branch:** `fix/aud-001-game024-gate-hardening`  
-**Status:** IN PROGRESS — 04A side-contact fixture fix committed; 04E local gate prepared, device acceptance pending  
+**Status:** IN PROGRESS — 04E airborne collision gameplay fix committed; full local gate/device acceptance pending  
 **Scope:** Fix character sinking through open sedan; improve cabin, mirrors, materials and physical reliability without changing traffic/checkpoint behavior.  
 **Working rules:** Same branch, commits `[skip ci]`, no manual GitHub Actions, no merge without approval.
 
@@ -15,12 +15,12 @@ Screenshot (2026-11-14): player appears embedded in open-looking red car, side m
 |---|---|---|---|---|
 | CAR-ART-04A-01 | P0 | Airborne horizontal vehicle sweep at current/projected vertical positions | **COMMITTED** `8c33548` | `player_vehicle_contact_test.gd`, new airborne test |
 | CAR-ART-04A-02 | P0 | Safe non-climbable descent recovery beside car; never push into another solid body | **COMMITTED** `8c33548` | `car_art_04a_jump_clearance_test.gd` and actual jumping gameplay |
-| CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **SIDE FIX COMMITTED** `3d436d7` | 04A direct-fall PASS reported; side test failed before fix, must rerun |
+| CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **SIDE FIX + GAMEPLAY GUARD COMMITTED** `3d436d7`, `7807fe9` | 04A direct-fall PASS reported; side test failed before fix, must rerun |
 | CAR-ART-04A-04 | P0 | Verify existing checkpoint, traffic, player-car collision behavior unaffected | **PENDING** | Exact revision full GAME-024 gate + regression |
 | CAR-ART-04B | P1 | Refine tapered cabin, inset windscreen/rear/side glass, pillar and roof positioning | **CODE COMMITTED** `485f392` | `car_art_04bc_visual_test.gd`, screenshots front/rear/side/3/4 |
 | CAR-ART-04C | P1 | Replace oversized mirrors with compact mounts, casing and rear-facing reflective glass | **CODE + TEST COMMITTED** `485f392`, `cb0d7e4` | `car_art_04bc_visual_test.gd`; review both sides in Godot |
 | CAR-ART-04D | P1 | Restrained paint with clearcoat, opaque window/mirror glass, tire/hub material contrast, light emission | **CODE + TEST COMMITTED** `a78ae39`, `d2bf7d6`, `8640e9b` | `car_art_04d_materials_test.gd`; PC/Android screenshots pending |
-| CAR-ART-04E | P0 | Full vehicle QA with fail-closed local Godot gate and optional debug APK | **QA RUNNER COMMITTED** `dd8e295`, `0653352` | `tools/car_art_04e_verification.ps1`; full GAME-024 and device evidence pending |
+| CAR-ART-04E | P0 | Full vehicle QA with fail-closed local Godot gate and optional debug APK | **QA RUNNER + AIRBORNE TEST COMMITTED** `dd8e295`, `1ed3915`, `ed2727f` | `tools/car_art_04e_verification.ps1`; full GAME-024 and device evidence pending |
 
 **Important:** A committed change is not a passed test. Keep status **PENDING** until local outputs are recorded. Do not assert that the new player recovery eliminates all penetrations without a full playthrough.
 
@@ -48,6 +48,7 @@ if ($importExit -ne 0 -or $import -match 'SCRIPT ERROR:|ERROR:') { throw "Import
 foreach ($test in @(
     "car_art_04a_jump_clearance_test.gd",
     "car_art_04a_side_contact_test.gd",
+    "car_art_04e_airborne_guard_test.gd",
     "car_art_04bc_visual_test.gd",
     "car_art_04d_materials_test.gd",
     "vehicle_visuals_test.gd",
@@ -69,6 +70,18 @@ foreach ($test in @(
 ```
 
 After focused checks, run the full `tools/verify_game024.ps1` gate on the **current** exact SHA. Manual follow-up: test drop onto red/blue cabin, sideways jump, walking around a stationary and moving car, checkpoint restoration next to vehicles. Record video/screenshots from PC and Android before marking 04A done.
+
+## CAR-ART-04E airborne collision regression (2026-11-14)
+
+**User-provided Godot evidence:** At `608d462`, import and the direct fall `car_art_04a_jump_clearance_test.gd` passed, but `car_art_04a_side_contact_test.gd` failed `jumping player clipped into vehicle cabin`. This is a **real moving-player collision failure**, not a UID/source gate problem. No later tests ran in that attempt.
+
+**Cause:** The original player's horizontal car collision query used a normal-height 1.8 m capsule. At the apex of a jump, that capsule clears the physical vehicle's 1.2 m body; it can therefore enter the **2D cabin silhouette**, then descend into the vehicle. The existing descent recovery does not prevent the entry itself.
+
+**Fix committed:** `scripts/player/player_controller.gd` now also casts a query-only extended vertical guard around the player's horizontal footprint, so a jump cannot move horizontally into a car just because the capsule is above the short box. Existing normal capsule sweeps, outward movement from overlaps and descent recovery remain. The player's collision mask remains world-only; car rooftops are still **not floors**, and traffic/checkpoint physics is unchanged. The query shape is cached per player to avoid per-tick shape allocations. Commit `7807fe9`.
+
+**New test:** `tests/car_art_04e_airborne_guard_test.gd` sets the player above the car collider and checks forward movement cannot enter the cabin footprint; after the car moves away, movement resumes. Commit `ed2727f`. CAR-ART-04E runner now includes the test (`1ed3915`).
+
+**Verification state:** SOURCE COMMITTED, **NO LOCAL GODOT RESULT YET**. Re-run `tools/car_art_04e_verification.ps1` at exact current SHA, review logs and only mark 04A/04E accepted after the entire gate and manual gameplay/Android checks pass.
 
 ## CAR-ART-04E generated Godot test UID preflight fix (2026-11-14)
 
