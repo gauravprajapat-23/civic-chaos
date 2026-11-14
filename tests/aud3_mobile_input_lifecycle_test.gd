@@ -32,8 +32,8 @@ func _run() -> void:
         return
     controls.set_controls_active(false)
     player.cancel_mobile_look()
-    if controls.visible or controls.joystick.value != Vector2.ZERO or
-            controls.joystick.pointer_id != -1 or player._look_touch_index != -1:
+    if (controls.visible or controls.joystick.value != Vector2.ZERO
+            or controls.joystick.pointer_id != -1 or player._look_touch_index != -1):
         _fail("modal did not reset held joystick and camera finger")
         return
     for action in ["move_left", "move_right", "move_forward", "move_back",
