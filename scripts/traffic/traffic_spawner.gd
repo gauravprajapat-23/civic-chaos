@@ -31,6 +31,27 @@ var rejected_total: int = 0
 var total_delay_seconds: float = 0.0
 var current_tick: int = 0
 var _vehicle_delay: Dictionary = {}
+## CAR-SAFE-05: never feed more vehicles into near-total standstill.
+## This is deterministic backpressure, NOT an override of collision/signal
+## priority. Once vehicles move again, the normal spawn schedule resumes.
+const GRIDLOCK_MIN_VEHICLES: int = 3
+const GRIDLOCK_STOPPED_PERCENT: int = 75
+var _spawn_backpressure_ticks: int = 0
+
+static func congestion_backpressure(active_count: int, stopped_count: int) -> bool:
+	if active_count < GRIDLOCK_MIN_VEHICLES:
+		return false
+	return stopped_count * 100 >= active_count * GRIDLOCK_STOPPED_PERCENT
+
+func queue_pressure() -> Dictionary:
+	var stopped: int = 0
+	for car in active_vehicles:
+		if is_instance_valid(car) and car.active and car.speed_mps < 0.2:
+			stopped += 1
+	return {"active": active_vehicles.size(), "stopped": stopped,
+		"congested": congestion_backpressure(active_vehicles.size(), stopped),
+		"backpressure_ticks": _spawn_backpressure_ticks}
+
 
 func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: bool = false) -> bool:
 	# Preflight *all* fallible inputs before touching the current traffic
@@ -67,6 +88,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 			vehicle.queue_free()
 	active_vehicles.clear()
 	_vehicle_delay.clear()
+	_spawn_backpressure_ticks = 0
 	work_budget.configure(maximum_active, 8)
 	work_budget.reset_runtime()
 	road_graph = graph
@@ -116,7 +138,12 @@ func advance_fixed(tick: int, delta: float) -> void:
 			_vehicle_delay.erase(vehicle.get_instance_id())
 			active_vehicles.remove_at(index)
 			vehicle.queue_free()
-	if tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
+	# Check after movement: resumed traffic can immediately admit arrivals,
+	# while blocked junctions avoid growing the stationary queue.
+	var congestion: Dictionary = queue_pressure()
+	if bool(congestion["congested"]):
+		_spawn_backpressure_ticks += 1
+	elif tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
 		try_spawn()
 	work_budget.record_duration_us(Time.get_ticks_usec() - started_us)
 
@@ -195,6 +222,10 @@ static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -
 	return "W" if heading.x > 0.0 else "E"
 
 func try_spawn() -> bool:
+	# Callers outside advance_fixed() must obey the same congestion rule.
+	# No RNG draws or rejection counters change for deferred arrivals.
+	if bool(queue_pressure()["congested"]):
+		return false
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
 		return false
 	var entry_lanes := city_entry_lanes if city_mode else normal_entry_lanes
@@ -247,6 +278,8 @@ func metrics() -> Dictionary:
 	return {
 		"active": active_vehicles.size(),
 		"timing": work_budget.metrics(),
+		"congested": congestion_backpressure(active_vehicles.size(), queue_count),
+		"spawn_backpressure_ticks": _spawn_backpressure_ticks,
 		"queue": queue_count,
 		"spawned": spawned_total,
 		"completed": completed_total,
@@ -511,6 +544,7 @@ func commit_restore() -> bool:
 	# and may move the logical clock backwards. Never retain a future decision
 	# cursor or sensor observations from the generation that was replaced.
 	work_budget.reset_runtime()
+	_spawn_backpressure_ticks = 0
 	current_tick = int(data["current_tick"])
 	spawned_total = int(data["spawned_total"])
 	completed_total = int(data["completed_total"])
