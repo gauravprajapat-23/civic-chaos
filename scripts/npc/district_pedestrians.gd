@@ -22,6 +22,7 @@ const CROSSING_CLEARANCE: float = 1.3
 const VEHICLE_CLEARANCE: float = 1.5
 const PERSONAL_SPACE: float = 1.4
 const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
+const CharacterArt = preload("res://scripts/rendering/low_poly_character.gd")
 const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd")
 const NpcPersonality = preload("res://scripts/npc/npc_personality.gd")
 const NpcBlackboard = preload("res://scripts/npc/npc_blackboard.gd")
@@ -98,12 +99,13 @@ func _ready() -> void:
         walker.name = "Pedestrian_%02d" % index
         add_child(walker)
         var color: Color = shirt_colors[index % shirt_colors.size()]
-        _part(walker, "Torso", Vector3(0, 1.18, 0), Vector3(0.42, 0.62, 0.26), color)
-        _part(walker, "Head", Vector3(0, 1.72, 0), Vector3(0.31, 0.33, 0.31), Color(0.70, 0.46, 0.31))
-        var left_arm := _part(walker, "LeftArm", Vector3(-0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
-        var right_arm := _part(walker, "RightArm", Vector3(0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
-        var left_leg := _part(walker, "LeftLeg", Vector3(-0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
-        var right_leg := _part(walker, "RightLeg", Vector3(0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
+        var parts: Dictionary = CharacterArt.build(walker, color,
+            Color(0.70, 0.46, 0.31), Color(0.17, 0.21, 0.28),
+            Color(0.93, 0.80, 0.55))
+        var left_arm: Node3D = parts["LeftArm"]
+        var right_arm: Node3D = parts["RightArm"]
+        var left_leg: Node3D = parts["LeftLeg"]
+        var right_leg: Node3D = parts["RightLeg"]
         # Search an unoccupied start; overlapping capsules cannot resolve
         # themselves through simple stop-on-obstacle avoidance.
         var spawn_progress: float = float(index) * 5.0
