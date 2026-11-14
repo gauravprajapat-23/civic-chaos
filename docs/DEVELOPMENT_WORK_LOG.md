@@ -39,6 +39,14 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04A side-jump test failure fixed; CAR-ART-04E gate started
+- User supplied two local Godot 4.7.2 runs through `e8c7511`. Both imported without script errors. `car_art_04bc_visual_test.gd`, `vehicle_visuals_test.gd`, and `car_art_04a_jump_clearance_test.gd` passed; the second run also passed `car_art_04d_materials_test.gd`. `car_art_04a_side_contact_test.gd` failed: **`jump test never left the ground`**, aborting the remaining list. Do **not** treat later tests or current full gate as passed.
+- Cause in test harness: fixed eight-frame spawn settling period before pressing Jump, without confirming `CharacterBody3D.is_on_floor()`; the controller only permits jump from a confirmed floor. Changed fixture to wait up to 90 physics frames for grounding, then assert a real airborne impulse before performing collision checks (`3d436d7`). No game physics changed in this fix.
+- Started CAR-ART-04E by adding `tools/car_art_04e_verification.ps1`: fail-closed exact-branch clean-source test gate, Godot import, 13 focused vehicle/traffic fixtures with logs, existing full GAME-024 verifier and optional Android debug APK export **only after successful gates**. A companion tracker `docs/qa/CAR_ART_04_TRACKER.md` records exact reported evidence and physical-device checks. Commits `dd8e295`, `0653352`, `5fcd19e`.
+- **Code committed, not locally rerun.** Need successful CAR-ART-04E script, full GAME-024 pass on exact SHA, visual jump and mirror evidence on Windows and Android. Do not claim signed release or hardware FPS without device measurements.
+
+
+
 ### 2026-11-14 — CAR-ART-04D automotive paint/material pass
 - Inspected the actual sedan `scripts/traffic/vehicle_visuals.gd`, physical vehicle scene, existing 04B/C glass and mirror tests and `docs/qa/CAR_ART_04_TRACKER.md`.
 - Replaced extremely saturated traffic paint colors with muted blue, oxblood red, silver, graphite and forest green. Gave paint a modest metallic and clearcoat finish; preserved deterministic lane-based choice without RNG consumption.
