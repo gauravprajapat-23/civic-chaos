@@ -17,7 +17,7 @@ The campaign's four missions still gate Free Roam. Existing repeatable litter, f
 ### Subsequent batches
 
 - **GAME-025-02:** Free Roam dispatch board and repeatable activity feed — source implemented, Godot verification pending. F7 / CALLS opens a paused board; Show on City Map follows the real live event target. No available incident means an honest all-clear view and cooldown; no fictional mission entries.
-- **GAME-025-03:** Visit-worthy places and distinct neighborhood activity zones with verified navigable pedestrian paths.
+- **GAME-025-03:** Four neighborhood discoveries and visual-only wayfinding signposts, map-selectable street-route destinations, and read-only exploration progress — source implemented; Godot and Android verification pending. Route overlays follow the existing street graph, not a new pedestrian navmesh.
 - **GAME-025-04:** Persistent volunteer goals earned only through verified event receipts; no timer-based score farming.
 - **GAME-025-05:** Optimize crowd behavior under road/crossing pressure, audit Android controls and performance, and run full campaign-to-Free Roam acceptance.
 
@@ -52,3 +52,13 @@ Require the marker `CIVIC_CHAOS_GAME025_LIVING_CITY_ROUTINES_PASS`, exit code 0,
 - Regression: `tests/game025_dispatch_board_test.gd`, marker `CIVIC_CHAOS_GAME025_DISPATCH_BOARD_PASS`.
 - To accept: Godot import PASS; focused dispatch, existing map, live Free Roam, checkpoint and UI tests exit 0 without `ERROR:`; PC F7 modal and phone CALLS touch must work without joystick stuck state; verify save/load while a live incident and during a cooldown.
 - Do not manually run GitHub Actions. No release claim before full PC and Android acceptance.
+
+
+## GAME-025-03 — Neighborhood exploration acceptance
+
+- `scripts/world/living_city_zones.gd` is a shared catalog with four destinations: Community Garden, Community Kiosk, Solar Corner, and South Market Walk. The first three align with previously-defined improvement positions; the fourth aligns with the audited southern Free Roam sidewalk site.
+- `scripts/world/living_city_exploration.gd` creates low-cost, **non-colliding** directional signs in Free Roam only. A player walking within 5 horizontal metres discovers each once per running scene. This is discovery feedback **only**, with no incident, score, unlock or reward changes. Visits are session-local until a separate persistent-collection milestone is designed.
+- The city map lists all four zone locations below the existing MISSION/landmark buttons, draws named markers, and routes toward selected places using existing road graph. Map guidance may include off-road access connectors; it does not change pedestrian crossing reservations or claim a newly navigable sidewalk mesh.
+- The mission guide displays visited / total exploration progress during Free Roam. New zones never spawn during the original campaign, and no new StaticBody3D/collision layers are introduced.
+- Focused test: `res://tests/game025_neighborhood_exploration_test.gd`, success marker `CIVIC_CHAOS_GAME025_NEIGHBORHOOD_EXPLORATION_PASS`. Also run both AUD3 map tests, GAME-025 Living City/Dispatch tests, and Free Roam event/checkpoint regressions.
+- Verify PC/Android UI sizing of two map destination rows, character walking, 5 m visit triggers, live map route geometry, and no obstruction of traffic/crossings. Current source commits are not verified by local Godot execution.
