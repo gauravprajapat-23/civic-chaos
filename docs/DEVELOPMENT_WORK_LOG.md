@@ -39,6 +39,14 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04E clean-source gate fix for generated test UID files
+- User's exact Windows output on `748b5bb`: CAR-ART-04E aborted at the initial clean-SHA check, listing six untracked `tests/*.gd.uid` sidecars created by Godot's editor import. This run did **not** execute any Godot tests. Earlier side-jump regression remains unverified after the previous fixture fix.
+- Updated `.gitignore` to ignore **only** `/tests/*.gd.uid`; gameplay source, test GDScript files, and non-test UID resources remain eligible for strict clean-SHA enforcement by both CAR-ART-04E and GAME-024 gates. This avoids deletion/force-add of generated local files and handles newly added tests automatically.
+- Added Python `tests/test_godot_uid_clean_gate.py` with `git check-ignore --no-index` assertions for both ignored test UID sidecars and visible actual source edits.
+- Updated `docs/qa/CAR_ART_04_TRACKER.md` with evidence and next verification. Commits `2dd2f07`, `258b6b1`, `587ba74`. **Fix committed; local rerun pending.** No GitHub Actions triggered.
+
+
+
 ### 2026-11-14 — CAR-ART-04A side-jump test failure fixed; CAR-ART-04E gate started
 - User supplied two local Godot 4.7.2 runs through `e8c7511`. Both imported without script errors. `car_art_04bc_visual_test.gd`, `vehicle_visuals_test.gd`, and `car_art_04a_jump_clearance_test.gd` passed; the second run also passed `car_art_04d_materials_test.gd`. `car_art_04a_side_contact_test.gd` failed: **`jump test never left the ground`**, aborting the remaining list. Do **not** treat later tests or current full gate as passed.
 - Cause in test harness: fixed eight-frame spawn settling period before pressing Jump, without confirming `CharacterBody3D.is_on_floor()`; the controller only permits jump from a confirmed floor. Changed fixture to wait up to 90 physics frames for grounding, then assert a real airborne impulse before performing collision checks (`3d436d7`). No game physics changed in this fix.
