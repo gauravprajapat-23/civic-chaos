@@ -44,6 +44,14 @@ func _run() -> void:
     if car.people_clear_at(car.global_transform):
         _fail("padded proximity check missed player in front of car")
         return
+    var cached_shape: BoxShape3D = car._human_query_shape
+    if cached_shape == null:
+        _fail("human clearance query did not initialize its collision shape")
+        return
+    car.people_clear_at(car.global_transform)
+    if car._human_query_shape != cached_shape:
+        _fail("human clearance allocated a new box on every traffic sample")
+        return
     var before := car.global_position
     for step in range(12):
         car.advance_fixed(0.05)
