@@ -6,6 +6,9 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    for action in ["move_forward", "move_back", "move_left", "move_right"]:
+        if not InputMap.has_action(action):
+            InputMap.add_action(action)
     var neutral: Vector2 = Joystick.normalized_offset(Vector2(102, 98), Vector2(100, 100), 70.0)
     if neutral != Vector2.ZERO:
         _fail("joystick deadzone did not suppress small jitter")
