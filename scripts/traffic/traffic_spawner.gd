@@ -258,7 +258,7 @@ func metrics() -> Dictionary:
 func _spawn_occupied(candidate: CivicVehicleAgent) -> bool:
 	# Validate full oriented collider volume: player, pedestrians, cars, props.
 	# Vehicle footprint helper ignores supporting road/terrain floor surfaces.
-	if candidate.footprint_blocked_at(candidate.global_transform):
+	if not candidate.people_clear_at(candidate.global_transform) or candidate.footprint_blocked_at(candidate.global_transform):
 		return true
 	for other in active_vehicles:
 		if not is_instance_valid(other) or not other.active:
