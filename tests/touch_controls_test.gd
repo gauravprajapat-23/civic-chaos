@@ -27,6 +27,11 @@ func _run() -> void:
         if button.position.x <= 0.0 or button.position.y <= 0.0:
             _fail("action outside viewport: " + action)
             return
+        var expected: Rect2 = controls._rects[action]
+        if button.position.distance_to(expected.position) > 0.01 or
+                absf(button.scale.x * 96.0 - expected.size.x) > 0.01:
+            _fail("action image and hitbox are not aligned: " + action)
+            return
     var jump: Rect2 = controls._rects["jump"]
     if controls.look_touch_allowed(jump.get_center()):
         _fail("tapping Jump also captures the look finger")
