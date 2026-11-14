@@ -143,6 +143,8 @@ func _ready() -> void:
     city_map.name = "CivicCityMap"
     add_child(city_map)
     city_map.toggle_requested.connect(_on_city_map_toggle)
+    if junction != null:
+        city_map.set_road_graph(junction.get("road_graph") as CivicRoadGraph)
     district_finale = DistrictFinale.new() as CivicDistrictFinale
     district_finale.name = "DistrictFinale"
     add_child(district_finale)
