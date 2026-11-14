@@ -19,6 +19,7 @@ const DistrictFinale = preload("res://scripts/ui/district_finale.gd")
 const FreeRoamEvents = preload("res://scripts/civic/free_roam_events.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
+const CityMap = preload("res://scripts/ui/civic_city_map.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const CheckpointTransaction = preload("res://scripts/core/checkpoint_transaction.gd")
 const CheckpointLoadQueue = preload("res://scripts/core/checkpoint_load_queue.gd")
@@ -36,6 +37,8 @@ var _finale_acknowledged: bool = false
 var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
+var city_map: CivicCityMap
+var _map_open: bool = false
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
 var _wrong_way_retry_elapsed: float = 0.0
@@ -136,6 +139,10 @@ func _ready() -> void:
     mission_guide.name = "CivicMissionGuide"
     add_child(mission_guide)
     mission_guide.recovery_action_requested.connect(_on_mission_recovery_action)
+    city_map = CityMap.new() as CivicCityMap
+    city_map.name = "CivicCityMap"
+    add_child(city_map)
+    city_map.toggle_requested.connect(_on_city_map_toggle)
     district_finale = DistrictFinale.new() as CivicDistrictFinale
     district_finale.name = "DistrictFinale"
     add_child(district_finale)
@@ -852,6 +859,8 @@ func _refresh_mission_guide() -> void:
     if player.camera != null:
         forward = -player.camera.global_transform.basis.z
     mission_guide.update_guide(state, player.global_position, forward)
+    if city_map != null:
+        city_map.update_position(player.global_position, -player.global_transform.basis.z, state)
 
 func _on_mission_recovery_action(action: String) -> void:
     if not is_instance_valid(wrong_way_world) or not wrong_way_world.recovery_help_needed():
@@ -875,6 +884,33 @@ func _cancel_mobile_input() -> void:
 func _set_mobile_controls_visible(enabled: bool) -> void:
     if touch_layer != null and touch_layer.has_method("set_controls_active"):
         touch_layer.call("set_controls_active", enabled)
+
+## Map is a non-gameplay overlay. Pause simulation and cancel all held
+## controls while browsing, then resume at the exact same player position.
+func _on_city_map_toggle() -> void:
+    if not _map_open:
+        if get_tree().paused or (incident_card != null and incident_card.is_open()) or (district_finale != null and district_finale.is_open()):
+            return
+        _cancel_mobile_input()
+        _map_open = true
+        city_map.set_expanded(true)
+        _set_mobile_controls_visible(false)
+        if civic_hud != null:
+            civic_hud.visible = false
+        if mission_guide != null:
+            mission_guide.visible = false
+        lifecycle.set_paused(true)
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    else:
+        _map_open = false
+        city_map.set_expanded(false)
+        lifecycle.set_paused(false)
+        _set_mobile_controls_visible(true)
+        if civic_hud != null:
+            civic_hud.visible = true
+        if mission_guide != null:
+            mission_guide.visible = true
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
 
 func _on_mobile_pause_requested() -> void:
     if not get_tree().paused:
