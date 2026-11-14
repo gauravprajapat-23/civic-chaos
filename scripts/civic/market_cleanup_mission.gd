@@ -115,7 +115,31 @@ func _on_target_activated(actor: Node, kind: String, slot: int) -> void:
         return
     _active_kind = kind
     _active_slot = slot
-    incident_card_requested.emit(incident_card_state())
+    # Direct E/USE gameplay: the evidence ledger is still recorded before
+    # collection, but players do not need two modal button clicks per item.
+    # The capacity, carry-one and worker-arrival gates remain authoritative.
+    if kind == "litter":
+        if not inspected and not perform_incident_action(actor, "inspect"):
+            return
+        if carried_index >= 0:
+            _say("Already carrying a wrapper. Press E at the green bin first.")
+        elif not perform_incident_action(actor, "collect_litter"):
+            _say("This wrapper cannot be collected right now.")
+    elif kind == "bin":
+        if carried_index >= 0:
+            if bin_fill >= BIN_CAPACITY:
+                _say("Bin full! Press E near the sanitation helper to request emptying.")
+            elif not perform_incident_action(actor, "deposit_litter"):
+                _say("Could not deposit the wrapper. Move nearer to the bin.")
+        else:
+            _say("Collect a wrapper first, then press E here to deposit it.")
+    elif kind == "helper":
+        if service_requested_tick >= 0:
+            _say("Sanitation has already been requested. Watch the helper arrive.")
+        elif bin_fill < BIN_CAPACITY:
+            _say("The bin has room. Fill both slots before requesting sanitation.")
+        elif not perform_incident_action(actor, "request_service"):
+            _say("Cannot request sanitation yet. Stay near the helper.")
 
 func _target(kind: String, slot: int) -> CivicCleanupTarget:
     if kind == "litter" and slot >= 0 and slot < targets.size():
