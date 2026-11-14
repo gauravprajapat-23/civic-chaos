@@ -44,6 +44,50 @@ func visit_state() -> Dictionary:
             names.append(str(zone["title"]))
     return {"visited": names, "count": names.size(), "total": Zones.LOCATIONS.size()}
 
+## GAME-025-04: only stable, known zone IDs are saved. Discovery is
+## recognition, not a civic score receipt or a currency reward.
+const CHECKPOINT_VERSION: int = 1
+
+func checkpoint_state() -> Dictionary:
+    var ids: Array[String] = []
+    for zone in Zones.all():
+        var id: String = str(zone["id"])
+        if discoveries.has(id):
+            ids.append(id)
+    return {"schema_version": CHECKPOINT_VERSION, "visited_ids": ids}
+
+static func checkpoint_valid(raw: Variant) -> bool:
+    if not (raw is Dictionary):
+        return false
+    var data: Dictionary = raw
+    if data.size() != 2 or not (data.get("schema_version") is int or data.get("schema_version") is float):
+        return false
+    if float(data["schema_version"]) != float(CHECKPOINT_VERSION) or not (data.get("visited_ids") is Array):
+        return false
+    var ids: Array = data["visited_ids"]
+    if ids.size() > Zones.LOCATIONS.size():
+        return false
+    var seen: Dictionary = {}
+    for raw_id in ids:
+        if not (raw_id is String):
+            return false
+        var id: String = raw_id
+        if id.is_empty() or seen.has(id) or Zones.by_id(id).is_empty():
+            return false
+        seen[id] = true
+    return true
+
+func restore_checkpoint(raw: Variant) -> bool:
+    if not checkpoint_valid(raw) or player == null:
+        return false
+    var restored: Dictionary = {}
+    for id in raw["visited_ids"]:
+        restored[str(id)] = true
+    # Commit only after the complete record is verified. No visit signal
+    # during restore: loading cannot award a second discovery.
+    discoveries = restored
+    return true
+
 func _build_landmarks() -> void:
     for zone in Zones.all():
         var marker := Node3D.new()
