@@ -14,6 +14,7 @@ signal interaction_message(message: String)
 @export var interaction_distance: float = 3.0
 @export var fall_recovery_height: float = -8.0
 
+const CharacterArt = preload("res://scripts/rendering/low_poly_character.gd")
 const INTERACTION_COLLISION_MASK: int = 1 | 16 # Static world targets + nonblocking civic report posts.
 
 var _safe_spawn: Vector3 = Vector3.ZERO
@@ -38,6 +39,8 @@ const VEHICLE_GUARD_HEIGHT_M: float = 2.7
 const VEHICLE_GUARD_WIDTH_M: float = 0.70
 
 func _ready() -> void:
+    CharacterArt.build(visual, Color(0.15, 0.39, 0.74), Color(0.72, 0.48, 0.33),
+        Color(0.19, 0.24, 0.35), Color(0.92, 0.72, 0.23), -0.9)
     _safe_spawn = global_position
     _gravity = float(ProjectSettings.get_setting("physics/3d/default_gravity", 9.8))
     _apply_camera_pitch()
