@@ -39,6 +39,16 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-SAFE-05 initial flow-recovery and Android measurement batch
+- Inspected `CivicTrafficSpawner.advance_fixed()`, existing per-tick safety observations, `CivicTrafficBudget.metrics()`, checkpoint state and outer intersection tests. Existing spawner continued creating new cars even when most active cars were stationary.
+- Implemented deterministic **queue-pressure spawn backoff**: at least 3 active vehicles and at least 75% below 0.2 m/s suppresses new spawns; automatically clears once moving traffic reduces congestion. No rerouting, teleporting, signal override, collision bypass, RNG draws or false rejections. Both per-tick and direct `try_spawn()` use the same admission policy.
+- Added live diagnostic metrics `congested`, `spawn_backpressure_ticks` and `queue_pressure()` while preserving the existing save schema and accurate measured workload telemetry. Counter resets on traffic generation configure and checkpoint commit.
+- Added focused `tests/car_safe_05_backpressure_test.gd` for 3/4 queued vs 2/4 moving, suppression without changing RNG/rejections, automatic release and snapshot isolation.
+- Added `docs/qa/CAR_SAFE_05_FLOW_PERFORMANCE.md` with strict Godot local verification and physical Android measurement checklist. **No Android FPS/device figures claimed.** Persistent stalled traffic root-cause resolution and safe reroutes remain open follow-up work.
+- Commits `9004139`, `659505f`, `811e773`. **Code committed, Godot local regression and hardware observations pending.** Do not run GitHub Actions.
+
+
+
 ### 2026-11-14 — CAR-SAFE-04 live traffic checkpoint/character protection
 - User reports the preceding focused traffic/character tests passed; the latest full GAME-024 acceptance for subsequently modified code is **not yet verified**.
 - Reviewed `CivicTrafficSpawner.prepare_restore()`, `CivicVehicleAgent.people_clear_at()`, vehicle/player/pedestrian collision layers and outer-junction physical traffic tests. Found a concrete restore-path gap: normal spawning rejects actors in the **45-cm protective buffer**, but checkpoint staging checked only `footprint_blocked_at` (smaller hard collision).
