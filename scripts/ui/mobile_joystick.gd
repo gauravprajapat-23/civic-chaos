@@ -35,7 +35,9 @@ static func normalized_offset(touch: Vector2, center: Vector2, max_radius: float
     return stick.normalized() * ((amount - axis_deadzone) / (1.0 - axis_deadzone))
 
 func _input(event: InputEvent) -> void:
-    if not visible:
+    # A hidden CanvasLayer does not necessarily stop Node._input().
+    # Never capture a new movement finger behind paused/modal UI.
+    if not is_visible_in_tree():
         return
     if event is InputEventScreenTouch:
         var touch := event as InputEventScreenTouch
