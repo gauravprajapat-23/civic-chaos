@@ -74,6 +74,16 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Ignore camera-look presses that begin over mobile action buttons.
 ## Swipes beginning in the free right-hand view area remain independent
 ## of the left joystick finger.
+## Modal/focus changes may interrupt the touch-up event. Clear look
+## ownership without changing camera orientation or keyboard input.
+func cancel_mobile_look() -> void:
+    _look_touch_index = -1
+    _last_touch_position = Vector2.ZERO
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        cancel_mobile_look()
+
 func _touch_can_look(point: Vector2) -> bool:
     for node in get_tree().get_nodes_in_group("civic_touch_controls"):
         if node.has_method("look_touch_allowed") and not bool(node.call("look_touch_allowed", point)):
