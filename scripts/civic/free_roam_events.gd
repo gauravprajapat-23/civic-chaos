@@ -433,6 +433,44 @@ func guidance_state() -> Dictionary:
         "dialogue": feedback, "target": target, "has_target": available,
         "recovery_available": false}
 
+## GAME-025-02: read-only dispatch feed. No event scheduling, reward,
+## incident transitions or mission selection can be triggered by this data.
+func dispatch_state() -> Dictionary:
+    var result: Dictionary = {
+        "unlocked": director != null and session != null,
+        "has_event": false,
+        "title": "No active civic call",
+        "location": "Market Chowk",
+        "priority": false,
+        "seconds_left": 0,
+        "seconds_until_next": maxi(0, next_spawn_tick - tick),
+        "stage": 0,
+        "objective": "Explore the city while municipal dispatch monitors new calls.",
+        "has_target": false,
+        "target": Vector3.ZERO,
+        "resolved": resolved_total,
+        "expired": expired_total
+    }
+    if active_event.is_empty():
+        return result
+    var kind: String = str(active_event.get("kind", ""))
+    var info: Dictionary = Challenges.details(kind)
+    var site: Dictionary = Challenges.site(str(active_event.get("site_id", "")), kind)
+    if info.is_empty() or site.is_empty():
+        return result
+    var stage: int = int(active_event.get("stage", 0))
+    result["has_event"] = true
+    result["title"] = str(info["title"])
+    result["location"] = str(site["label"])
+    result["priority"] = str(active_event.get("tier", "")) == "priority"
+    result["seconds_left"] = maxi(0, int(active_event.get("deadline_tick", tick)) - tick)
+    result["stage"] = stage
+    result["objective"] = str(info["inspect_goal"]) if stage == 0 else (
+        str(info["collect_goal"]) if stage == 1 else str(info["deposit_goal"]))
+    result["target"] = site["source"] if stage < 2 else site["destination"]
+    result["has_target"] = true
+    return result
+
 func hud_state() -> Dictionary:
     var result: Dictionary = {"free_roam_resolved": resolved_total, "free_roam_expired": expired_total,
         "free_roam_event": str(active_event.get("kind", "")),
