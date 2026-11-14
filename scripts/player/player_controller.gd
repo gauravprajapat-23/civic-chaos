@@ -370,8 +370,17 @@ func try_interact() -> void:
     query.exclude = [get_rid()]
     query.collision_mask = INTERACTION_COLLISION_MASK
     var hit := get_world_3d().direct_space_state.intersect_ray(query)
-    if hit.is_empty():
-        interaction_message.emit("Nothing to interact with")
+    if hit.is_empty() or not (hit.get("collider") is Node3D and
+            (hit["collider"] as Node3D).has_method("interact")):
+        # Ground-level wrappers are easy to miss with a camera-center ray.
+        # Restrict proximity assistance to real cleanup targets near the
+        # player's FRONT and require an unobstructed line through solid world.
+        var cleanup: Node3D = _nearby_cleanup_target()
+        if cleanup != null:
+            cleanup.call("interact", self)
+            interaction_attempted.emit(cleanup)
+            return
+        interaction_message.emit("Nothing to interact with" if hit.is_empty() else "No interaction available")
         return
     var target: Object = hit["collider"]
     if target is Node3D:
@@ -384,6 +393,41 @@ func try_interact() -> void:
             interaction_attempted.emit(node)
             return
     interaction_message.emit("No interaction available")
+
+## Optional aim assistance applies ONLY to cleanup mission objects. It
+## never reaches through walls or changes the general E ray interaction.
+func _nearby_cleanup_target() -> Node3D:
+    var forward: Vector3 = -camera.global_transform.basis.z
+    forward.y = 0.0
+    if forward.length_squared() < 0.001:
+        return null
+    forward = forward.normalized()
+    var closest: Node3D = null
+    var best_distance: float = INF
+    for node in get_tree().get_nodes_in_group("civic_cleanup_targets"):
+        var candidate := node as Node3D
+        if candidate == null or not candidate.visible or not candidate.has_method("interact"):
+            continue
+        if candidate is CollisionObject3D and (candidate as CollisionObject3D).collision_layer != 16:
+            continue
+        var delta: Vector3 = candidate.global_position - global_position
+        var planar := Vector3(delta.x, 0.0, delta.z)
+        var distance: float = delta.length()
+        if distance > interaction_distance or distance < 0.001:
+            continue
+        if planar.length_squared() > 0.25 and forward.dot(planar.normalized()) < 0.15:
+            continue
+        var sight := PhysicsRayQueryParameters3D.create(
+            global_position + Vector3.UP * 1.3,
+            candidate.global_position + Vector3.UP * 0.65)
+        sight.collision_mask = 1 | 4
+        sight.exclude = [get_rid()]
+        if not get_world_3d().direct_space_state.intersect_ray(sight).is_empty():
+            continue
+        if distance < best_distance:
+            best_distance = distance
+            closest = candidate
+    return closest
 
 func _animate_walk(delta: float) -> void:
     var movement: float = Vector2(velocity.x, velocity.z).length()
