@@ -5,6 +5,7 @@ const Exploration = preload("res://scripts/world/living_city_exploration.gd")
 const Zones = preload("res://scripts/world/living_city_zones.gd")
 const Progression = preload("res://scripts/civic/volunteer_progression.gd")
 const Repository = preload("res://scripts/core/save_repository.gd")
+const Main = preload("res://scripts/core/main.gd")
 const PATH: String = "user://game025_exploration_progression_test.json"
 
 func _initialize() -> void:
@@ -55,6 +56,12 @@ func _run() -> void:
         _fail("checksum-protected exploration save failed")
         return
     var saved: Dictionary = Repository.read_save(PATH)
+    if Main.checkpoint_envelope_valid(saved):
+        _fail("orphaned exploration accepted without campaign/civic history")
+        return
+    if Main.checkpoint_record_types_valid({"exploration_checkpoint": []}):
+        _fail("malformed exploration record type accepted")
+        return
     if saved.is_empty() or not Exploration.checkpoint_valid(saved.get("exploration_checkpoint")):
         _fail("saved exploration did not survive JSON round trip")
         return
