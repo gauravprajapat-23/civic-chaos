@@ -88,3 +88,43 @@ static func plan(viewport_size: Vector2, requested_safe: Rect2 = Rect2()) -> Dic
 
 static func _invalid(reason: String) -> Dictionary:
     return {"ok": false, "reason": reason, "rects": {}}
+
+## MOB-CTRL-01: independently planned live touch surfaces. The legacy
+## plan() remains intact for existing tests and older UI consumers.
+static func joystick_plan(viewport_size: Vector2, requested_safe: Rect2 = Rect2()) -> Dictionary:
+    if not viewport_size.is_finite() or viewport_size.x < 280.0 or viewport_size.y < 280.0:
+        return _invalid("invalid_mobile_viewport")
+    if not requested_safe.position.is_finite() or not requested_safe.size.is_finite() or requested_safe.size.x < 0.0 or requested_safe.size.y < 0.0:
+        return _invalid("invalid_safe_area")
+    var screen: Rect2 = Rect2(Vector2.ZERO, viewport_size)
+    var safe: Rect2 = screen if requested_safe.size == Vector2.ZERO else requested_safe.intersection(screen)
+    if safe.size.x < 260.0 or safe.size.y < 260.0:
+        return _invalid("mobile_safe_area_too_small")
+    var edge: float = clampf(floorf(minf(safe.size.x * 0.11, safe.size.y * 0.14)), 44.0, 72.0)
+    var radius: float = minf(80.0, minf(safe.size.x * 0.14, safe.size.y * 0.19))
+    var pad: float = 12.0
+    var left: Vector2 = Vector2(safe.position.x + radius + pad,
+        safe.end.y - radius - pad)
+    var pitch: float = edge + 10.0
+    var jump: Vector2 = safe.end - Vector2(edge * 0.5 + pad, edge * 0.5 + pad)
+    var rects := {
+        "jump": Rect2(jump - Vector2.ONE * edge * 0.5, Vector2.ONE * edge),
+        "sprint": Rect2(jump + Vector2(-pitch, 0.0) - Vector2.ONE * edge * 0.5, Vector2.ONE * edge),
+        "interact": Rect2(jump + Vector2(0.0, -pitch) - Vector2.ONE * edge * 0.5, Vector2.ONE * edge),
+        "pause_game": Rect2(Vector2(safe.end.x - edge - pad, safe.position.y + pad), Vector2.ONE * edge)
+    }
+    var joystick_box := Rect2(left - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+    if not safe.encloses(joystick_box):
+        return _invalid("joystick_outside_safe_area")
+    for action in rects:
+        var item: Rect2 = rects[action]
+        if not safe.encloses(item) or item.grow(5.0).intersects(joystick_box):
+            return _invalid("touch_controls_overlap")
+        for other in rects:
+            if action != other and item.grow(2.0).intersects((rects[other] as Rect2).grow(2.0)):
+                return _invalid("action_controls_overlap")
+    return {
+        "ok": true, "safe_rect": safe,
+        "joystick_center": left, "joystick_radius": radius,
+        "button_size": Vector2.ONE * edge, "rects": rects
+    }
