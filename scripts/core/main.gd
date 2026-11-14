@@ -21,6 +21,7 @@ const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const CityMap = preload("res://scripts/ui/civic_city_map.gd")
 const DispatchBoard = preload("res://scripts/ui/free_roam_dispatch_board.gd")
+const LivingExploration = preload("res://scripts/world/living_city_exploration.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const CheckpointTransaction = preload("res://scripts/core/checkpoint_transaction.gd")
 const CheckpointLoadQueue = preload("res://scripts/core/checkpoint_load_queue.gd")
@@ -39,6 +40,7 @@ var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
 var city_map: CivicCityMap
+var exploration_world: CivicLivingCityExploration
 var dispatch_board: CivicFreeRoamDispatchBoard
 var _dispatch_open: bool = false
 var _map_open: bool = false
@@ -785,9 +787,23 @@ func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
         world.npc_reaction_requested.connect(_on_free_roam_npc_reaction)
     if not saved_state.is_empty() and not free_roam_world.restore_checkpoint(saved_state):
         push_warning("Free Roam event state could not be rehydrated; avoid overwriting the saved checkpoint")
+    if not is_instance_valid(exploration_world):
+        var exploration := LivingExploration.new() as CivicLivingCityExploration
+        exploration.name = "LivingCityExploration"
+        add_child(exploration)
+        if exploration.configure(player):
+            exploration_world = exploration
+            exploration.zone_discovered.connect(_on_living_city_zone_discovered)
+        else:
+            exploration.queue_free()
     if dispatch_board != null:
         dispatch_board.set_available(true)
         dispatch_board.update_feed(free_roam_world.dispatch_state())
+
+func _on_living_city_zone_discovered(_zone_id: String, title: String) -> void:
+    if not free_roam_unlocked or not _finale_acknowledged:
+        return
+    _on_interaction_message("NEIGHBORHOOD DISCOVERED | %s | Explore more city landmarks on MAP." % title)
 
 func _on_free_roam_npc_reaction(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
     var walkers: Node = get_node_or_null("DistrictPedestrians")
@@ -1087,6 +1103,8 @@ func _process(delta: float) -> void:
             var roam_metrics: Dictionary = free_roam_world.hud_state()
             state.merge(roam_metrics, true)
             state["living_city"] = _living_city_summary()
+            if is_instance_valid(exploration_world):
+                state["city_discoveries"] = exploration_world.visit_state()
             state["incidents"] = 1 if not free_roam_world.active_event.is_empty() else 0
             state["scores"] = gameplay_session.metrics.scores.duplicate(true)
             state["reputation"] = gameplay_session.metrics.reputation()
