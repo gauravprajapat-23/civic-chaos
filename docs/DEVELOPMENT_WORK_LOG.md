@@ -39,6 +39,13 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04E fixture emitted engine ERROR despite PASS
+- User verified at `9a4fb27`: side-jump collision **PASS**, direct-fall clearance **PASS**, original player-car contact **PASS**. The new airborne guard printed `CIVIC_CHAOS_CAR_ART_04E_AIRBORNE_GUARD_PASS` but emitted an engine `ERROR: Condition "!is_inside_tree()" is true` from `tests/car_art_04e_airborne_guard_test.gd:32`. The strict full QA gate correctly must reject this output even with exit code 0.
+- Root cause: fixture assigned `player.global_position` before the player was added to the scene tree. Fixed initialization to use local `player.position`, which is valid before adding a node to the tree (`6ecff66`).
+- Updated `docs/qa/CAR_ART_04_TRACKER.md` with exact user evidence and pending clean rerun. **No gameplay changes** from this particular fix; full GAME-024 acceptance, Android screenshots and hardware performance remain pending.
+
+
+
 ### 2026-11-14 — CAR-ART-04E actual airborne cabin penetration fixed (unverified)
 - User supplied local Godot results at `608d462`: import and direct fall test passed, but the corrected side-jump fixture exposed a **real** player/car penetration (`jumping player clipped into vehicle cabin`). The run stopped before any subsequent fixtures.
 - Root cause: the player uses horizontal capsule sweeps on car layer 4, but the capsule rises above the 1.2-m-tall vehicle physical box during a jump. Normal sweeps then allow horizontal movement into the car's footprint. Recovery after descent cannot prevent that initial ingress.
