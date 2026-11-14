@@ -228,9 +228,9 @@ func try_spawn() -> bool:
 		rejected_total += 1
 		return false
 	# All physical cars must yield to real player/pedestrian bodies, not
-    # just cars in the expanded-city mode. Isolated abstract agents in
-    # deterministic unit tests still have no collision body.
-    vehicle.physics_obstacle_checks_enabled = true
+	# just cars in the expanded-city mode. Isolated abstract agents in
+	# deterministic unit tests still have no collision body.
+	vehicle.physics_obstacle_checks_enabled = true
 	if _spawn_occupied(vehicle):
 		vehicle.queue_free()
 		rejected_total += 1
