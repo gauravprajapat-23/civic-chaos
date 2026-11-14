@@ -108,6 +108,10 @@ func _physics_process(delta: float) -> void:
     # The player stays grounded on world surfaces, not other characters.
     _limit_horizontal_actor_motion(delta)
     move_and_slide()
+    # A falling player can still enter an unmoving car from above because
+    # vehicle roofs are intentionally not CharacterBody3D floors. Recover
+    # to the nearest tested perimeter point before the next physics tick.
+    _recover_vehicle_descent_overlap()
     _animate_walk(delta)
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
@@ -192,8 +196,9 @@ func _try_place_on_ground(requested: Vector3) -> bool:
     reset_physics_interpolation()
     return true
 
-## Horizontal contact with vehicles only (never a roof/floor).
-## Pedestrians use proactive social avoidance rather than hard contact.
+## Player/body collision stays world-only. Do NOT make cars floors.
+## Sweep horizontal intent at both current and predicted vertical heights:
+## falling/jumping should not sneak sideways through the cabin.
 func _limit_horizontal_actor_motion(delta: float) -> void:
     var horizontal_motion := Vector3(velocity.x * delta, 0.0, velocity.z * delta)
     if horizontal_motion.length_squared() <= 0.0000001:
@@ -201,34 +206,93 @@ func _limit_horizontal_actor_motion(delta: float) -> void:
     var collider := get_node_or_null("CollisionShape3D") as CollisionShape3D
     if collider == null or collider.shape == null:
         return
-    var query := PhysicsShapeQueryParameters3D.new()
-    query.shape = collider.shape
-    query.transform = collider.global_transform
-    query.motion = horizontal_motion
-    query.collision_mask = 4 # Solid vehicles only; NPCs are soft-avoidance agents.
-    query.exclude = [get_rid()]
-    query.margin = 0.02
     var space := get_world_3d().direct_space_state
-    # cast_motion intentionally ignores bodies we already overlap. On a bad
-    # spawn, allow a player to walk out but not deeper into a pedestrian.
-    for overlap in space.intersect_shape(query, 8):
-        var obstacle := overlap.get("collider") as Node3D
-        if obstacle == null:
-            continue
-        var away := global_position - obstacle.global_position
-        away.y = 0.0
-        if away.length_squared() > 0.0001 and horizontal_motion.dot(away) <= 0.0:
-            velocity.x = 0.0
-            velocity.z = 0.0
-            return
-    var fractions: PackedFloat32Array = space.cast_motion(query)
-    if fractions.size() < 1:
-        return
-    var safe_fraction: float = clampf(fractions[0], 0.0, 1.0)
+    var safe_fraction: float = 1.0
+    for y_offset in [0.0, velocity.y * delta]:
+        var query := PhysicsShapeQueryParameters3D.new()
+        query.shape = collider.shape
+        query.transform = Transform3D(collider.global_transform.basis,
+            collider.global_position + Vector3.UP * y_offset)
+        query.motion = horizontal_motion
+        query.collision_mask = 4
+        query.exclude = [get_rid()]
+        query.margin = 0.02
+        # Already overlapping? Never drive *deeper* into that body;
+        # normal walk-out remains possible in the opposite direction.
+        for overlap in space.intersect_shape(query, 8):
+            var obstacle := overlap.get("collider") as Node3D
+            if obstacle == null:
+                continue
+            var away := global_position - obstacle.global_position
+            away.y = 0.0
+            if away.length_squared() > 0.0001 and horizontal_motion.dot(away) <= 0.0:
+                velocity.x = 0.0
+                velocity.z = 0.0
+                return
+        var fractions: PackedFloat32Array = space.cast_motion(query)
+        if fractions.size() >= 1:
+            safe_fraction = minf(safe_fraction, clampf(fractions[0], 0.0, 1.0))
     if safe_fraction < 1.0:
         var allowance: float = maxf(0.0, safe_fraction - 0.01)
         velocity.x *= allowance
         velocity.z *= allowance
+
+## Preserve the existing no-car-roof-floor rule. When an airborne character
+## descends into a vehicle from above, move to a genuinely free adjacent
+## position rather than allowing the visual player to sit inside the cabin.
+## This is a last-resort geometry recovery, not an always-on auto-teleport.
+func _recover_vehicle_descent_overlap() -> void:
+    if not is_inside_tree() or velocity.y >= 0.0:
+        return
+    var collider := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if collider == null or collider.shape == null:
+        return
+    var space := get_world_3d().direct_space_state
+    var probe := PhysicsShapeQueryParameters3D.new()
+    probe.shape = collider.shape
+    probe.transform = collider.global_transform
+    probe.collision_mask = 4
+    probe.exclude = [get_rid()]
+    probe.margin = 0.015
+    for hit in space.intersect_shape(probe, 8):
+        var vehicle_body := hit.get("collider") as StaticBody3D
+        if vehicle_body == null or (vehicle_body.collision_layer & 4) == 0:
+            continue
+        var car_shape := vehicle_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if car_shape == null or not (car_shape.shape is BoxShape3D):
+            continue
+        var car_box := car_shape.shape as BoxShape3D
+        var local: Vector3 = vehicle_body.to_local(global_position)
+        var side: float = signf(local.x) if absf(local.x) > 0.01 else 1.0
+        var front: float = signf(local.z) if absf(local.z) > 0.01 else 1.0
+        var radius: float = 0.45
+        var x_boundary: float = car_box.size.x * 0.5 + radius
+        var z_boundary: float = car_box.size.z * 0.5 + radius
+        var candidates: Array[Vector3] = [
+            vehicle_body.to_global(Vector3(side * x_boundary, local.y, local.z)),
+            vehicle_body.to_global(Vector3(local.x, local.y, front * z_boundary))
+        ]
+        # Minimum displacement wins, but every candidate must be free.
+        if global_position.distance_squared_to(candidates[1]) < global_position.distance_squared_to(candidates[0]):
+            candidates.reverse()
+        for candidate in candidates:
+            var placement := Transform3D(collider.global_transform.basis,
+                candidate + collider.position)
+            var check := PhysicsShapeQueryParameters3D.new()
+            check.shape = collider.shape
+            check.transform = placement
+            check.collision_mask = 1 | 4 | 8
+            check.exclude = [get_rid()]
+            check.margin = 0.015
+            if space.intersect_shape(check, 8).is_empty():
+                global_position = candidate
+                velocity.x = 0.0
+                velocity.z = 0.0
+                reset_physics_interpolation()
+                return
+        # If no safe landing is available, retain the position rather than
+        # moving the player through a different car, pedestrian or wall.
+        return
 
 func rotate_camera(yaw_delta: float, pitch_delta: float) -> void:
     camera_pivot.rotation.y += yaw_delta
