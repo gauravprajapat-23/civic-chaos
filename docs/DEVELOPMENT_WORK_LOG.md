@@ -39,6 +39,16 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04A airborne player-car contact started
+- User screenshot showed player visually embedded in roof/cabin; the current `CivicPlayerController` uses world-only collision mask 1 and independent horizontal vehicle layer-4 sweeps. Source review confirmed previous contact code swept only at the **present** player capsule height and skipped collision evaluation when horizontal input was zero; a descending player could consequently enter the car from above.
+- Updated `scripts/player/player_controller.gd`: conservative horizontal-motion collision fraction at current **and predicted vertical** height, and minimal tested perimeter escape for a falling player overlapping a vehicle. The recovery checks world/car/pedestrian clearance before repositioning and preserves the no-vehicle-roof-as-floor policy. No traffic logic, collision layers or save schema changed.
+- Added `tests/car_art_04a_jump_clearance_test.gd` (center and side descent) and `tests/car_art_04a_side_contact_test.gd` (airborne forward contact and subsequent release).
+- Created full work register `docs/qa/CAR_ART_04_TRACKER.md` for phases 04A collision, 04B cabin, 04C mirrors, 04D paint/glass, 04E Android/gameplay acceptance. All work is tracked as **committed vs verified**, with P0 acceptance gates and PC/device evidence requirements.
+- Commits `8c33548`, `2be2bfd`, `a50fe8b`, `1a1b890`, `dd17c7e`.
+- **LOCAL GODOT VERIFICATION PENDING.** Run new focused tests, prior `player_vehicle_contact_test.gd`, traffic/crossing/checkpoint tests and exact-SHA GAME-024 gate. Manual jump/sideways collision screenshot or video and Android playtest remain necessary before marking 04A passed. No GitHub Actions triggered.
+
+
+
 ### 2026-11-14 — CAR-SAFE-05 initial flow-recovery and Android measurement batch
 - Inspected `CivicTrafficSpawner.advance_fixed()`, existing per-tick safety observations, `CivicTrafficBudget.metrics()`, checkpoint state and outer intersection tests. Existing spawner continued creating new cars even when most active cars were stationary.
 - Implemented deterministic **queue-pressure spawn backoff**: at least 3 active vehicles and at least 75% below 0.2 m/s suppresses new spawns; automatically clears once moving traffic reduces congestion. No rerouting, teleporting, signal override, collision bypass, RNG draws or false rejections. Both per-tick and direct `try_spawn()` use the same admission policy.
