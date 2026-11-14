@@ -6,6 +6,7 @@ signal toggle_requested
 
 const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
+const LivingZones = preload("res://scripts/world/living_city_zones.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
 const INSET: float = 16.0
 const ROAD := Color(0.40, 0.51, 0.57)
@@ -97,6 +98,19 @@ func _ready() -> void:
         location.pressed.connect(_select_location.bind(i - 1))
         selector.add_child(location)
         location_buttons.append(location)
+    var zone_selector := HBoxContainer.new()
+    zone_selector.name = "ExplorationZones"
+    zone_selector.add_theme_constant_override("separation", 5)
+    stack.add_child(zone_selector)
+    var zones: Array[Dictionary] = LivingZones.all()
+    for index in range(zones.size()):
+        var option := Button.new()
+        option.name = "Explore_" + str(zones[index]["id"])
+        option.text = str(zones[index]["title"]).replace("Community ", "").replace("South ", "")
+        option.custom_minimum_size = Vector2(70, 42)
+        option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        option.pressed.connect(_select_location.bind(LANDMARKS.size() + index))
+        zone_selector.add_child(option)
     navigation_label = Label.new()
     navigation_label.name = "RouteDistance"
     navigation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -152,6 +166,10 @@ func _navigation_goal() -> Dictionary:
     if selected_location >= 0 and selected_location < LANDMARKS.size():
         return {"has_target": true, "target": LANDMARKS[selected_location]["position"],
             "title": LANDMARKS[selected_location]["name"]}
+    var zone_index: int = selected_location - LANDMARKS.size()
+    if zone_index >= 0 and zone_index < LivingZones.LOCATIONS.size():
+        var zone: Dictionary = LivingZones.LOCATIONS[zone_index]
+        return {"has_target": true, "target": zone["position"], "title": zone["title"]}
     var target: Variant = mission_state.get("target", null)
     if bool(mission_state.get("has_target", false)) and target is Vector3:
         return {"has_target": true, "target": target, "title": str(mission_state.get("title", "Active mission"))}
@@ -237,6 +255,11 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
             canvas.draw_circle(center, 4.5, Color(0.93, 0.93, 0.95))
             canvas.draw_string(font, center + Vector2(7, -7), str(landmark["name"]),
                 HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.96, 0.97, 0.99))
+        for zone in LivingZones.LOCATIONS:
+            var mark: Vector2 = world_to_map(zone["position"], area)
+            canvas.draw_circle(mark, 5.5, zone["color"])
+            canvas.draw_string(font, mark + Vector2(8, 15), str(zone["title"]),
+                HORIZONTAL_ALIGNMENT_LEFT, -1, 11, zone["color"])
     var marker: Variant = mission_state.get("target", null)
     if bool(mission_state.get("has_target", false)) and marker is Vector3:
         var point := world_to_map(marker, area)
