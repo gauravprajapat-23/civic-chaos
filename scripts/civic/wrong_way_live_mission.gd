@@ -23,9 +23,10 @@ const RECOVERY_FRAMES: int = 12
 const TOW_GAP_M: float = 6.5
 const TOW_SPEED_MPS: float = 7.0
 const TOW_SWEEP_STEP_M: float = 0.30
-const SERVICE_LIFT_HEIGHT_M: float = 4.0
-const SERVICE_LIFT_SPEED_MPS: float = 2.0
-const SERVICE_HOLD_BEFORE_LIFT_FRAMES: int = 180
+const SERVICE_RECOVERY_SECONDS: float = 2.0
+const SERVICE_HOLD_BEFORE_RECOVERY_FRAMES: int = 180
+## An authorized on-road collection takes a short visible stationary
+## interval; it NEVER applies vertical translation to vehicle bodies.
 const CHECKPOINT_VERSION: int = 1
 const CHECKPOINT_DISTANCE_EPS_M: float = 0.02
 const RECOVERY_STALL_TICKS: int = 1800 # Diagnostic prompt only; never auto-fail the mission.
@@ -66,7 +67,8 @@ var _last_progress_signature: String = ""
 var _stalled: bool = false
 var _tow_hold_reason: String = ""
 var _tow_hold_frames: int = 0
-var service_lift_height_m: float = 0.0
+var service_recovery_seconds: float = 0.0
+var service_recovery_active: bool = false
 var tow_recovered_on_site: bool = false
 
 func _init() -> void:
@@ -201,8 +203,8 @@ func _physics_process(delta: float) -> void:
     if reported_tick >= 0:
         _advance_marshal(delta)
     if tow_started and not tow_completed:
-        if service_lift_height_m > 0.0:
-            _advance_service_lift(delta)
+        if service_recovery_active:
+            _advance_ground_recovery(delta)
         else:
             _advance_tow_convoy(delta)
     if blocker_removed:
@@ -503,32 +505,32 @@ func _note_tow_hold(reason: String) -> void:
         _tow_hold_reason = reason
         _tow_hold_frames = 0
     _tow_hold_frames += 1
-    # A sustained physical blockage triggers visible municipal vertical
-    # recovery. No car is moved horizontally through another road user.
-    if _tow_hold_frames >= SERVICE_HOLD_BEFORE_LIFT_FRAMES and service_lift_height_m == 0.0:
+    # A persistent physical obstruction cannot be solved by driving the
+    # convoy through other cars. Start an on-site collection while grounded.
+    # Red lights alone must NOT trigger an emergency recovery.
+    if reason.find("physically occupied") >= 0 and _tow_hold_frames >= SERVICE_HOLD_BEFORE_RECOVERY_FRAMES:
         if tow_started and not tow_completed and is_instance_valid(tow_vehicle) and is_instance_valid(offender):
-            if tow_vehicle.people_clear_at(tow_vehicle.global_transform) and offender.people_clear_at(offender.global_transform):
-                service_lift_height_m = 0.001
-                _announce("Tow route blocked. Municipal crane lifting both vehicles clear.")
-                return
+            service_recovery_active = true
+            service_recovery_seconds = 0.0
+            tow_vehicle.speed_mps = 0.0
+            _announce("Tow route blocked. Municipal crew securing vehicles for roadside collection.")
+            return
     if _tow_hold_frames == 180 or (_tow_hold_frames > 180 and _tow_hold_frames % 600 == 0):
         _announce("Tow delayed: %s. Keep the route and crossing clear." % reason)
         print("CIVIC_TOW_HOLD reason=%s progress=%.2f/%.2f queue=%d released=%d tick=%d" % [
             reason, tow_progress_m, _tow_route_length(), stopped_count, released_ids.size(), tick])
 
-## Last-resort on-site recovery for city traffic gridlock: an animated
-## vertical lift keeps the actual vehicles present until they clear the road.
-func _advance_service_lift(delta: float) -> void:
+## Last-resort service stage. Both vehicles remain at road level and
+## stationary during collection. Only after the short observed service
+## interval are their physical bodies released from the lane; actual traffic
+## must still resume before the civic mission may complete.
+func _advance_ground_recovery(delta: float) -> void:
     if not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
         return
-    service_lift_height_m = minf(SERVICE_LIFT_HEIGHT_M,
-        service_lift_height_m + SERVICE_LIFT_SPEED_MPS * delta)
-    tow_vehicle.global_transform = _tow_pose(tow_progress_m, false).translated(
-        Vector3.UP * service_lift_height_m)
-    offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true).translated(
-        Vector3.UP * service_lift_height_m)
-    _update_tow_link()
-    if service_lift_height_m >= SERVICE_LIFT_HEIGHT_M:
+    tow_vehicle.speed_mps = 0.0
+    service_recovery_seconds = minf(SERVICE_RECOVERY_SECONDS,
+        service_recovery_seconds + delta)
+    if service_recovery_seconds >= SERVICE_RECOVERY_SECONDS:
         tow_recovered_on_site = true
         _finish_tow_convoy()
 
@@ -563,7 +565,7 @@ func _finish_tow_convoy() -> void:
         offender.queue_free()
     if is_instance_valid(tow_cable):
         tow_cable.queue_free()
-    _announce("Municipal crane cleared the obstruction. Watch actual traffic recover." if tow_recovered_on_site else "Municipal tow reached the legal exit. Watch actual traffic recover.")
+    _announce("Municipal roadside service removed the obstruction. Watch actual traffic recover." if tow_recovered_on_site else "Municipal tow reached the legal exit. Watch actual traffic recover.")
 
 func _create_marshal() -> void:
     marshal = Node3D.new()
@@ -729,7 +731,8 @@ func snapshot() -> Dictionary:
         "tow_started": tow_started,
         "tow_completed": tow_completed,
         "tow_recovered_on_site": tow_recovered_on_site,
-        "service_lift_height": service_lift_height_m,
+        "service_recovery_active": service_recovery_active,
+        "service_recovery_seconds": service_recovery_seconds,
         "tow_progress": tow_progress_m,
         "blocker_removed": blocker_removed,
         "finished": finished,
@@ -799,12 +802,19 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
         return _checkpoint_rejected("CKP-22: if bool(data[\"finished\"]) and not bool(data[\"tow_completed\"]):", failures)
     if not (data.get("tow_recovered_on_site", false) is bool):
         return _checkpoint_rejected("invalid_recovery_flag", failures)
-    if not _finite_range(data.get("service_lift_height", 0.0), 0.0, SERVICE_LIFT_HEIGHT_M):
-        return _checkpoint_rejected("invalid_recovery_height", failures)
+    # Legacy saves from the temporary vertical-lift implementation may
+    # still be loaded; they are resumed at road level instead of in the sky.
+    if not _finite_range(data.get("service_lift_height", 0.0), 0.0, 4.0):
+        return _checkpoint_rejected("invalid_legacy_lift_height", failures)
+    if not (data.get("service_recovery_active", false) is bool):
+        return _checkpoint_rejected("invalid_service_recovery_flag", failures)
+    if not _finite_range(data.get("service_recovery_seconds", 0.0), 0.0, SERVICE_RECOVERY_SECONDS):
+        return _checkpoint_rejected("invalid_service_recovery_time", failures)
+    var recovering: bool = bool(data.get("service_recovery_active", false)) or float(data.get("service_lift_height", 0.0)) > 0.0
+    if recovering and (not bool(data["tow_started"]) or bool(data["tow_completed"])):
+        return _checkpoint_rejected("invalid_service_recovery_stage", failures)
     if bool(data.get("tow_recovered_on_site", false)) and not bool(data["tow_completed"]):
         return _checkpoint_rejected("recovery_without_completed_tow", failures)
-    if float(data.get("service_lift_height", 0.0)) > 0.0 and not bool(data["tow_started"]):
-        return _checkpoint_rejected("lifting_without_tow", failures)
     if bool(data["tow_started"]):
         if float(data["tow_progress"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data["tow_progress"]) > total_length + CHECKPOINT_DISTANCE_EPS_M:
             return _checkpoint_rejected("CKP-23: if float(data[\"tow_progress\"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data[\"tow_progress\"]) > total_length:", failures)
@@ -940,7 +950,15 @@ func restore(raw: Variant) -> bool:
     intervention_tick = int(data["intervention_tick"])
     peak_stopped = int(data["peak_stopped"])
     tow_recovered_on_site = bool(data.get("tow_recovered_on_site", false))
-    service_lift_height_m = float(data.get("service_lift_height", 0.0))
+    service_recovery_active = bool(data.get("service_recovery_active", false))
+    service_recovery_seconds = float(data.get("service_recovery_seconds", 0.0))
+    # Migrate a checkpoint written mid-air by the previous workaround.
+    # The convoy is reconstructed at its normal ground-level tow poses.
+    var legacy_lift: float = float(data.get("service_lift_height", 0.0))
+    if legacy_lift > 0.0 and not bool(data.get("tow_completed", false)):
+        service_recovery_active = true
+        service_recovery_seconds = clampf(legacy_lift / 4.0 * SERVICE_RECOVERY_SECONDS,
+            0.0, SERVICE_RECOVERY_SECONDS - 0.01)
     recovery_streak = int(data["recovery_streak"])
     feedback = data["feedback"]
     moved_ids.clear()
@@ -994,12 +1012,11 @@ func restore(raw: Variant) -> bool:
         else:
             if not _start_tow_convoy(float(data["tow_progress"])):
                 return false
-            if service_lift_height_m > 0.0:
-                tow_vehicle.global_transform = _tow_pose(tow_progress_m, false).translated(
-                    Vector3.UP * service_lift_height_m)
-                offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true).translated(
-                    Vector3.UP * service_lift_height_m)
-                _update_tow_link()
+            # The tow truck and offender stay on the road; never restore
+            # the obsolete vertical offset from an older checkpoint.
+            tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
+            offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
+            _update_tow_link()
     else:
         if is_instance_valid(offender):
             _place_offender(float(data["offender_distance"]))
