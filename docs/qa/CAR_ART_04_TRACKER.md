@@ -70,6 +70,16 @@ foreach ($test in @(
 
 After focused checks, run the full `tools/verify_game024.ps1` gate on the **current** exact SHA. Manual follow-up: test drop onto red/blue cabin, sideways jump, walking around a stationary and moving car, checkpoint restoration next to vehicles. Record video/screenshots from PC and Android before marking 04A done.
 
+## CAR-ART-04E generated Godot test UID preflight fix (2026-11-14)
+
+The user's CAR-ART-04E local gate at `748b5bb` stopped **before Godot import or any focused test** due to six newly generated untracked `tests/*.gd.uid` files. This is a source-cleanliness false positive, **not** a collision, materials, or jump regression result.
+
+- Added a narrow `.gitignore` rule: `/tests/*.gd.uid`. It covers Godot-generated UID sidecars for test scripts (including future tests), **not** `tests/*.gd`, `scripts/*.gd.uid`, scenes, resources, or other source.
+- Kept both CAR-ART-04E and GAME-024 clean-SHA requirements strict. Git respects `.gitignore` for untracked files, so neither gate must suppress or delete legitimate changes.
+- Added `tests/test_godot_uid_clean_gate.py`, asserting the six reported files and future test UIDs are ignored while real scripts and non-test resource UIDs are not. This is part of GAME-024 Python unittest discovery.
+- Existing locally generated files can remain untouched. **Do not use** `git clean -fd` or `git add -f` on generated test UIDs. If any have already been deliberately tracked, the rule does not hide their modifications.
+- **Local verification still pending:** run `git status --short` after pulling to verify only ignorable UIDs were present, then rerun `tools/car_art_04e_verification.ps1`; the next actual Godot test failure, if any, requires its log and new diagnosis.
+
 ## CAR-ART-04E verification and Android acceptance
 
 The user's local Godot 4.7.2 results at `e8c7511` confirmed **PASS** for `car_art_04d_materials_test.gd`, `car_art_04bc_visual_test.gd`, `vehicle_visuals_test.gd`, and `car_art_04a_jump_clearance_test.gd`. The side-jump fixture instead failed with `jump test never left the ground`. This is not evidence that the player-car clipping bug is resolved; later fixtures were not executed.
