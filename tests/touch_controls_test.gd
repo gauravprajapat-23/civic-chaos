@@ -28,8 +28,8 @@ func _run() -> void:
             _fail("action outside viewport: " + action)
             return
         var expected: Rect2 = controls._rects[action]
-        if button.position.distance_to(expected.position) > 0.01 or
-                absf(button.scale.x * 96.0 - expected.size.x) > 0.01:
+        if (button.position.distance_to(expected.position) > 0.01
+                or absf(button.scale.x * 96.0 - expected.size.x) > 0.01):
             _fail("action image and hitbox are not aligned: " + action)
             return
     var jump: Rect2 = controls._rects["jump"]
