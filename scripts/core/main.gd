@@ -20,6 +20,7 @@ const FreeRoamEvents = preload("res://scripts/civic/free_roam_events.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const CityMap = preload("res://scripts/ui/civic_city_map.gd")
+const DispatchBoard = preload("res://scripts/ui/free_roam_dispatch_board.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const CheckpointTransaction = preload("res://scripts/core/checkpoint_transaction.gd")
 const CheckpointLoadQueue = preload("res://scripts/core/checkpoint_load_queue.gd")
@@ -38,6 +39,8 @@ var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
 var city_map: CivicCityMap
+var dispatch_board: CivicFreeRoamDispatchBoard
+var _dispatch_open: bool = false
 var _map_open: bool = false
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
@@ -143,6 +146,11 @@ func _ready() -> void:
     city_map.name = "CivicCityMap"
     add_child(city_map)
     city_map.toggle_requested.connect(_on_city_map_toggle)
+    dispatch_board = DispatchBoard.new() as CivicFreeRoamDispatchBoard
+    dispatch_board.name = "FreeRoamDispatchBoard"
+    add_child(dispatch_board)
+    dispatch_board.toggle_requested.connect(_on_dispatch_toggle)
+    dispatch_board.route_requested.connect(_on_dispatch_route_requested)
     if junction != null:
         city_map.set_road_graph(junction.get("road_graph") as CivicRoadGraph)
     district_finale = DistrictFinale.new() as CivicDistrictFinale
@@ -568,6 +576,9 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         _connect_wrong_way_signals(restored_world)
     restore_guard.finish()
     free_roam_unlocked = has_cleanup and is_instance_valid(restored_cleanup) and restored_cleanup.finished and _campaign_ready()
+    if dispatch_board != null:
+        dispatch_board.set_available(false)
+        _dispatch_open = false
     _sync_living_city_npcs()
     _finale_acknowledged = bool(saved["campaign_checkpoint"]["finale_acknowledged"]) if has_finale else false
     if district_finale != null:
@@ -774,6 +785,9 @@ func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
         world.npc_reaction_requested.connect(_on_free_roam_npc_reaction)
     if not saved_state.is_empty() and not free_roam_world.restore_checkpoint(saved_state):
         push_warning("Free Roam event state could not be rehydrated; avoid overwriting the saved checkpoint")
+    if dispatch_board != null:
+        dispatch_board.set_available(true)
+        dispatch_board.update_feed(free_roam_world.dispatch_state())
 
 func _on_free_roam_npc_reaction(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
     var walkers: Node = get_node_or_null("DistrictPedestrians")
@@ -909,11 +923,57 @@ func _set_mobile_controls_visible(enabled: bool) -> void:
     if touch_layer != null and touch_layer.has_method("set_controls_active"):
         touch_layer.call("set_controls_active", enabled)
 
+## GAME-025: the dispatch board reads actual Free Roam incidents and
+## never schedules events, updates scores or changes campaign state.
+func _on_dispatch_toggle() -> void:
+    if dispatch_board == null or not dispatch_board.enabled:
+        return
+    if not _dispatch_open:
+        if get_tree().paused or _map_open or (incident_card != null and incident_card.is_open()) or (district_finale != null and district_finale.is_open()):
+            return
+        if not is_instance_valid(free_roam_world):
+            return
+        dispatch_board.update_feed(free_roam_world.dispatch_state())
+        _cancel_mobile_input()
+        _dispatch_open = true
+        dispatch_board.set_expanded(true)
+        _set_mobile_controls_visible(false)
+        if civic_hud != null:
+            civic_hud.visible = false
+        if mission_guide != null:
+            mission_guide.visible = false
+        lifecycle.set_paused(true)
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    else:
+        _dispatch_open = false
+        dispatch_board.set_expanded(false)
+        lifecycle.set_paused(false)
+        _set_mobile_controls_visible(true)
+        if civic_hud != null:
+            civic_hud.visible = true
+        if mission_guide != null:
+            mission_guide.visible = true
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
+
+func _on_dispatch_route_requested() -> void:
+    if not _dispatch_open or dispatch_board == null:
+        return
+    if not is_instance_valid(free_roam_world):
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    if not bool(report.get("has_target", false)):
+        return
+    _on_dispatch_toggle()
+    if city_map != null:
+        city_map._select_location(-1)
+        _refresh_mission_guide()
+        _on_city_map_toggle()
+
 ## Map is a non-gameplay overlay. Pause simulation and cancel all held
 ## controls while browsing, then resume at the exact same player position.
 func _on_city_map_toggle() -> void:
     if not _map_open:
-        if get_tree().paused or (incident_card != null and incident_card.is_open()) or (district_finale != null and district_finale.is_open()):
+        if get_tree().paused or _dispatch_open or (incident_card != null and incident_card.is_open()) or (district_finale != null and district_finale.is_open()):
             return
         _cancel_mobile_input()
         _map_open = true
