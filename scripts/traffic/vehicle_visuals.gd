@@ -4,11 +4,11 @@ extends Node3D
 ## unchanged CivicVehicleAgent collision/route. No physics, RNG or gameplay.
 ## -Z is the car front, matching the road-following transform.
 const PALETTE: Array[Color] = [
-    Color(0.10, 0.39, 0.74),
-    Color(0.71, 0.15, 0.14),
-    Color(0.79, 0.82, 0.83),
-    Color(0.19, 0.24, 0.29),
-    Color(0.17, 0.55, 0.43)
+    Color(0.13, 0.29, 0.48), # Deep slate blue
+    Color(0.49, 0.12, 0.11), # Oxblood red
+    Color(0.68, 0.71, 0.71), # Metallic silver
+    Color(0.18, 0.21, 0.23), # Graphite
+    Color(0.18, 0.33, 0.28)  # Forest green
 ]
 var _paint: StandardMaterial3D
 var _glass: StandardMaterial3D
@@ -16,22 +16,29 @@ var _mirror_glass: StandardMaterial3D
 var _trim: StandardMaterial3D
 var _metal: StandardMaterial3D
 var _rubber: StandardMaterial3D
+var _hub_finish: StandardMaterial3D
 var _headlamp: StandardMaterial3D
 var _tail: StandardMaterial3D
 var _color_slot: int = 0
 var _braking: bool = false
 
 func _ready() -> void:
-    _paint = _material(PALETTE[0], 0.36, 0.36)
-    _glass = _material(Color(0.10, 0.19, 0.25), 0.24, 0.08)
-    _mirror_glass = _material(Color(0.46, 0.58, 0.63), 0.12, 0.58)
-    _trim = _material(Color(0.045, 0.06, 0.08), 0.72)
-    _metal = _material(Color(0.58, 0.62, 0.67), 0.3, 0.54)
-    _rubber = _material(Color(0.045, 0.05, 0.06), 0.95)
-    _headlamp = _material(Color(0.95, 0.92, 0.69), 0.28)
-    _tail = _material(Color(0.86, 0.075, 0.055), 0.3)
+    # Opaque PBR materials remain readable in Godot Mobile/Compatibility.
+    # Metallic values do not imply actual planar/screen-space reflections.
+    _paint = _material(PALETTE[0], 0.31, 0.25)
+    _paint.clearcoat_enabled = true
+    _paint.clearcoat = 0.55
+    _paint.clearcoat_roughness = 0.22
+    _glass = _material(Color(0.11, 0.19, 0.25), 0.19, 0.09)
+    _mirror_glass = _material(Color(0.49, 0.61, 0.66), 0.14, 0.55)
+    _trim = _material(Color(0.065, 0.075, 0.085), 0.76)
+    _metal = _material(Color(0.48, 0.53, 0.58), 0.36, 0.52)
+    _rubber = _material(Color(0.075, 0.079, 0.082), 0.94)
+    _hub_finish = _material(Color(0.46, 0.50, 0.54), 0.41, 0.62)
+    _headlamp = _material(Color(0.88, 0.90, 0.81), 0.30)
+    _tail = _material(Color(0.66, 0.09, 0.07), 0.34)
     _headlamp.emission_enabled = true
-    _headlamp.emission = Color(0.65, 0.56, 0.28)
+    _headlamp.emission = Color(0.36, 0.34, 0.22)
     _tail.emission_enabled = true
     _tail.emission = Color(0.24, 0.015, 0.015)
     _reshape_legacy()
@@ -121,7 +128,7 @@ func _hub(name: String, location: Vector3) -> void:
     item.mesh = shape
     item.position = location
     item.rotation.z = PI / 2.0
-    item.material_override = _metal
+    item.material_override = _hub_finish
     item.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(item)
 
