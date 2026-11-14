@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — MOB-CTRL-01: Android circular joystick and improved touch controls
+- User requested PUBG-style **interaction familiarity**, not copied assets. Inspected live `scripts/ui/touch_controls.gd`: it created eight rectangular text buttons, four of which formed a directional cross; safe-area helper `CivicTouchLayout.plan()` was only staged and not connected to live controls.
+- Implemented original vector-drawn `CivicMobileJoystick` with finger ownership, deadzone, clamped analog axis strengths, normalized diagonal, and release/reset semantics. Replaced four-arrow movement hitboxes with joystick and kept Jump, Run, Use and Pause as original circular action buttons.
+- Added live safe-area `CivicTouchLayout.joystick_plan()` for portrait and landscape, without altering the old `plan()` contract. Connected live controls to this helper and added action-button look-finger exclusion to `CivicPlayerController`.
+- Added and updated focused fixtures `tests/mobile_joystick_test.gd`, `tests/mobile_joystick_layout_test.gd`, `tests/touch_controls_test.gd`; previous `touch_layout_test.gd` left intact. Reduced button artwork generation to one shared texture.
+- Created `docs/qa/MOB_CTRL_01_TRACKER.md` with exact Windows local gate, multi-touch/rotation/safe-area Android acceptance and performance checklist. **Code committed but local Godot import/tests, GAME-024 full regression, physical Android testing and UI screenshots remain pending.** No GitHub Actions invoked.
+
+
+
 ### 2026-11-14 — CAR-ART-04E fixture emitted engine ERROR despite PASS
 - User verified at `9a4fb27`: side-jump collision **PASS**, direct-fall clearance **PASS**, original player-car contact **PASS**. The new airborne guard printed `CIVIC_CHAOS_CAR_ART_04E_AIRBORNE_GUARD_PASS` but emitted an engine `ERROR: Condition "!is_inside_tree()" is true` from `tests/car_art_04e_airborne_guard_test.gd:32`. The strict full QA gate correctly must reject this output even with exit code 0.
 - Root cause: fixture assigned `player.global_position` before the player was added to the scene tree. Fixed initialization to use local `player.position`, which is valid before adding a node to the tree (`6ecff66`).
