@@ -1,7 +1,7 @@
 # CAR-ART-04 — Vehicle Collision & Visual Redesign Tracker
 
 **Branch:** `fix/aud-001-game024-gate-hardening`  
-**Status:** IN PROGRESS — 04A implementation committed, Godot/device acceptance pending  
+**Status:** IN PROGRESS — 04A and 04B/C implementation committed; Godot/device acceptance pending  
 **Scope:** Fix character sinking through open sedan; improve cabin, mirrors, materials and physical reliability without changing traffic/checkpoint behavior.  
 **Working rules:** Same branch, commits `[skip ci]`, no manual GitHub Actions, no merge without approval.
 
@@ -17,8 +17,8 @@ Screenshot (2026-11-14): player appears embedded in open-looking red car, side m
 | CAR-ART-04A-02 | P0 | Safe non-climbable descent recovery beside car; never push into another solid body | **COMMITTED** `8c33548` | `car_art_04a_jump_clearance_test.gd` and actual jumping gameplay |
 | CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **TESTS COMMITTED** `2be2bfd`, `1a1b890` | PASS in Godot 4.7.2, no SCRIPT ERROR |
 | CAR-ART-04A-04 | P0 | Verify existing checkpoint, traffic, player-car collision behavior unaffected | **PENDING** | Exact revision full GAME-024 gate + regression |
-| CAR-ART-04B | P1 | Rebuild enclosed, tapered cabin; correct window/pillar positions and hood/trunk geometry | **TODO** | Screenshot front, rear, side, 3/4 views |
-| CAR-ART-04C | P1 | Replace oversized exterior-looking mirror rods with shorter mounts, housings and inset mirror glass | **TODO** | Both mirrors visually attached and distinct |
+| CAR-ART-04B | P1 | Refine tapered cabin, inset windscreen/rear/side glass, pillar and roof positioning | **CODE COMMITTED** `485f392` | `car_art_04bc_visual_test.gd`, screenshots front/rear/side/3/4 |
+| CAR-ART-04C | P1 | Replace oversized mirrors with compact mounts, casing and rear-facing reflective glass | **CODE + TEST COMMITTED** `485f392`, `cb0d7e4` | `car_art_04bc_visual_test.gd`; review both sides in Godot |
 | CAR-ART-04D | P1 | Restrained real-world-inspired paint, window, trim, wheel and lighting palette | **TODO** | PC and Android GL-compatibility screenshot comparison |
 | CAR-ART-04E | P0 | Full visual regression / Android APK playtest and performance comparison | **TODO** | Collision tests, GAME-024 and device measurement |
 
@@ -48,6 +48,7 @@ if ($importExit -ne 0 -or $import -match 'SCRIPT ERROR:|ERROR:') { throw "Import
 foreach ($test in @(
     "car_art_04a_jump_clearance_test.gd",
     "car_art_04a_side_contact_test.gd",
+    "car_art_04bc_visual_test.gd",
     "player_vehicle_contact_test.gd",
     "car_character_clearance_test.gd",
     "vehicle_actor_safety_test.gd",
@@ -70,4 +71,5 @@ After focused checks, run the full `tools/verify_game024.ps1` gate on the **curr
 ## Review notes and decisions
 
 - **2026-11-14:** Screenshot and source diagnosis complete. Implemented 04A before visual changes to isolate a gameplay P0. The prior parking/traffic acceptance remains separate; the newly authored code has **not** yet received user-reported Godot test results.
-- Next implementation after 04A acceptance: **CAR-ART-04B/C — enclosed cabin and proportional mirrors**, followed by 04D materials and 04E device verification.
+- **2026-11-14:** CAR-ART-04B/C code committed: repositioned glass within tapered cabin, reduced mirror projection, added attachment mounts, separate casing and blue-gray rear-facing metallic mirror glass. New geometry/material contract test; no colliders or traffic logic changed. **Test and visual results pending.**
+- Next implementation: **CAR-ART-04D — automotive paint, glazing and trim**, followed by 04E Android and full regression verification.
