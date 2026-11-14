@@ -91,7 +91,9 @@ func _layout() -> void:
         var label := labels[action] as Label
         var circle := button.shape as CircleShape2D
         circle.radius = rect.size.x * 0.5
-        button.position = rect.get_center()
+        # Texture is positioned from its top-left; shape_centered only
+        # centers the collision circle *inside* that texture.
+        button.position = rect.position
         button.scale = Vector2.ONE * (rect.size.x / 96.0)
         # Collision hitbox in local coordinates must compensate visual scale.
         circle.radius = 48.0
