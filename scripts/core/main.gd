@@ -84,6 +84,11 @@ func _ready() -> void:
     touch_layer = touch_script.new() as CanvasLayer
     touch_layer.name = "TouchControls"
     add_child(touch_layer)
+    # On-screen TouchScreenButton emits action state, not a keyboard event.
+    # Route Pause and USE through explicit signals; desktop shortcuts retain
+    # the original _unhandled_key_input handler without duplicate toggles.
+    (touch_layer as CivicTouchControls).pause_requested.connect(_on_mobile_pause_requested)
+    (touch_layer as CivicTouchControls).interact_requested.connect(_on_mobile_interact_requested)
     debug_overlay = DebugOverlay.new()
     debug_overlay.name = "AIDebugOverlay"
     add_child(debug_overlay)
@@ -707,8 +712,8 @@ func _present_campaign_finale() -> void:
         civic_hud.visible = false
     if mission_guide != null:
         mission_guide.visible = false
-    if touch_layer != null:
-        touch_layer.visible = false
+    _cancel_mobile_input()
+    _set_mobile_controls_visible(false)
 
 func _on_finale_continue() -> void:
     if district_finale == null or not district_finale.is_open() or not free_roam_unlocked:
@@ -721,8 +726,7 @@ func _on_finale_continue() -> void:
         civic_hud.visible = true
     if mission_guide != null:
         mission_guide.visible = true
-    if touch_layer != null:
-        touch_layer.visible = true
+    _set_mobile_controls_visible(true)
     _refresh_mission_guide()
     _start_free_roam_events()
     _on_interaction_message("FREE ROAM UNLOCKED | Explore Market Chowk. Civic events will appear periodically.")
@@ -786,10 +790,10 @@ func _show_incident_card(state: Dictionary, source: Node) -> void:
         return
     _card_source = source
     incident_card.present(state)
+    _cancel_mobile_input()
     player.set_physics_process(false)
     player.set_process_unhandled_input(false)
-    if touch_layer != null:
-        touch_layer.visible = false
+    _set_mobile_controls_visible(false)
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _on_incident_card_action(action: String) -> void:
@@ -807,8 +811,7 @@ func _on_incident_card_dismissed() -> void:
     _card_source = null
     player.set_physics_process(true)
     player.set_process_unhandled_input(true)
-    if touch_layer != null:
-        touch_layer.visible = true
+    _set_mobile_controls_visible(true)
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
 
 ## GAME-015: mission directions are based on physical marker positions.
@@ -863,12 +866,32 @@ func _on_mission_recovery_action(action: String) -> void:
             # Confirmation is handled by the guide's ConfirmationDialog.
             lifecycle.restart_game()
 
+func _cancel_mobile_input() -> void:
+    if touch_layer != null and touch_layer.has_method("cancel_active_touches"):
+        touch_layer.call("cancel_active_touches")
+    if player != null:
+        player.cancel_mobile_look()
+
+func _set_mobile_controls_visible(enabled: bool) -> void:
+    if touch_layer != null and touch_layer.has_method("set_controls_active"):
+        touch_layer.call("set_controls_active", enabled)
+
+func _on_mobile_pause_requested() -> void:
+    if not get_tree().paused:
+        _toggle_pause()
+
+func _on_mobile_interact_requested() -> void:
+    if not get_tree().paused and (incident_card == null or not incident_card.is_open()) and (district_finale == null or not district_finale.is_open()):
+        player.try_interact()
+
 func _toggle_pause() -> void:
     if district_finale != null and district_finale.is_open():
         return
     if incident_card != null and incident_card.is_open():
         incident_card.dismiss()
+    _cancel_mobile_input()
     lifecycle.set_paused(not get_tree().paused)
+    _set_mobile_controls_visible(not get_tree().paused)
     pause_panel.visible = get_tree().paused
     if civic_hud != null:
         civic_hud.visible = not get_tree().paused
@@ -876,7 +899,9 @@ func _toggle_pause() -> void:
         mission_guide.visible = not get_tree().paused
 
 func _on_resume_pressed() -> void:
+    _cancel_mobile_input()
     lifecycle.set_paused(false)
+    _set_mobile_controls_visible(true)
     pause_panel.visible = false
     if civic_hud != null:
         civic_hud.visible = true
