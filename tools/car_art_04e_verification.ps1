@@ -52,8 +52,7 @@ try {
     foreach ($test in $tests) {
         $stem = [System.IO.Path]::GetFileNameWithoutExtension($test)
         # The standard marker is required, to avoid treating a silent quit as a pass.
-        $marker = "CIVIC_CHAOS_" + $stem.ToUpperInvariant() -replace "_TEST$",""
-        # Older fixture markers use different names; trust their explicit PASS suffix.
+        # Older fixtures use different markers; require an explicit PASS suffix.
         $output = & $Godot --headless --path . --script "res://tests/$test" 2>&1 | Out-String
         $exit = $LASTEXITCODE
         $output | Set-Content -Path (Join-Path $evidence "$stem.log") -Encoding UTF8
