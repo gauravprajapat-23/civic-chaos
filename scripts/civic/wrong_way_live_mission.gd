@@ -559,6 +559,7 @@ func _finish_tow_convoy() -> void:
     offender_distance_m = tow_progress_m - TOW_GAP_M
     tow_completed = true
     blocker_removed = true
+    service_recovery_active = false
     if is_instance_valid(tow_vehicle):
         tow_vehicle.queue_free()
     if is_instance_valid(offender):
@@ -810,7 +811,8 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
         return _checkpoint_rejected("invalid_service_recovery_flag", failures)
     if not _finite_range(data.get("service_recovery_seconds", 0.0), 0.0, SERVICE_RECOVERY_SECONDS):
         return _checkpoint_rejected("invalid_service_recovery_time", failures)
-    var recovering: bool = bool(data.get("service_recovery_active", false)) or float(data.get("service_lift_height", 0.0)) > 0.0
+    var recovering: bool = bool(data.get("service_recovery_active", false)) or (
+        float(data.get("service_lift_height", 0.0)) > 0.0 and not bool(data["tow_completed"]))
     if recovering and (not bool(data["tow_started"]) or bool(data["tow_completed"])):
         return _checkpoint_rejected("invalid_service_recovery_stage", failures)
     if bool(data.get("tow_recovered_on_site", false)) and not bool(data["tow_completed"]):
