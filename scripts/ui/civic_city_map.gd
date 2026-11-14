@@ -5,6 +5,7 @@ extends CanvasLayer
 signal toggle_requested
 
 const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
+const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
 const INSET: float = 16.0
 const ROAD := Color(0.40, 0.51, 0.57)
@@ -12,6 +13,14 @@ const ROAD_EDGE := Color(0.17, 0.25, 0.30)
 const PLAYER := Color(0.24, 0.88, 0.96)
 const TARGET := Color(1.0, 0.72, 0.20)
 const MAP_BACKGROUND := Color(0.075, 0.12, 0.16, 0.96)
+const ROUTE_COLOR := Color(0.20, 0.91, 0.64)
+## Descriptive, grounded map landmarks, not extra missions or unlocks.
+const LANDMARKS := [
+    {"name": "Market Chowk", "position": Vector3(0, 0, 0)},
+    {"name": "West Approach", "position": Vector3(-46, 0, 0)},
+    {"name": "East Footpath", "position": Vector3(46, 0, 0)},
+    {"name": "North Market Road", "position": Vector3(0, 0, -46)}
+]
 
 var player_position: Vector3 = Vector3.ZERO
 var player_forward: Vector3 = Vector3.FORWARD
@@ -24,6 +33,11 @@ var map_button: Button
 var close_button: Button
 var mission_text: Label
 var _map_area: Control
+var road_graph: CivicRoadGraph
+var selected_location: int = -1 # -1 means live mission waypoint
+var route_state: Dictionary = {}
+var navigation_label: Label
+var location_buttons: Array[Button] = []
 
 func _ready() -> void:
     layer = 19
@@ -70,6 +84,23 @@ func _ready() -> void:
     _map_area.mouse_filter = Control.MOUSE_FILTER_STOP
     _map_area.draw.connect(_draw_large)
     stack.add_child(_map_area)
+    var selector := HBoxContainer.new()
+    selector.name = "MapLocations"
+    selector.add_theme_constant_override("separation", 5)
+    stack.add_child(selector)
+    var titles: Array[String] = ["MISSION", "CHOWK", "WEST", "EAST", "NORTH"]
+    for i in range(titles.size()):
+        var location := Button.new()
+        location.text = titles[i]
+        location.custom_minimum_size = Vector2(58, 42)
+        location.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+        location.pressed.connect(_select_location.bind(i - 1))
+        selector.add_child(location)
+        location_buttons.append(location)
+    navigation_label = Label.new()
+    navigation_label.name = "RouteDistance"
+    navigation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    stack.add_child(navigation_label)
     mission_text = Label.new()
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     mission_text.text = "Blue: You   |   Gold: Active objective   |   M: Close map"
@@ -101,11 +132,45 @@ func update_position(at: Vector3, facing: Vector3, objective: Dictionary) -> voi
     player_position = at
     player_forward = facing
     mission_state = objective.duplicate(true)
+    _update_route()
     if mission_text != null:
         var objective_title: String = str(objective.get("title", "Explore the city"))
         var description: String = str(objective.get("objective", "Find the next civic task"))
         mission_text.text = "YOU: blue arrow   |   OBJECTIVE: gold pin\n%s  —  %s" % [objective_title, description]
     _redraw()
+
+func set_road_graph(graph: CivicRoadGraph) -> void:
+    road_graph = graph
+    _update_route()
+
+func _select_location(index: int) -> void:
+    selected_location = index
+    _update_route()
+    _redraw()
+
+func _navigation_goal() -> Dictionary:
+    if selected_location >= 0 and selected_location < LANDMARKS.size():
+        return {"has_target": true, "target": LANDMARKS[selected_location]["position"],
+            "title": LANDMARKS[selected_location]["name"]}
+    var target: Variant = mission_state.get("target", null)
+    if bool(mission_state.get("has_target", false)) and target is Vector3:
+        return {"has_target": true, "target": target, "title": str(mission_state.get("title", "Active mission"))}
+    return {"has_target": false, "title": "No active waypoint"}
+
+func _update_route() -> void:
+    var destination: Dictionary = _navigation_goal()
+    route_state = {}
+    if bool(destination.get("has_target", false)) and road_graph != null:
+        route_state = MapRoutes.plan(road_graph, player_position, destination["target"])
+    if navigation_label != null:
+        if not bool(destination.get("has_target", false)):
+            navigation_label.text = "No location selected. Choose a landmark to explore."
+        elif bool(route_state.get("ok", false)):
+            navigation_label.text = "%s  |  Road route: %d m  |  Direct: %d m" % [
+                str(destination["title"]), int(roundf(float(route_state["distance_m"]))),
+                int(roundf(float(route_state["direct_m"])))]
+        else:
+            navigation_label.text = "%s  |  Road route unavailable" % str(destination["title"])
 
 func _redraw() -> void:
     if map_surface != null:
@@ -160,9 +225,18 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
         canvas.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, width + 2.0)
         canvas.draw_line(vertical_a, vertical_b, ROAD, width)
         canvas.draw_line(horizontal_a, horizontal_b, ROAD, width)
+    if bool(route_state.get("ok", false)):
+        var path: PackedVector3Array = route_state["points"]
+        for index in range(1, path.size()):
+            canvas.draw_line(world_to_map(path[index - 1], area),
+                world_to_map(path[index], area), ROUTE_COLOR, 4.0 if detailed else 2.0, true)
     if detailed:
-        var center := world_to_map(Vector3.ZERO, area)
-        canvas.draw_circle(center, 4.0, Color(0.95, 0.95, 0.95))
+        var font: Font = ThemeDB.fallback_font
+        for landmark in LANDMARKS:
+            var center: Vector2 = world_to_map(landmark["position"], area)
+            canvas.draw_circle(center, 4.5, Color(0.93, 0.93, 0.95))
+            canvas.draw_string(font, center + Vector2(7, -7), str(landmark["name"]),
+                HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.96, 0.97, 0.99))
     var marker: Variant = mission_state.get("target", null)
     if bool(mission_state.get("has_target", false)) and marker is Vector3:
         var point := world_to_map(marker, area)
