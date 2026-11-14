@@ -1,7 +1,7 @@
 # CAR-ART-04 — Vehicle Collision & Visual Redesign Tracker
 
 **Branch:** `fix/aud-001-game024-gate-hardening`  
-**Status:** IN PROGRESS — 04A–04D source and tests committed; Godot/device acceptance pending  
+**Status:** IN PROGRESS — 04A side-contact fixture fix committed; 04E local gate prepared, device acceptance pending  
 **Scope:** Fix character sinking through open sedan; improve cabin, mirrors, materials and physical reliability without changing traffic/checkpoint behavior.  
 **Working rules:** Same branch, commits `[skip ci]`, no manual GitHub Actions, no merge without approval.
 
@@ -15,12 +15,12 @@ Screenshot (2026-11-14): player appears embedded in open-looking red car, side m
 |---|---|---|---|---|
 | CAR-ART-04A-01 | P0 | Airborne horizontal vehicle sweep at current/projected vertical positions | **COMMITTED** `8c33548` | `player_vehicle_contact_test.gd`, new airborne test |
 | CAR-ART-04A-02 | P0 | Safe non-climbable descent recovery beside car; never push into another solid body | **COMMITTED** `8c33548` | `car_art_04a_jump_clearance_test.gd` and actual jumping gameplay |
-| CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **TESTS COMMITTED** `2be2bfd`, `1a1b890` | PASS in Godot 4.7.2, no SCRIPT ERROR |
+| CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **SIDE FIX COMMITTED** `3d436d7` | 04A direct-fall PASS reported; side test failed before fix, must rerun |
 | CAR-ART-04A-04 | P0 | Verify existing checkpoint, traffic, player-car collision behavior unaffected | **PENDING** | Exact revision full GAME-024 gate + regression |
 | CAR-ART-04B | P1 | Refine tapered cabin, inset windscreen/rear/side glass, pillar and roof positioning | **CODE COMMITTED** `485f392` | `car_art_04bc_visual_test.gd`, screenshots front/rear/side/3/4 |
 | CAR-ART-04C | P1 | Replace oversized mirrors with compact mounts, casing and rear-facing reflective glass | **CODE + TEST COMMITTED** `485f392`, `cb0d7e4` | `car_art_04bc_visual_test.gd`; review both sides in Godot |
 | CAR-ART-04D | P1 | Restrained paint with clearcoat, opaque window/mirror glass, tire/hub material contrast, light emission | **CODE + TEST COMMITTED** `a78ae39`, `d2bf7d6`, `8640e9b` | `car_art_04d_materials_test.gd`; PC/Android screenshots pending |
-| CAR-ART-04E | P0 | Full visual regression / Android APK playtest and performance comparison | **TODO** | Collision tests, GAME-024 and device measurement |
+| CAR-ART-04E | P0 | Full vehicle QA with fail-closed local Godot gate and optional debug APK | **QA RUNNER COMMITTED** `dd8e295`, `0653352` | `tools/car_art_04e_verification.ps1`; full GAME-024 and device evidence pending |
 
 **Important:** A committed change is not a passed test. Keep status **PENDING** until local outputs are recorded. Do not assert that the new player recovery eliminates all penetrations without a full playthrough.
 
@@ -70,9 +70,28 @@ foreach ($test in @(
 
 After focused checks, run the full `tools/verify_game024.ps1` gate on the **current** exact SHA. Manual follow-up: test drop onto red/blue cabin, sideways jump, walking around a stationary and moving car, checkpoint restoration next to vehicles. Record video/screenshots from PC and Android before marking 04A done.
 
+## CAR-ART-04E verification and Android acceptance
+
+The user's local Godot 4.7.2 results at `e8c7511` confirmed **PASS** for `car_art_04d_materials_test.gd`, `car_art_04bc_visual_test.gd`, `vehicle_visuals_test.gd`, and `car_art_04a_jump_clearance_test.gd`. The side-jump fixture instead failed with `jump test never left the ground`. This is not evidence that the player-car clipping bug is resolved; later fixtures were not executed.
+
+**Fixture fix:** `car_art_04a_side_contact_test.gd` now waits for actual `is_on_floor()` after spawn, requires an airborne impulse while jump is pressed, and performs collision assertions only after the jump has occurred. No gameplay collision code was changed in this fix.
+
+Execute the consolidated QA script on the committed source:
+
+```powershell
+cd "C:\Users\gauravp\Projects\civic-chaos"
+git fetch origin
+git merge --ff-only origin/fix/aud-001-game024-gate-hardening
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\car_art_04e_verification.ps1
+```
+
+The runner rejects dirty source, captures each Godot test log under `build/car-art-04e/`, requires an explicit PASS marker, and calls the full GAME-024 independent evidence gate. To **optionally build a debug APK after the full gate passes**, rerun with `-BuildApk`. An exported APK is **not** a device-test pass. No GitHub Actions.
+
+**Actual Android acceptance:** test cold start, 3 perspectives of each car color, mirrors/roof geometry, walking/jumping toward parked and moving cars, stop/resume at crowded crossings, save/load adjacent to traffic, touch controls, warm-device FPS/hitches and background/restore. Record device, renderer, Android version, screenshots/video, representative FPS and error logs; until then 04E remains **IN PROGRESS**.
+
 ## Review notes and decisions
 
 - **2026-11-14:** Screenshot and source diagnosis complete. Implemented 04A before visual changes to isolate a gameplay P0. The prior parking/traffic acceptance remains separate; the newly authored code has **not** yet received user-reported Godot test results.
 - **2026-11-14:** CAR-ART-04B/C code committed: repositioned glass within tapered cabin, reduced mirror projection, added attachment mounts, separate casing and blue-gray rear-facing metallic mirror glass. New geometry/material contract test; no colliders or traffic logic changed. **Test and visual results pending.**
 - **2026-11-14:** CAR-ART-04D committed: subdued paint palette with restrained clearcoat, separate opaque mobile-friendly glazing and metallic mirror faces, more natural rubber/hub materials, less aggressive idle headlamp emission, higher wheel cylinder segments and PBR contract regression. **No actual rendered quality or Android FPS measured.**
-- Next: **CAR-ART-04E — exact-revision full Godot gate and physical Android/gameplay screenshot acceptance**, including rechecking 04A player jumping near cars.
+- **2026-11-14:** User supplied local test failure `jump test never left the ground` in 04A side fixture (while four other car/visual tests passed). Fixed setup to wait for grounded body and measure an actual jump before asserting penetration. CAR-ART-04E verification script added. All new code still awaits local verification; full gate and Android acceptance remain unverified.
