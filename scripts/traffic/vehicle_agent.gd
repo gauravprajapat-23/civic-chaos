@@ -181,6 +181,7 @@ func _path_has_vulnerable_obstacle(travel: float) -> bool:
 ## gives pedestrians / player room before the authoritative car footprint
 ## reaches them. Do not expand the actual vehicle collider or modify saves.
 const HUMAN_BUFFER_M: float = 0.45
+var _human_query_shape: BoxShape3D
 
 func people_clear_at(vehicle_transform: Transform3D) -> bool:
     if not is_inside_tree():
@@ -192,13 +193,16 @@ func people_clear_at(vehicle_transform: Transform3D) -> bool:
     if collision == null or not (collision.shape is BoxShape3D):
         return true
     var footprint: BoxShape3D = collision.shape as BoxShape3D
-    var padded := BoxShape3D.new()
-    padded.size = Vector3(
-        footprint.size.x + HUMAN_BUFFER_M * 2.0,
-        footprint.size.y + 0.10,
-        footprint.size.z + HUMAN_BUFFER_M * 2.0)
+    # Reuse one query shape per vehicle: a crowded intersection can ask
+    # for dozens of swept-path samples per fixed tick.
+    if _human_query_shape == null:
+        _human_query_shape = BoxShape3D.new()
+        _human_query_shape.size = Vector3(
+            footprint.size.x + HUMAN_BUFFER_M * 2.0,
+            footprint.size.y + 0.10,
+            footprint.size.z + HUMAN_BUFFER_M * 2.0)
     var probe := PhysicsShapeQueryParameters3D.new()
-    probe.shape = padded
+    probe.shape = _human_query_shape
     probe.transform = vehicle_transform * body.transform * collision.transform
     probe.collision_mask = 2 | 8 # Player and pedestrian sensing layers.
     probe.exclude = [body.get_rid()]
