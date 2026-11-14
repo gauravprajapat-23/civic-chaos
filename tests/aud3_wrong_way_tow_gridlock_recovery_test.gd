@@ -65,16 +65,22 @@ func _run() -> void:
     obstacle.add_child(collider)
     stage.add_child(obstacle)
     obstacle.global_position = live._tow_pose(live.tow_progress_m + 4.0, false).origin
-    # Advance until the convoy physically encounters the obstacle and lift
-    # recovery activates; do not inject success flags or arbitrary rewards.
-    var observed_lift := false
+    # Wait for a genuine physical blockage to initiate grounded recovery.
+    # Do not bypass safe collision handling or award artificial success.
+    var observed_recovery := false
     for i in range(650):
         await physics_frame
-        if live.service_lift_height_m > 0.0:
-            observed_lift = true
+        if live.service_recovery_active:
+            observed_recovery = true
+            if absf(live.tow_vehicle.global_position.y - live._tow_pose(live.tow_progress_m, false).origin.y) > 0.05:
+                _fail("tow truck lifted above road during recovery")
+                return
+            if absf(live.offender.global_position.y - live._tow_pose(live.tow_progress_m - Live.TOW_GAP_M, true).origin.y) > 0.05:
+                _fail("offending car lifted above road during recovery")
+                return
             break
-    if not observed_lift:
-        _fail("congestion did not activate on-site recovery")
+    if not observed_recovery:
+        _fail("congestion did not activate grounded roadside recovery")
         return
     var snap: Dictionary = live.snapshot()
     if not Live.checkpoint_valid(snap, live.city_graph, civic.snapshot()):
@@ -85,7 +91,7 @@ func _run() -> void:
         if live.tow_completed:
             break
     if not live.tow_completed or not live.tow_recovered_on_site or not live.blocker_removed:
-        _fail("municipal recovery did not remove obstruction after visible lift")
+        _fail("municipal recovery did not clear road after grounded service")
         return
     if live.finished:
         _fail("mission awarded completion without two cars clearing")
