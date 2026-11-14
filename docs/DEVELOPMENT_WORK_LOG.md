@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04B/C enclosed sedan glass and mirror redesign
+- User asked to continue CAR-ART-04. Based on the actual `vehicle_visuals.gd`, the previous mirror was a solid dark block at ±0.855 m with no rear-facing glass or mount; front/side glass was oversized and sat outside the tapered cabin silhouette.
+- `scripts/traffic/vehicle_visuals.gd` now positions roof and front/rear/side glass relative to the tapered cabin. Both mirror assemblies have short attached mounts, compact dark housings and separate pale blue-gray metallic mirror glass on the rear-facing surface. Existing `Mirror_L`/`Mirror_R` node names retained.
+- Added `tests/car_art_04bc_visual_test.gd` checking symmetric mirrors, mounting offsets, housing dimensions, reflective material separation, cabin mesh, unchanged vehicle collision box and no additional physical colliders.
+- Tracker `docs/qa/CAR_ART_04_TRACKER.md` advanced phases 04B/C to **CODE COMMITTED / TEST NOT YET RUN**. 04A jump/collision acceptance remains pending, 04D paint/materials and 04E physical Android audit remain open.
+- Commits `485f392`, `cb0d7e4`, `4e7b8a0`; no GitHub Actions triggered. **Godot import, focused geometry tests, full GAME-024 gate, screenshots and Android measurements still pending.**
+
+
+
 ### 2026-11-14 — CAR-ART-04A airborne player-car contact started
 - User screenshot showed player visually embedded in roof/cabin; the current `CivicPlayerController` uses world-only collision mask 1 and independent horizontal vehicle layer-4 sweeps. Source review confirmed previous contact code swept only at the **present** player capsule height and skipped collision evaluation when horizontal input was zero; a descending player could consequently enter the car from above.
 - Updated `scripts/player/player_controller.gd`: conservative horizontal-motion collision fraction at current **and predicted vertical** height, and minimal tested perimeter escape for a falling player overlapping a vehicle. The recovery checks world/car/pedestrian clearance before repositioning and preserves the no-vehicle-roof-as-floor policy. No traffic logic, collision layers or save schema changed.
