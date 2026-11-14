@@ -10,6 +10,12 @@ var value: Vector2 = Vector2.ZERO
 var enabled_on_desktop: bool = false
 
 func _ready() -> void:
+    # SceneTree-only fixtures and some launch paths have no project-defined
+    # move_* actions. Register only missing names; never overwrite existing
+    # keyboard/gamepad bindings or their configured deadzones.
+    for action in AXES:
+        if not InputMap.has_action(action):
+            InputMap.add_action(action)
     set_process_input(true)
     visible = OS.has_feature("mobile") or enabled_on_desktop
     queue_redraw()
@@ -61,6 +67,10 @@ func _apply_actions() -> void:
     var amounts := [maxf(0.0, -value.x), maxf(0.0, value.x),
         maxf(0.0, -value.y), maxf(0.0, value.y)]
     for i in range(AXES.size()):
+        # Cleanup may run before _ready() or after an input-map reset.
+        # Never emit an engine ERROR for releasing a non-existent action.
+        if not InputMap.has_action(AXES[i]):
+            continue
         var amount: float = amounts[i]
         if amount > 0.001:
             Input.action_press(AXES[i], amount)
