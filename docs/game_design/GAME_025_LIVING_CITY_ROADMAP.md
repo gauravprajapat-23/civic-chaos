@@ -16,7 +16,7 @@ The campaign's four missions still gate Free Roam. Existing repeatable litter, f
 
 ### Subsequent batches
 
-- **GAME-025-02:** Free Roam dispatch board and repeatable activity feed; ensure players can discover real live incidents without overwhelming the screen.
+- **GAME-025-02:** Free Roam dispatch board and repeatable activity feed — source implemented, Godot verification pending. F7 / CALLS opens a paused board; Show on City Map follows the real live event target. No available incident means an honest all-clear view and cooldown; no fictional mission entries.
 - **GAME-025-03:** Visit-worthy places and distinct neighborhood activity zones with verified navigable pedestrian paths.
 - **GAME-025-04:** Persistent volunteer goals earned only through verified event receipts; no timer-based score farming.
 - **GAME-025-05:** Optimize crowd behavior under road/crossing pressure, audit Android controls and performance, and run full campaign-to-Free Roam acceptance.
@@ -41,3 +41,14 @@ Require the marker `CIVIC_CHAOS_GAME025_LIVING_CITY_ROUTINES_PASS`, exit code 0,
 4. Complete a repeatable event, verify one real score receipt and no campaign reward duplication.
 5. Save, reload, and confirm repeated events and living-city routines resume safely.
 6. Verify Android navigation, UI readability, crowd performance and no stuck traffic before release.
+
+
+## GAME-025-02 — Municipal Dispatch Board acceptance
+
+- New file `scripts/ui/free_roam_dispatch_board.gd` is a read-only, touch-friendly panel. F7 on desktop or CALLS on screen opens it after the finale is acknowledged. CLOSE/F7 returns to gameplay without advancing time while open.
+- `CivicFreeRoamEvents.dispatch_state()` derives live event title, precise site label, actual priority/deadline, stage-specific source/destination target, and verified success/expired counts. It never starts or rewards incidents.
+- When no event is live, the board displays ALL CLEAR and the scheduler's remaining cooldown; SHOW ON CITY MAP is disabled.
+- When a call exists, SHOW ON CITY MAP closes the dispatch panel and opens the existing map showing the mission route. No separate fake pin/mission is added; the current `guidance_state()` remains the authoritative navigation target.
+- Regression: `tests/game025_dispatch_board_test.gd`, marker `CIVIC_CHAOS_GAME025_DISPATCH_BOARD_PASS`.
+- To accept: Godot import PASS; focused dispatch, existing map, live Free Roam, checkpoint and UI tests exit 0 without `ERROR:`; PC F7 modal and phone CALLS touch must work without joystick stuck state; verify save/load while a live incident and during a cooldown.
+- Do not manually run GitHub Actions. No release claim before full PC and Android acceptance.
