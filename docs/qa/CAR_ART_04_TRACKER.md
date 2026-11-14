@@ -71,6 +71,16 @@ foreach ($test in @(
 
 After focused checks, run the full `tools/verify_game024.ps1` gate on the **current** exact SHA. Manual follow-up: test drop onto red/blue cabin, sideways jump, walking around a stationary and moving car, checkpoint restoration next to vehicles. Record video/screenshots from PC and Android before marking 04A done.
 
+## CAR-ART-04E focused rerun evidence (2026-11-14)
+
+User-provided Godot 4.7.2 test results at `9a4fb27`:
+- `car_art_04a_side_contact_test.gd` — **PASS**
+- `car_art_04a_jump_clearance_test.gd` — **PASS**
+- `player_vehicle_contact_test.gd` — **PASS**
+- `car_art_04e_airborne_guard_test.gd` — printed **PASS**, but also logged **ERROR** `Condition "!is_inside_tree()" is true. Returning: Transform3D()` at test line 32, so **NOT ACCEPTED** under the strict no-engine-error gate.
+
+Root cause in fixture: `player.global_position` was assigned before `stage.add_child(player)`, invoking `get_global_transform()` outside the scene tree. Changed this pre-tree setup to `player.position` while preserving fixture movement and assertions; commit `6ecff66`. **Clean rerun still required.** No gameplay source, collision volumes, or saved state modified by this particular fix.
+
 ## CAR-ART-04E airborne collision regression (2026-11-14)
 
 **User-provided Godot evidence:** At `608d462`, import and the direct fall `car_art_04a_jump_clearance_test.gd` passed, but `car_art_04a_side_contact_test.gd` failed `jumping player clipped into vehicle cabin`. This is a **real moving-player collision failure**, not a UID/source gate problem. No later tests ran in that attempt.
