@@ -39,6 +39,17 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-SAFE-02 protected vehicle/person clearance and sedan polish
+- Source review: CivicVehicleAgent already used full oriented footprint sweeps with sub-metre samples, physical layer 4 car body, player collision layer 2, pedestrian collision layer 8, and player side-motion cast. Preserve deterministic route physics and existing save/checkpoint schema.
+- Added a **separate padded human clearance query** (45 cm on car sides/front/rear) at each prospective vehicle footprint step plus an immediate safety query before acceleration. People within the corridor hold traffic in place, instead of allowing visual/physical overlap. The car's actual collision shape remains unchanged; surface/road/prop queries are still done by the existing authoritative footprint.
+- Spawner now refuses a traffic entry within the same padded player/pedestrian corridor. No new randomness or backend; traffic timing/determinism requires local regression verification.
+- Added `tests/car_character_clearance_test.gd` with player and pedestrian sensing bodies to validate stop-before-contact and resume-after-clear in a real Godot physics world.
+- Car visuals expanded with three front grille slats, a front badge and paired side marker/reflector details; extended `tests/vehicle_visuals_test.gd` to check these objects.
+- Commits `4b76259`, `75d557f`, `f534440`, `b53ef81`, `28b9ec0`.
+- **CODE COMMITTED; LOCAL GODOT VERIFICATION PENDING.** Import and test `car_character_clearance_test.gd`, `vehicle_visuals_test.gd`, `vehicle_scene_contract_test.gd`, `vehicle_feedback_optional_test.gd`, `player_vehicle_contact_test.gd`, `traffic_checkpoint_invariants_test.gd`, `outer_intersection_priority_test.gd`, `outer_intersection_movement_test.gd`, then full GAME-024 gate at exact commit. A complete PC/Android crossing playthrough and FPS capture still required; cannot assert collisions never occur without physical-device verification.
+
+
+
 ### 2026-11-13 — ART-CAR-02 visual detail and physical car/actor avoidance
 - User requested more recognizable cars, and improved interaction when the player or NPC pedestrians come into contact with moving cars.
 - **Physical change:** `scripts/traffic/traffic_spawner.gd` now enables the existing physics obstacle sweep for *all* spawned physical vehicles, not only expanded-city cars. Each vehicle samples its forthcoming footprint and brakes when layer-2 player, layer-8 pedestrian, other vehicle or protruding street obstacle would be hit; the fixed route, collision box, save schema, speed law and RNG remain unchanged. Pure abstract traffic-agent tests continue to function without a collider. This avoids introducing dynamic rigid-body impulses or damage while stopping actor penetration.
