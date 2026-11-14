@@ -7,6 +7,12 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    # Standalone SceneTree tests do not instantiate CivicMain, which normally
+    # registers controller camera-look actions in _enter_tree(). Provide only
+    # missing names so the player physics tick never queries invalid actions.
+    for action in ["look_left", "look_right", "look_up", "look_down"]:
+        if not InputMap.has_action(action):
+            InputMap.add_action(action)
     var controls: CivicTouchControls = Controls.new() as CivicTouchControls
     root.add_child(controls)
     var player: CivicPlayerController = PlayerScene.instantiate() as CivicPlayerController
