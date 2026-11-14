@@ -29,13 +29,31 @@ func _run() -> void:
     var player: CivicPlayerController = PlayerScene.instantiate() as CivicPlayerController
     player.position = Vector3(0.0, 0.1, 3.45)
     stage.add_child(player)
-    for frame in range(8):
+    # Do not press jump against a player still falling into place. Godot
+    # CharacterBody3D sets is_on_floor() only after move_and_slide(), and
+    # eight ticks are not always enough to settle the initial 10 cm.
+    var grounded: bool = false
+    for frame in range(90):
         await physics_frame
+        if player.is_on_floor():
+            grounded = true
+            break
+    if not grounded:
+        _fail("player did not settle on world ground before jump")
+        return
+    Input.action_release("jump")
     Input.action_press("move_forward")
     Input.action_press("jump")
-    await physics_frame
+    var started_airborne: bool = false
+    for frame in range(4):
+        await physics_frame
+        if player.velocity.y > 0.25 and not player.is_on_floor():
+            started_airborne = true
+            break
     Input.action_release("jump")
-    var started_airborne: bool = player.velocity.y > 0.0
+    if not started_airborne:
+        _fail("grounded jump did not generate an airborne impulse")
+        return
     for frame in range(65):
         await physics_frame
         var relative: Vector3 = car.to_local(player.global_position)
@@ -44,9 +62,6 @@ func _run() -> void:
             _fail("jumping player clipped into vehicle cabin")
             return
     Input.action_release("move_forward")
-    if not started_airborne:
-        _fail("jump test never left the ground")
-        return
     var paused_z: float = player.global_position.z
     car.global_position = Vector3(12, 0, 0)
     await physics_frame
