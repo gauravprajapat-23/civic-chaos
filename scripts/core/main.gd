@@ -909,6 +909,10 @@ func _refresh_mission_guide() -> void:
         }
     else:
         state = gameplay_session.guidance_state()
+    if free_roam_unlocked and is_instance_valid(exploration_world):
+        var visits: Dictionary = exploration_world.visit_state()
+        state["dialogue"] = "%s\nEXPLORE | %d / %d neighborhood landmarks visited. Select a destination on MAP." % [
+            str(state.get("dialogue", "")), int(visits["count"]), int(visits["total"])]
     var forward: Vector3 = -player.global_transform.basis.z
     if player.camera != null:
         forward = -player.camera.global_transform.basis.z
