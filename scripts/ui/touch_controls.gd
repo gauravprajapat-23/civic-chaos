@@ -19,6 +19,8 @@ func _ready() -> void:
     joystick = Joystick.new() as CivicMobileJoystick
     joystick.name = "MovementJoystick"
     add_child(joystick)
+    # One texture shared across buttons, rather than four per-button image builds.
+    var action_texture: Texture2D = _button_texture()
     for i in range(ACTIONS.size()):
         var action: String = ACTIONS[i]
         var button := TouchScreenButton.new()
@@ -26,7 +28,7 @@ func _ready() -> void:
         button.action = action
         button.visibility_mode = TouchScreenButton.VISIBILITY_TOUCHSCREEN_ONLY
         button.shape_centered = true
-        button.texture_normal = _button_texture()
+        button.texture_normal = action_texture
         var shape := CircleShape2D.new()
         shape.radius = 28.0
         button.shape = shape
@@ -102,8 +104,9 @@ func _layout() -> void:
 func look_touch_allowed(point: Vector2) -> bool:
     if not _layout_valid:
         return true
-    for rect in _rects.values():
-        if (rect as Rect2).grow(8.0).has_point(point):
+    for rect_value in _rects.values():
+        var rect: Rect2 = rect_value
+        if rect.grow(8.0).has_point(point):
             return false
     return true
 
