@@ -15,7 +15,7 @@ Screenshot (2026-11-14): player appears embedded in open-looking red car, side m
 |---|---|---|---|---|
 | CAR-ART-04A-01 | P0 | Airborne horizontal vehicle sweep at current/projected vertical positions | **COMMITTED** `8c33548` | `player_vehicle_contact_test.gd`, new airborne test |
 | CAR-ART-04A-02 | P0 | Safe non-climbable descent recovery beside car; never push into another solid body | **COMMITTED** `8c33548` | `car_art_04a_jump_clearance_test.gd` and actual jumping gameplay |
-| CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **TEST COMMITTED** `2be2bfd` | PASS in Godot 4.7.2, no SCRIPT ERROR |
+| CAR-ART-04A-03 | P0 | Regression for jump into center and car side; world ground remains the only floor | **TESTS COMMITTED** `2be2bfd`, `1a1b890` | PASS in Godot 4.7.2, no SCRIPT ERROR |
 | CAR-ART-04A-04 | P0 | Verify existing checkpoint, traffic, player-car collision behavior unaffected | **PENDING** | Exact revision full GAME-024 gate + regression |
 | CAR-ART-04B | P1 | Rebuild enclosed, tapered cabin; correct window/pillar positions and hood/trunk geometry | **TODO** | Screenshot front, rear, side, 3/4 views |
 | CAR-ART-04C | P1 | Replace oversized exterior-looking mirror rods with shorter mounts, housings and inset mirror glass | **TODO** | Both mirrors visually attached and distinct |
@@ -47,6 +47,7 @@ if ($importExit -ne 0 -or $import -match 'SCRIPT ERROR:|ERROR:') { throw "Import
 
 foreach ($test in @(
     "car_art_04a_jump_clearance_test.gd",
+    "car_art_04a_side_contact_test.gd",
     "player_vehicle_contact_test.gd",
     "car_character_clearance_test.gd",
     "vehicle_actor_safety_test.gd",
