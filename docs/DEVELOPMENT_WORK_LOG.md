@@ -39,6 +39,17 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-SAFE-04 live traffic checkpoint/character protection
+- User reports the preceding focused traffic/character tests passed; the latest full GAME-024 acceptance for subsequently modified code is **not yet verified**.
+- Reviewed `CivicTrafficSpawner.prepare_restore()`, `CivicVehicleAgent.people_clear_at()`, vehicle/player/pedestrian collision layers and outer-junction physical traffic tests. Found a concrete restore-path gap: normal spawning rejects actors in the **45-cm protective buffer**, but checkpoint staging checked only `footprint_blocked_at` (smaller hard collision).
+- `prepare_restore()` now applies both padded `people_clear_at` and hard `footprint_blocked_at` checks before staging vehicles. A failed restore still frees staged cars and restores old collision layers; no checkpoint fields or movement rules were changed.
+- Added `tests/car_safe_04_checkpoint_test.gd`: valid save payload at a real graph position; reject player and pedestrian each placed outside the hard box but inside the padded corridor; confirm no state change/prepared generation after rejection; clear actors, stage/abort, then stage/commit successfully.
+- Reuses one per-vehicle `BoxShape3D` for repeated human collision probes instead of allocating a new shape at each route-sampling step, and extends `tests/car_character_clearance_test.gd` with shape-identity assertions.
+- Commits `0d3846a`, `74f8d53`, `2b6395a`, `90e48b8`.
+- **Local Godot validation pending:** import, `car_safe_04_checkpoint_test.gd`, `car_character_clearance_test.gd`, `vehicle_actor_safety_test.gd`, `vehicle_pedestrian_recovery_test.gd`, `outer_intersection_movement_test.gd`, `traffic_checkpoint_invariants_test.gd`, `checkpoint_load_queue_test.gd`, then full GAME-024 verification. Manual moving-player busy-junction and Android performance observations remain pending.
+
+
+
 ### 2026-11-14 — CAR-SAFE-03 unblock Godot parser and guard traffic spawn indentation
 - User's exact Godot 4.7.2 console output revealed a **syntax blocker** at `scripts/traffic/traffic_spawner.gd:233`: `Used space character for indentation instead of tab as used before in the file`. Godot editor import displayed script errors despite allowing the terminal session to continue; four earlier focused tests still passed, but `traffic_checkpoint_invariants_test.gd` could not load `CivicTrafficSpawner`. Later tests were **not executed**.
 - Corrected only the two misindented comments and `vehicle.physics_obstacle_checks_enabled = true` inside `try_spawn()`, preserving the intended character-avoidance physics and tick behavior. Commit `c14487e`.
