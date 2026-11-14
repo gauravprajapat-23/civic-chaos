@@ -32,8 +32,18 @@ func _world() -> Node3D:
 func _act(cleanup: CivicMarketCleanupMission, player: Node3D, kind: String, index: int, action: String) -> bool:
     var prop: CivicCleanupTarget = cleanup._target(kind, index)
     player.position = prop.position + Vector3(0, 0, 1.6)
+    var before: Dictionary = cleanup.snapshot()
     prop.interact(player)
-    return cleanup.perform_incident_action(player, action)
+    match action:
+        "inspect":
+            return cleanup.inspected
+        "collect_litter":
+            return cleanup.carried_index == index and cleanup.item_states[index] == 1
+        "deposit_litter":
+            return cleanup.deposited_count == int(before["deposited_count"]) + 1
+        "request_service":
+            return cleanup.service_requested_tick >= 0 and int(before["service_requested_tick"]) < 0
+    return false
 
 func _run() -> void:
     _clean()
