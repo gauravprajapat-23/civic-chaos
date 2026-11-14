@@ -24,11 +24,11 @@ size = Vector3(1.35, 0.55, 1.5)
 top_radius = 0.34
 bottom_radius = 0.34
 height = 0.18
-radial_segments = 12
+radial_segments = 16
 
 [sub_resource type="StandardMaterial3D" id="Rubber"]
-albedo_color = Color(0.07, 0.08, 0.09, 1)
-roughness = 1.0
+albedo_color = Color(0.075, 0.079, 0.082, 1)
+roughness = 0.94
 
 [node name="VehicleAgent" type="Node3D"]
 script = ExtResource("1_agent")
