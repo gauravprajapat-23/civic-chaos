@@ -340,6 +340,21 @@ func _routine_help_is_clear(index: int) -> bool:
     # it runs only inside the pedestrian physics update.
     return not _swept_path_blocked(index, walker.position, walker.position, true)
 
+## GAME-025: activate ambient schedules only after the full campaign.
+## No checkpoint schema or street/crossing authority changes.
+func set_living_city_active(enabled: bool) -> void:
+    daily_routines_enabled = enabled
+
+func living_city_summary() -> Dictionary:
+    var counts: Dictionary = {"commute": 0, "market": 0, "break": 0,
+        "return_home": 0, "offer_help": 0}
+    if not daily_routines_enabled:
+        return {"active": false, "walkers": _walkers.size(), "activities": counts}
+    for activity in _routine_activity:
+        if counts.has(activity):
+            counts[activity] = int(counts[activity]) + 1
+    return {"active": true, "walkers": _walkers.size(), "activities": counts}
+
 func routine_activity(index: int) -> String:
     if index < 0 or index >= _routine_activity.size():
         return ""
