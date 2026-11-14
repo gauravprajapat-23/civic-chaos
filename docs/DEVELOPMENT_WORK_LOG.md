@@ -39,6 +39,15 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 
 ## Work journal (append, never overwrite historical evidence)
 
+### 2026-11-14 — CAR-ART-04D automotive paint/material pass
+- Inspected the actual sedan `scripts/traffic/vehicle_visuals.gd`, physical vehicle scene, existing 04B/C glass and mirror tests and `docs/qa/CAR_ART_04_TRACKER.md`.
+- Replaced extremely saturated traffic paint colors with muted blue, oxblood red, silver, graphite and forest green. Gave paint a modest metallic and clearcoat finish; preserved deterministic lane-based choice without RNG consumption.
+- Adjusted windshield and mirror glass as **distinct opaque PBR materials** suitable for Godot mobile/Compatibility (not a physically simulated live reflection); refined plastic trim, front bumper, rubber tires, hub metal, default headlamp emission and tire radial segmentation.
+- Added `tests/car_art_04d_materials_test.gd` covering separate finish identities, clearcoat and roughness bands, deterministic palette, braking emissive cues, opaque glass, tire/hub contrast and **unchanged hard collision footprint**.
+- Updated `docs/qa/CAR_ART_04_TRACKER.md`: **04D CODE + TEST COMMITTED, NOT GODOT VERIFIED**. Commits `a78ae39`, `d2bf7d6`, `8640e9b`, `8d86308`. 04E full GAME-024, physical Android profiling and screenshots pending. No GitHub Actions manually triggered.
+
+
+
 ### 2026-11-14 — CAR-ART-04B/C enclosed sedan glass and mirror redesign
 - User asked to continue CAR-ART-04. Based on the actual `vehicle_visuals.gd`, the previous mirror was a solid dark block at ±0.855 m with no rear-facing glass or mount; front/side glass was oversized and sat outside the tapered cabin silhouette.
 - `scripts/traffic/vehicle_visuals.gd` now positions roof and front/rear/side glass relative to the tapered cabin. Both mirror assemblies have short attached mounts, compact dark housings and separate pale blue-gray metallic mirror glass on the rear-facing surface. Existing `Mirror_L`/`Mirror_R` node names retained.
