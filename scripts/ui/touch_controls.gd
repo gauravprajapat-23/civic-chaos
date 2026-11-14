@@ -12,6 +12,27 @@ var actions := ["jump", "sprint", "interact", "pause_game"]
 var joystick: CivicMobileJoystick
 var _rects: Dictionary = {}
 var _layout_valid: bool = false
+signal pause_requested
+signal interact_requested
+
+## Release touch-owned movement and action state before modals, pause or
+## focus loss. Do not leave a held on-screen button driving a hidden player.
+func cancel_active_touches() -> void:
+    if joystick != null:
+        joystick.release_stick()
+    for action in ACTIONS:
+        if InputMap.has_action(action):
+            Input.action_release(action)
+
+func set_controls_active(active: bool) -> void:
+    if not active:
+        cancel_active_touches()
+    visible = active
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        cancel_active_touches()
+
 
 func _ready() -> void:
     layer = 15
@@ -31,6 +52,10 @@ func _ready() -> void:
         var button := TouchScreenButton.new()
         button.name = action
         button.action = action
+        if action == "pause_game":
+            button.pressed.connect(_on_pause_pressed)
+        elif action == "interact":
+            button.pressed.connect(_on_interact_pressed)
         button.visibility_mode = TouchScreenButton.VISIBILITY_TOUCHSCREEN_ONLY
         button.shape_centered = true
         button.texture_normal = action_texture
@@ -104,6 +129,7 @@ func _layout() -> void:
         circle.radius = 48.0
         label.position = rect.position
         label.size = rect.size
+        button.visible = OS.has_feature("mobile")
         label.visible = OS.has_feature("mobile")
 
 ## Player uses this before claiming a look finger. Buttons should not
@@ -117,6 +143,11 @@ func look_touch_allowed(point: Vector2) -> bool:
             return false
     return true
 
+func _on_pause_pressed() -> void:
+    pause_requested.emit()
+
+func _on_interact_pressed() -> void:
+    interact_requested.emit()
+
 func _exit_tree() -> void:
-    if joystick != null:
-        joystick.release_stick()
+    cancel_active_touches()
