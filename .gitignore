@@ -12,3 +12,8 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 build/android/
+
+# Godot 4.7 generates UID sidecars for headless test scripts on import.
+# Test scripts are loaded by res:// path; only test-sidecar UIDs are ignored.
+# Keep non-test .gd.uid resources versioned for stable scene references.
+/tests/*.gd.uid
