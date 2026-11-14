@@ -1,17 +1,17 @@
 ﻿{
     "milestone":  "GAME-024",
-    "status":  "passed",
-    "verified_at_utc":  "2026-11-13T10:15:32.4666872Z",
+    "status":  "blocked",
+    "verified_at_utc":  "2026-11-14T06:19:44.3463371Z",
     "expected_branch":  "fix/aud-001-game024-gate-hardening",
     "branch":  "fix/aud-001-game024-gate-hardening",
-    "commit":  "88e2b108066b43378a0b8385e84af37720269060",
+    "commit":  "8949785ef9a01da99af5016d588452c622e1c209",
     "godot_version":  "4.7.2.stable.official.ed1daf0bf",
     "import_passed":  true,
     "python_runner_checks_passed":  true,
-    "python_runner_test_count":  30,
+    "python_runner_test_count":  34,
     "source_preflight_passed":  true,
-    "source_files_checked":  206,
-    "static_resources_checked":  351,
+    "source_files_checked":  219,
+    "static_resources_checked":  388,
     "focused_tests":  [
                           {
                               "name":  "free_roam_director_checkpoint_test.gd",
@@ -206,14 +206,14 @@
                               "pass_marker":  true
                           }
                       ],
-    "full_regression_passed":  true,
+    "full_regression_passed":  false,
     "full_regression_timed_out":  false,
-    "full_regression_exit_code":  0,
-    "regression_tests_run":  113,
-    "regression_expected_tests":  113,
-    "regression_source_commit":  "88e2b108066b43378a0b8385e84af37720269060",
-    "source_unchanged":  true,
-    "readiness_evidence_passed":  true,
+    "full_regression_exit_code":  1,
+    "regression_tests_run":  125,
+    "regression_expected_tests":  125,
+    "regression_source_commit":  "8949785ef9a01da99af5016d588452c622e1c209",
+    "source_unchanged":  false,
+    "readiness_evidence_passed":  false,
     "regression_report":  "build/game-024-regression.json",
-    "reason":  "Exact source revision passed import, focused tests, full suite and negative-path checks."
+    "reason":  "Full local regression failed (exit 1, timeout False, 125/125 fixtures, report SHA 8949785ef9a01da99af5016d588452c622e1c209, failing fixtures: traffic_spawner_test.gd, traffic_transaction_stress_test.gd, report error: ). Inspect build/game-024-regression.json and build/game-024-verification-logs/full-regression.log"
 }

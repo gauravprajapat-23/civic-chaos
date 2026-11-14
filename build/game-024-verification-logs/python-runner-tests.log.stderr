@@ -6,6 +6,8 @@ test_missing_python_checks_is_rejected (test_game024_gate_readiness.GateReadines
 test_partial_focused_suite_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_partial_focused_suite_is_rejected) ... ok
 test_stale_or_wrong_branch_evidence_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_stale_or_wrong_branch_evidence_is_rejected) ... ok
 test_unverified_or_invalid_godot_is_rejected (test_game024_gate_readiness.GateReadinessTests.test_unverified_or_invalid_godot_is_rejected) ... ok
+test_generated_car_test_sidecars_are_ignored (test_godot_uid_clean_gate.GodotUidCleanGateTests.test_generated_car_test_sidecars_are_ignored) ... ok
+test_source_edits_and_other_resource_uids_still_block_gate (test_godot_uid_clean_gate.GodotUidCleanGateTests.test_source_edits_and_other_resource_uids_still_block_gate) ... ok
 test_command_timeout_is_failure (test_regression_runner.RegressionRunnerTests.test_command_timeout_is_failure) ... ok
 test_discover_runs_new_fixtures_without_losing_required_ones (test_regression_runner.RegressionRunnerTests.test_discover_runs_new_fixtures_without_losing_required_ones) ... ok
 test_godot_error_lines_fail_even_after_expected_marker (test_regression_runner.RegressionRunnerTests.test_godot_error_lines_fail_even_after_expected_marker) ... ok
@@ -28,9 +30,11 @@ test_literal_scene_and_script_references_pass (test_source_preflight.SourcePrefl
 test_missing_literal_script_is_reported (test_source_preflight.SourcePreflightTests.test_missing_literal_script_is_reported) ... ok
 test_missing_project_rejected (test_source_preflight.SourcePreflightTests.test_missing_project_rejected) ... ok
 test_parent_reference_rejected (test_source_preflight.SourcePreflightTests.test_parent_reference_rejected) ... ok
+test_spawn_safety_is_before_active_vehicle_append (test_traffic_spawn_indentation.TrafficSpawnerIndentationTests.test_spawn_safety_is_before_active_vehicle_append) ... ok
+test_try_spawn_body_uses_tabs_without_space_indented_statements (test_traffic_spawn_indentation.TrafficSpawnerIndentationTests.test_try_spawn_body_uses_tabs_without_space_indented_statements) ... ok
 
 ----------------------------------------------------------------------
-Ran 30 tests in 0.151s
+Ran 34 tests in 4.381s
 
 OK
 

@@ -9,7 +9,7 @@ PASS vehicle_agent_test.gd
 PASS car_following_test.gd
 PASS signal_phases_test.gd
 PASS intersection_reservations_test.gd
-PASS traffic_spawner_test.gd
+FAIL traffic_spawner_test.gd
 PASS npc_personality_test.gd
 PASS vehicle_behavior_test.gd
 PASS pedestrian_navigation_test.gd
@@ -72,7 +72,7 @@ PASS world_traffic_checkpoint_test.gd
 PASS world_junction_checkpoint_test.gd
 PASS world_pedestrian_checkpoint_test.gd
 PASS world_transaction_rollback_test.gd
-PASS traffic_transaction_stress_test.gd
+FAIL traffic_transaction_stress_test.gd
 PASS market_cleanup_live_test.gd
 PASS market_cleanup_checkpoint_test.gd
 PASS market_cleanup_card_test.gd
@@ -102,6 +102,15 @@ PASS touch_layout_test.gd
 PASS performance_capture_test.gd
 PASS city_road_alignment_test.gd
 PASS outer_intersection_priority_test.gd
+PASS car_art_04a_jump_clearance_test.gd
+PASS car_art_04a_side_contact_test.gd
+PASS car_art_04bc_visual_test.gd
+PASS car_art_04d_materials_test.gd
+PASS car_art_04e_airborne_guard_test.gd
+PASS car_character_clearance_test.gd
+PASS car_safe_04_checkpoint_test.gd
+PASS car_safe_05_backpressure_test.gd
+PASS game_qa_mission_guide_test.gd
 PASS menu_ux_test.gd
 PASS neighborhood_improvements_test.gd
 PASS neighborhood_service_test.gd
@@ -110,6 +119,9 @@ PASS outer_intersection_movement_test.gd
 PASS outer_intersection_restore_test.gd
 PASS parking_response_choice_test.gd
 PASS ui_responsive_civic_test.gd
+PASS vehicle_actor_safety_test.gd
+PASS vehicle_pedestrian_recovery_test.gd
+PASS vehicle_visuals_test.gd
 PASS volunteer_progression_test.gd
 Report: C:\Users\gauravp\Projects\civic-chaos\build\game-024-regression.json
 
