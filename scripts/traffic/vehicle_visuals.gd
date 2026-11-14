@@ -187,3 +187,17 @@ func _build_details() -> void:
         Vector3(0.025, 0.014, 0.66), _metal)
     _box("RearWindowBrakeStrip", Vector3(0, 1.275, 0.54),
         Vector3(0.43, 0.035, 0.04), _tail)
+    # Simple grille slats and side reflectors improve front/back recognition
+    # in moving traffic without high-poly imported meshes or new colliders.
+    for index in range(3):
+        _box("GrilleSlat_%d" % index, Vector3(0, 0.42 + float(index) * 0.045, -1.545),
+            Vector3(0.58, 0.017, 0.013), _metal)
+    _box("FrontBadge", Vector3(0, 0.74, -1.492),
+        Vector3(0.15, 0.065, 0.02), _metal)
+    for side in [-1, 1]:
+        var edge: float = float(side)
+        var tag: String = "L" if side < 0 else "R"
+        _box("FrontSideMarker_" + tag, Vector3(edge * 0.803, 0.54, -1.34),
+            Vector3(0.024, 0.085, 0.15), _headlamp)
+        _box("RearSideReflector_" + tag, Vector3(edge * 0.803, 0.54, 1.32),
+            Vector3(0.024, 0.075, 0.15), _tail)
