@@ -162,6 +162,7 @@ func _ready() -> void:
     add_child(_marshal_panel)
     _marshal_panel.axis_requested.connect(_on_marshal_axis_requested)
     _marshal_panel.metering_requested.connect(_on_marshal_meter_requested)
+    _marshal_panel.wrong_way_clearance_requested.connect(_on_marshal_wrong_way_clearance_requested)
     _marshal_panel.closed.connect(_on_marshal_panel_closed)
     mission_guide = MissionGuide.new() as CivicMissionGuide
     mission_guide.name = "CivicMissionGuide"
@@ -250,6 +251,29 @@ func _on_marshal_axis_requested(axis: String) -> void:
     var message: String = MarshalControl.message(result)
     if _marshal_panel != null:
         _marshal_panel.set_status(message)
+    _on_interaction_message(message)
+
+## Player-directed civic enforcement, not signal manipulation. Report and
+## marshal arrival are compulsory; worksite collision remains authoritative.
+func _on_marshal_wrong_way_clearance_requested() -> void:
+    if not is_instance_valid(wrong_way_world):
+        _marshal_panel.set_status("No active Wrong Way incident to clear.")
+        return
+    var outcome: Dictionary = wrong_way_world.request_marshal_clearance()
+    var message: String = ""
+    if bool(outcome.get("accepted", false)):
+        message = "Marshal securing the wrong-way car. Keep the worksite clear for two seconds."
+    else:
+        match str(outcome.get("reason", "")):
+            "report_and_marshal_required":
+                message = "First inspect and report the offence at its evidence post; wait for the officer."
+            "people_or_cars_at_worksite":
+                message = "Clear nearby pedestrians or vehicles before removal."
+            "already_handled":
+                message = "Removal already underway or the obstruction is gone."
+            _:
+                message = "The vehicle is not available for authorized removal."
+    _marshal_panel.set_status(message)
     _on_interaction_message(message)
 
 func _on_marshal_meter_requested() -> void:
