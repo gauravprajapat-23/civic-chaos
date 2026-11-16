@@ -232,6 +232,11 @@ func _advance_cars(delta: float) -> void:
         else:
             car.clear_lead_observation()
         car.advance_fixed(delta)
+        # A completed route is no longer part of live traffic. Keep the
+        # follower record for exact checkpoint reconstruction, but retire
+        # its collider and visuals. An inactive stranded StaticBody3D was
+        # previously left on the live street indefinitely.
+        _sync_follower_presence(car)
         if car.speed_mps > 0.8 and car.lane_distance_m > float(starting_distances.get(car.get_instance_id(), 0.0)) + 0.6:
             moved_ids[car.get_instance_id()] = true
         # Count real vehicles that pass the *former* blockage while the
@@ -243,6 +248,19 @@ func _advance_cars(delta: float) -> void:
         # Movement before passing is required; never manufacture a release.
         if (blocker_removed or old_obstruction_clear) and moved_ids.has(car.get_instance_id()) and _passed_incident(car):
             released_ids[car.get_instance_id()] = true
+
+## Preserve logical actor records for checkpoint validation while removing
+## only cars that have *actually* completed their road-graph route.
+## This is never used to clear a living/blocked vehicle or manufacture
+## a completed civic objective.
+static func _sync_follower_presence(car: CivicVehicleAgent) -> void:
+    if not is_instance_valid(car):
+        return
+    car.visible = car.active
+    var collision_body: StaticBody3D = car.get_node_or_null("CollisionBody") as StaticBody3D
+    if collision_body != null:
+        collision_body.collision_layer = 4 if car.active else 0
+        collision_body.collision_mask = 0
 
 func _actual_stopped_count() -> int:
     # Never report a zero queue just because the obstruction vanished.
@@ -992,6 +1010,7 @@ func restore(raw: Variant) -> bool:
         car.speed_mps = float(record["speed"])
         car.target_speed_mps = float(record["target_speed"])
         car.active = bool(record["active"])
+        _sync_follower_presence(car)
         car.clear_lead_observation()
         car._place_on_lane()
         var id: int = car.get_instance_id()
