@@ -83,3 +83,10 @@ Write-Host "TRAFFIC-FIX-09 focused gate passed" -ForegroundColor Green
 - [ ] Build Android debug APK after tests, verify visually at 8/12/20 cars.
 
 **Source committed; Godot execution not available in this coding session.** Keep central traffic flow and mission completion audits open until real PC/Android results pass.
+
+
+## Explicit remaining scope — Outer intersections and new civic violations
+
+**OUTER-SIGNAL-10 is still OPEN.** The outer 24 noncentral crossroads use `CivicOuterIntersectionPriority` (two-axis 120-tick green/40-tick clearance at 20 Hz) and `CivicOuterTrafficLights` (48 total axis-specific heads). They are *not* driven by the central `CivicTrafficSignalController`. This patch does not claim single-direction greens outside the central crossing; implementing four exclusive outer heads requires replacing the outer fixed-tick policy and upgrading `outer_intersection_priority_test`, `outer_intersection_movement_test`, and `outer_intersection_restore_test` together. Keep deterministic safe checkpoint reproduction as an explicit gate before exposing the outer changes in Android.
+
+**NPC-VIOLATION-01 is OPEN for deliberate new violations.** Current civic gameplay already includes intentionally illegal Wrong Way and Illegal Parking actors with evidence, reporting and authorized resolution. Those *are not* normal background vehicles accidentally running red. An additional intentional red-light violator mission, if developed, must record a single physically observable attempt, not force random traffic through an occupied crossing; verify player investigation, officer intervention, penalty/reputation idempotency and pedestrian safety before enabling it. Unintentional NPC red-light entry remains a bug to be fixed, never a rewarded violation.
