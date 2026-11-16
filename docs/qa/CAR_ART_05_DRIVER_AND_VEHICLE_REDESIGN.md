@@ -33,7 +33,7 @@ Source inspected: `scenes/traffic/vehicle_agent.tscn`, `scripts/traffic/vehicle_
 |---|---|---|---|---|
 | **CAR-ART-05B** | P1 | Refine cabin shape, glass blending and occlusion | Driver visible in front/side views; no see-through roof, transparency sorting or head clipping | SOURCE IMPLEMENTED — PC/Android VISUAL QA PENDING |
 | **CAR-ART-05C** | P2 | Refine low-poly wheel faces, door lines/handles, grille surround and rear tail silhouette | 3D screenshots with intact 1.6×1.2×3 m collision and no decorative colliders | SOURCE IMPLEMENTED — GODOT/ANDROID VISUAL QA PENDING |
-| **CAR-ART-05D** | P2 | Driver variants (hair/skin/shirt) tied deterministically to lane/route, not runtime RNG or gameplay clock | Same saved route restores same visual driver, no state-schema changes | OPEN |
+| **CAR-ART-05D** | P2 | Deterministic driver clothing, hair/skin tones, upholstery and rim finish from saved first route lane | Same saved route restores same visual driver, no state-schema changes | SOURCE IMPLEMENTED — GODOT/ANDROID QA PENDING |
 | **CAR-ART-05E** | P2 | LOD/mobile optimization: combine repeated mesh pieces, share material resources, limit transparent faces and detail distance | Stable FPS and bounded draw calls for 8/12/20 cars on Android | OPEN |
 | **CAR-ART-05F** | P2 | Steering/wheel visual response and lights consistency | Steering cosmetic-only, existing brake signals never misreport state, no traffic physics changes | OPEN |
 | **CAR-ART-05G** | P1 | Full QA/regression + debug APK | Godot import/test pass, Android renders true occupants, collisions/traffic/checkpoints unchanged | OPEN |
@@ -57,6 +57,7 @@ foreach ($test in @(
     "car_art_05_driver_cabin_test.gd",
     "car_art_05b_cabin_polish_test.gd",
     "car_art_05c_exterior_test.gd",
+    "car_art_05d_driver_variants_test.gd",
     "vehicle_visuals_test.gd",
     "car_art_04bc_visual_test.gd",
     "car_art_04d_materials_test.gd",
@@ -121,3 +122,16 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path "build/civic-chaos-car-art-05c-test.
 ```
 
 **Tracking status:** source/test committed, verification and APK build pending. No manual GitHub Actions.
+
+
+## CAR-ART-05D — Deterministic Drivers & Vehicle Identity (2026-11-16)
+
+**Implementation committed:** `scripts/traffic/vehicle_visuals.gd` supplies five coordinated palettes for driver shirt, skin appearance, hair, upholstery and metallic wheel finish. It retains the original five lane-based body paint colors and adds limited changes to the existing driver-hair mesh scale. No separate models, textures, scripts, colliders or animation state were created per variant. All cosmetic changes reuse the materials allocated when the vehicle enters the tree, not new materials per tick.
+
+**Stable selection:** `set_lane_variant(lane_id)` derives both paint and driver slots solely from the original first route lane ID (`posmod(lane_id, 5)` for body color, `posmod(lane_id * 7 + 3, 5)` for the driver). The original `CivicVehicleAgent.configure` already calls this once from `lane_ids[0]`, including when the checkpoint restoration reconstructs a vehicle. Future lane changes do not alter its driver's appearance; restoration generates the same slots without consuming the traffic RNG. No snapshot fields or saved schema changes.
+
+**Regression:** `tests/car_art_05d_driver_variants_test.gd` creates vehicles twice from the same route and checks equivalent identity, materials, hair silhouette, reapplication without new material resources, all five distinct driver/paint palettes, unchanged layer-4 1.6×1.2×3 m collider, and no physics bodies in cosmetic children. Run with `car_art_05_driver_cabin_test.gd`, `car_art_05b_cabin_polish_test.gd`, `car_art_05c_exterior_test.gd`, `vehicle_visuals_test.gd`, `car_art_04d_materials_test.gd`, `vehicle_scene_contract_test.gd`, and `traffic_checkpoint_invariants_test.gd`.
+
+**Limitations:** Lane ID is the stable existing identity input, so traffic cars spawned from the same start lane will share a cosmetic driver and paint. A unique per-car identity would require an explicit deterministic spawn serial persisted in checkpoints; that broader change is **out of scope** to avoid changing traffic RNG/save behavior now. No true rigged driver, animation or higher-poly models. The source has not been run in Godot locally here. Real Android screenshots and 8/12/20-car GPU checks are pending. CAR-ART-05D must remain SOURCE IMPLEMENTED until those tests and visual checks pass.
+
+**No GitHub Actions triggered manually.** Commits include `[skip ci]`.
