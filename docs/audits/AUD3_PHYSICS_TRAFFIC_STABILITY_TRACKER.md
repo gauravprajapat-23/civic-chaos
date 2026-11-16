@@ -52,7 +52,7 @@
 - [x] **ROAD-FIX-01 (PHYS-001/013) — source implemented; runtime verification pending:** Replace collider-disabled crossing sidewalk ribbons with 16 physically solid segments and matching non-colliding curbs. Recheck 5×5 road grid and car clearance in the acceptance gate before closing either issue.
 - [x] **ROAD-DIAG-02 (PHYS-002/011) — source implemented; verification pending:** Add per-car stop classification, in-memory inspection with `stop_diagnostics()`, and throttled six-second `CIVIC_TRAFFIC_HOLD` console evidence. Run the local engine regression and reproduce the user’s jam before closing PHYS-002. A gameplay overlay/CSV exporter is not included in this initial diagnostic slice.
 - [x] **JUNCTION-FIX-03A (PHYS-003) — source implemented, runtime verification pending:** Detect blocked outbound lanes and avoid granting the junction to a queue-head that cannot exit.
-- [ ] **JUNCTION-FIX-03B (PHYS-005/006/007):** Examine central crossing reservations, pedestrian exit safety and simultaneous approach handoffs using live diagnostics before further behavioral fixes.
+- [x] **JUNCTION-FIX-03B (PHYS-005/006/007) — source implemented; runtime verification pending:** Serialize central conflict-zone entry after existing signal/pedestrian checks and separate opposing lanes in the isolated legacy graph. Do not change pedestrian ownership or signal timing.
 - [ ] **PHYS-FIX-04 (PHYS-004/008):** Audit and classify every world collider on all route sweeps, improve shape filtering, eliminate unintended fixed-blocker overlap.
 - [ ] **MISSION-FIX-05 (PHYS-009):** End-to-end wrong-way tow, parking, cleanup and background traffic recovery.
 - [ ] **SAVE-FIX-06 (PHYS-010):** Mid-junction and crossing save/load atomicity and physical restoration.
@@ -98,6 +98,11 @@ $tests = @(
     "vehicle_actor_safety_test.gd",
     "city_signal_stop_line_test.gd",
     "junction_fix_03_outbound_capacity_test.gd",
+    "junction_fix_03b_central_release_test.gd",
+    "traffic_spawner_test.gd",
+    "traffic_braking_test.gd",
+    "traffic_stop_line_test.gd",
+    "junction_test.gd",
     "outer_intersection_movement_test.gd",
     "outer_intersection_priority_test.gd",
     "outer_intersection_restore_test.gd",
@@ -169,3 +174,16 @@ Write-Host "Focused physics audit gate passed" -ForegroundColor Green
 - **Diagnostic:** `scripts/traffic/traffic_stop_diagnostics.gd` maps `outbound_blocked` into existing `CIVIC_TRAFFIC_HOLD` reporting.
 - **New regression:** `tests/junction_fix_03_outbound_capacity_test.gd` validates blocked exits, alternative green progress, occupied-zone protection, red-light stop, downstream release, and deterministic replay. Run existing `outer_intersection_priority_test.gd`, `outer_intersection_movement_test.gd`, `outer_intersection_restore_test.gd`, `road_diag_02_stop_diagnostics_test.gd`, `city_signal_stop_line_test.gd` and `intersection_reservations_test.gd` as well.
 - **Verification still required:** Godot import/regressions, real populated 5×5 traffic replay for at least 10 minutes, saved-intersection F9 restoration, and Android validation. A direct player capture of the affected cars' `CIVIC_TRAFFIC_HOLD` records is still needed to determine whether central reservation, pedestrian, or geometry issues remain. **No central reservation or pedestrian safety permission has been relaxed.** Do not mark PHYS-003 closed yet.
+
+
+### JUNCTION-FIX-03B — Central Signal/Crossing Release and Legacy Test Gridlock (2026-11-16)
+
+**New user-supplied Godot 4.7.2 evidence, source revision `b0df3cf`:** `road_diag_02_stop_diagnostics_test.gd`, `city_signal_stop_line_test.gd`, and `vehicle_world_obstacle_test.gd` reported PASS. `traffic_spawner_test.gd` failed with `ERROR: 20-agent demand or throughput assertion failed`. The console repeatedly shows the same stopped cars on lanes 1/2/3/5/7/8 with `reason=lead_vehicle` and `phase=no_central_signal`, unchanged over many six-second reporting periods. This is confirmed persistent head-on gridlock in the **isolated legacy junction test**, not proof that the production city's pedestrian reservations are stale.
+
+**Root causes found in source:** Legacy `make_test_graph()` used exactly coincident centerlines for opposite-direction vehicle lanes, making physical vehicles occupy each other's path. With no signal controller in the isolated spawner test, the central stop-line helper had no mechanism to serialize simultaneous crossing entries. The real central intersection could also admit opposite-approach green traffic without considering another car's committed crossing occupancy.
+
+**Changes implemented:** `scripts/world/junction_builder.gd` now uses left-side shoulder separation of 1.6 m (3.2 m between opposite-direction carriageways) for the isolated 20 m arms, keeping eight lanes and legal shared junction endpoints. The main 5×5 city graph keeps its existing 1.25 m default. `scripts/traffic/central_intersection_priority.gd` provides stateless, checkpoint-compatible single-entrant central arbitration: 5 m inbound stop line, 7 m outbound clearance, nearest waiting contender and deterministic lane/slot tiebreak, with red-axis contenders excluded when signals exist. `scripts/traffic/traffic_spawner.gd` enforces existing red/amber/all-red and **real pedestrian reservations first**, then central car occupancy; no unsaved priority cursor, collision bypass, forced despawns, or reward edits.
+
+**New regression:** `tests/junction_fix_03b_central_release_test.gd` checks one entrant at a time, green permission, red blocking, occupied pedestrian crossing hold, immediate release after a genuinely released crossing and deterministic policy. Updated `junction_test.gd`, `traffic_stop_line_test.gd`, `traffic_braking_test.gd` to use measured lane length after left-side separation rather than assume a physically overlapping 20 m straight centerline.
+
+**Acceptance still required:** Godot import, `traffic_spawner_test.gd` (at least 20 arrivals and one actual completed vehicle), the new central release test, `traffic_stop_line_test.gd`, `traffic_braking_test.gd`, `junction_test.gd`, `pedestrian_crossing_recovery_test.gd`, `outer_intersection_movement_test.gd`, `outer_intersection_restore_test.gd`, `traffic_transaction_stress_test.gd`, full city PC + Android traffic acceptance, and zero Godot errors. **Do not close PHYS-005/006/007 until local tests and real signal release are verified.**
