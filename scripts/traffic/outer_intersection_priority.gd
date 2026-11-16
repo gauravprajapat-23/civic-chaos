@@ -7,7 +7,7 @@ extends RefCounted
 const Grid = preload("res://scripts/world/city_road_layout.gd")
 const GREEN_TICKS: int = 120
 const CLEARANCE_TICKS: int = 40
-const PERIOD_TICKS: int = 2 * (GREEN_TICKS + CLEARANCE_TICKS)
+const PERIOD_TICKS: int = 4 * (GREEN_TICKS + CLEARANCE_TICKS)
 const STOP_LINE_M: float = 5.0
 const EXIT_CLEARANCE_M: float = 7.0
 ## Extra space after the conflict zone so incoming cars do not get trapped
@@ -45,15 +45,28 @@ static func axis_for_lane(lane: CivicLaneData) -> String:
         return ""
     return "ns" if absf(direction.z) >= absf(direction.x) else "ew"
 
-## 20 fixed ticks/s: NS 6 s, all-red 2 s, EW 6 s, all-red 2 s.
-## The two axes are NEVER simultaneously authorized. No wall-clock input.
-static func aspect(axis: String, tick: int) -> String:
-    if tick < 0 or (axis != "ns" and axis != "ew"):
+## Outer nodes now have four exclusive approach windows, each 6 seconds
+## green and 2 seconds all-red: N -> E -> S -> W. Tick-derived,
+## no per-node mutable state, so checkpoint rewinds remain deterministic.
+static func approach_for_lane(lane: CivicLaneData) -> String:
+    if lane == null or lane.centerline.size() < 2:
+        return ""
+    var vector: Vector3 = lane.centerline[-1] - lane.centerline[0]
+    if vector.length_squared() <= 0.001:
+        return ""
+    if absf(vector.z) >= absf(vector.x):
+        return "N" if vector.z > 0.0 else "S"
+    return "W" if vector.x > 0.0 else "E"
+
+static func aspect(approach: String, tick: int) -> String:
+    if tick < 0:
+        return "red"
+    var index: int = ["N", "E", "S", "W"].find(approach)
+    if index < 0:
         return "red"
     var phase: int = tick % PERIOD_TICKS
-    if axis == "ns" and phase < GREEN_TICKS:
-        return "green"
-    if axis == "ew" and phase >= GREEN_TICKS + CLEARANCE_TICKS and phase < 2 * GREEN_TICKS + CLEARANCE_TICKS:
+    var slot: int = int(phase / (GREEN_TICKS + CLEARANCE_TICKS))
+    if slot == index and phase % (GREEN_TICKS + CLEARANCE_TICKS) < GREEN_TICKS:
         return "green"
     return "red"
 
@@ -115,7 +128,7 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
     var stop_line: float = maxf(0.0, lane.length_m() - STOP_LINE_M)
     if vehicle.lane_distance_m > stop_line + COMMITTED_EPSILON_M:
         return {"controlled": true, "yield": false, "reason": "already_entered"}
-    if aspect(axis_for_lane(lane), tick) != "green":
+    if aspect(approach_for_lane(lane), tick) != "green":
         return {"controlled": true, "yield": true, "reason": "red_or_clearance"}
 
     for other in cars:
@@ -143,7 +156,7 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
         var other_lane: CivicLaneData = graph.get_lane(other.route[other.current_route_index])
         if not is_controlled(other_lane) or not _same_node(junction_for_lane(other_lane), junction):
             continue
-        if aspect(axis_for_lane(other_lane), tick) != "green":
+        if aspect(approach_for_lane(other_lane), tick) != "green":
             continue
         if not exit_available(other, cars):
             continue
