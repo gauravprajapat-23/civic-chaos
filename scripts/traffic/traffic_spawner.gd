@@ -38,6 +38,42 @@ var _vehicle_delay: Dictionary = {}
 ## priority. Once vehicles move again, the normal spawn schedule resumes.
 const GRIDLOCK_MIN_VEHICLES: int = 3
 const GRIDLOCK_STOPPED_PERCENT: int = 75
+## Four exclusive signal approaches offer far less throughput than paired
+## greens. Do not inject a car every 1.5 seconds into a blocked network.
+## These are *admission* limits; older checkpoint fleets remain valid.
+const CITY_MOVING_FLEET_LIMIT: int = 12
+const CITY_SPAWN_PERIOD_TICKS: int = 100
+const CITY_SOFT_QUEUE_MIN: int = 5
+const CITY_SOFT_STOPPED_PERCENT: int = 50
+const CITY_DRAIN_CLEAR_TICKS: int = 80
+var _city_drain_until_tick: int = 0
+var _city_last_completion_tick: int = 0
+
+static func city_soft_congested(active_count: int, stopped_count: int) -> bool:
+	return active_count >= CITY_SOFT_QUEUE_MIN and (
+		stopped_count * 100 >= active_count * CITY_SOFT_STOPPED_PERCENT)
+
+func city_admission_blocked() -> bool:
+	if not city_mode:
+		return false
+	if central_service_priority_active() or central_recovery_active():
+		return true
+	if current_tick < _city_drain_until_tick:
+		return true
+	var pressure: Dictionary = queue_pressure()
+	return city_soft_congested(int(pressure["active"]), int(pressure["stopped"]))
+
+func _update_city_drain() -> void:
+	if not city_mode:
+		return
+	var pressure: Dictionary = queue_pressure()
+	if city_soft_congested(int(pressure["active"]), int(pressure["stopped"])):
+		_city_drain_until_tick = maxi(_city_drain_until_tick, current_tick + CITY_DRAIN_CLEAR_TICKS)
+	elif completed_total > 0 and _city_last_completion_tick < current_tick:
+		# Completion is useful evidence of actual throughput, not permission
+		# to immediately flood the city on the next tick.
+		_city_last_completion_tick = current_tick
+
 var _spawn_backpressure_ticks: int = 0
 ## ROAD-GAME-01: player-authorized traffic metering pauses new arrivals,
 ## never moving existing cars or changing signal / pedestrian permissions.
@@ -266,6 +302,8 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	_central_service_vehicle = null
 	clear_central_recovery()
 	_spawn_backpressure_ticks = 0
+	_city_drain_until_tick = 0
+	_city_last_completion_tick = 0
 	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
 	work_budget.reset_runtime()
@@ -323,13 +361,16 @@ func advance_fixed(tick: int, delta: float) -> void:
 			_observed_blocker.erase(vehicle.get_instance_id())
 			active_vehicles.remove_at(index)
 			vehicle.queue_free()
-	# Check after movement: resumed traffic can immediately admit arrivals,
-	# while blocked junctions avoid growing the stationary queue.
+	# The four-direction city needs slower demand and a drain window.
+	# A genuine physical obstruction must never be fed by fresh arrivals.
+	_update_city_drain()
 	var congestion: Dictionary = queue_pressure()
-	if bool(congestion["congested"]):
+	if bool(congestion["congested"]) or city_admission_blocked():
 		_spawn_backpressure_ticks += 1
-	elif not marshal_metering_active() and tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
-		try_spawn()
+	else:
+		var interval: int = maxi(spawn_interval_ticks, CITY_SPAWN_PERIOD_TICKS) if city_mode else spawn_interval_ticks
+		if not marshal_metering_active() and tick % interval == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
+			try_spawn()
 	work_budget.record_duration_us(Time.get_ticks_usec() - started_us)
 
 ## TRAFFIC-FIX-06: Pedestrians walking north/south beside the north/
@@ -502,9 +543,11 @@ static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -
 func try_spawn() -> bool:
 	# Callers outside advance_fixed() must obey the same congestion rule.
 	# No RNG draws or rejection counters change for deferred arrivals.
-	if marshal_metering_active() or bool(queue_pressure()["congested"]):
+	if marshal_metering_active() or bool(queue_pressure()["congested"]) or city_admission_blocked():
 		return false
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
+		return false
+	if city_mode and active_vehicles.size() >= mini(maximum_active, CITY_MOVING_FLEET_LIMIT):
 		return false
 	var original_entries: PackedInt32Array = city_entry_lanes if city_mode else normal_entry_lanes
 	var entry_lanes := PackedInt32Array()
