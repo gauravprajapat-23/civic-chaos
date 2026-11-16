@@ -217,6 +217,24 @@ func advance_fixed(tick: int, delta: float) -> void:
 		try_spawn()
 	work_budget.record_duration_us(Time.get_ticks_usec() - started_us)
 
+## TRAFFIC-FIX-06: Pedestrians walking north/south beside the north/
+## south vehicle axis occupy the EAST/WEST traffic conflict zone only,
+## and vice versa. Physical pedestrian sweep remains the final authority.
+## Holding BOTH axis zones at every green can starve the entire city.
+static func crossing_conflict_zone(approach: String) -> String:
+	if approach == "N" or approach == "S":
+		return "pedestrian_crossing_ns"
+	if approach == "E" or approach == "W":
+		return "pedestrian_crossing_ew"
+	return ""
+
+static func crossing_blocks_approach(reservations: CivicIntersectionReservations,
+		approach: String) -> bool:
+	if reservations == null:
+		return false
+	var zone: String = crossing_conflict_zone(approach)
+	return zone != "" and reservations.occupant(zone) >= 0
+
 func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation: Dictionary) -> Dictionary:
 	var observation: Dictionary = initial_observation.duplicate()
 	var id: int = vehicle.get_instance_id() if vehicle != null else -1
@@ -256,9 +274,7 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 		return observation
 	# First preserve the explicit signal / physical pedestrian reservation.
 	# The unsignalled legacy graph still gets a safe single-entrant junction.
-	var pedestrian_occupied: bool = false
-	if crossing_reservations != null:
-		pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
+	var pedestrian_occupied: bool = crossing_blocks_approach(crossing_reservations, approach)
 	var signal_hold: String = ""
 	if traffic_signals != null:
 		signal_hold = StopDiag.signal_reason(traffic_signals.aspect_for_approach(approach), pedestrian_occupied)
@@ -317,9 +333,8 @@ func municipal_service_hold_reason(vehicle: CivicVehicleAgent) -> String:
 		return ""
 	if traffic_signals != null and traffic_signals.aspect_for_approach(signal_approach_for_lane(lane, city_mode)) != "green":
 		return "red_signal"
-	if crossing_reservations != null:
-		if crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0:
-			return "pedestrian_crossing"
+	if crossing_blocks_approach(crossing_reservations, signal_approach_for_lane(lane, city_mode)):
+		return "pedestrian_crossing"
 	for car in active_vehicles:
 		if CentralPriority.occupies(car, road_graph):
 			return "central_zone_occupied"
