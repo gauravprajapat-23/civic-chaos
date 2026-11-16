@@ -50,6 +50,7 @@ func _ready() -> void:
     map_surface = Control.new()
     map_surface.name = "MiniMapDrawing"
     map_surface.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    map_surface.clip_contents = true
     map_surface.draw.connect(_draw_small)
     small_frame.add_child(map_surface)
     map_button = Button.new()
