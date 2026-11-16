@@ -55,6 +55,21 @@ var _external_road_users: Array[CivicVehicleAgent] = []
 ## Incident detours affect only FUTURE background spawns. Existing cars
 ## remain physical; authorized mission actions must clear the obstruction.
 var _incident_route_closures: Dictionary = {}
+## Authorized municipal service can meter NEW central entries until its
+## convoy clears. This is not a green override, vehicle despawn or teleport.
+var _central_service_vehicle: CivicVehicleAgent
+
+func set_central_service_priority(service: CivicVehicleAgent) -> void:
+	_central_service_vehicle = service if is_instance_valid(service) and service.active else null
+
+func clear_central_service_priority(service: CivicVehicleAgent = null) -> void:
+	if service == null or _central_service_vehicle == service:
+		_central_service_vehicle = null
+
+func central_service_priority_active() -> bool:
+	return is_instance_valid(_central_service_vehicle) and _central_service_vehicle.active
+
+
 
 func set_incident_route_closure(owner: String, lane_id: int) -> bool:
 	if owner.is_empty() or road_graph == null or road_graph.get_lane(lane_id) == null:
@@ -212,6 +227,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	_observed_blocker.clear()
 	_external_road_users.clear()
 	_incident_route_closures.clear()
+	_central_service_vehicle = null
 	_spawn_backpressure_ticks = 0
 	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
@@ -316,6 +332,14 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 		return observation
 	var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
 	var gap: float = stop_distance - vehicle.lane_distance_m
+	# During a reported municipal tow, hold only NEW entrances to the
+	# central node. Vehicles already past the stopline must leave safely.
+	# All traffic, including mission followers, obeys this stop-line hold.
+	if central_service_priority_active() and vehicle != _central_service_vehicle and (
+			CentralPriority.is_inbound(lane) and gap >= 0.0):
+		if diagnostics_enabled and id >= 0:
+			_observation_hold_reason[id] = "municipal_service_priority"
+		return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
 	if city_mode and OuterPriority.is_controlled(lane):
 		var decision: Dictionary = OuterPriority.disposition(vehicle, road_graph, traffic_road_users(), current_tick)
 		var must_yield: bool = bool(decision.get("yield", false))
