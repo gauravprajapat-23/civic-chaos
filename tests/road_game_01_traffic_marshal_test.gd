@@ -81,10 +81,14 @@ func _run() -> void:
     if not spawner.marshal_metering_active() or spawner.try_spawn():
         _fail("metering did not suppress new traffic")
         return
-    for tick in range(1, 401):
+    for tick in range(1, 400):
         spawner.advance_fixed(tick, 0.05)
-    if spawner.marshal_metering_active() or spawner.spawned_total != 0:
-        _fail("metering did not expire without spawning phantom cars")
+    if not spawner.marshal_metering_active() or spawner.spawned_total != 0:
+        _fail("metering admitted traffic before its scheduled expiry")
+        return
+    spawner.advance_fixed(400, 0.05)
+    if spawner.marshal_metering_active():
+        _fail("metering was not released after its scheduled expiry")
         return
     spawner.clear_marshal_metering()
     if spawner.marshal_metering_active():
