@@ -179,7 +179,7 @@ func _ready() -> void:
 func _create_traffic_marshal_station() -> void:
     _marshal_post = TrafficMarshalPost.new() as CivicWrongWayReportMarker
     _marshal_post.name = "CivicTrafficMarshalPost"
-    _marshal_post.position = Vector3(-10.0, 0.21, -10.0)
+    _marshal_post.position = Vector3(-5.5, 0.21, -10.0)
     add_child(_marshal_post)
     _marshal_post.activated.connect(_on_traffic_marshal_activated)
     var sign: Label3D = _marshal_post.get_node_or_null("WrongWaySign") as Label3D
