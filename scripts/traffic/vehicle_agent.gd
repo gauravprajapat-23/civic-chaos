@@ -144,8 +144,11 @@ func advance_fixed(delta: float) -> void:
     if visual_details != null and visual_details.has_method("set_braking"):
         visual_details.call("set_braking",
             stop_requested or next_speed < 0.15 or desired_speed < 0.6)
-    if is_instance_valid(feedback) and feedback.has_method("observe_vehicle"):
-        feedback.call("observe_vehicle", speed_mps, active, stop_requested)
+    if is_instance_valid(feedback):
+        if feedback.has_method("observe_displacement"):
+            feedback.call("observe_displacement", travel, delta, active, stop_requested)
+        elif feedback.has_method("observe_vehicle"):
+            feedback.call("observe_vehicle", speed_mps, active, stop_requested)
 
 ## Guard physical vehicles against player, pedestrian and other car penetration.
 ## Abstract Node3D agents used in deterministic unit tests have no collider;
