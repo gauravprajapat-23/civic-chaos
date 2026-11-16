@@ -19,6 +19,10 @@ var _rubber: StandardMaterial3D
 var _hub_finish: StandardMaterial3D
 var _headlamp: StandardMaterial3D
 var _tail: StandardMaterial3D
+var _upholstery: StandardMaterial3D
+var _uniform: StandardMaterial3D
+var _skin: StandardMaterial3D
+var _hair: StandardMaterial3D
 var _color_slot: int = 0
 var _braking: bool = false
 
@@ -37,12 +41,23 @@ func _ready() -> void:
     _hub_finish = _material(Color(0.46, 0.50, 0.54), 0.41, 0.62)
     _headlamp = _material(Color(0.88, 0.90, 0.81), 0.30)
     _tail = _material(Color(0.66, 0.09, 0.07), 0.34)
+    _upholstery = _material(Color(0.20, 0.23, 0.24), 0.91)
+    _uniform = _material(Color(0.25, 0.43, 0.54), 0.91)
+    _skin = _material(Color(0.58, 0.34, 0.22), 0.93)
+    _hair = _material(Color(0.095, 0.075, 0.067), 0.94)
+    # Keep tinted automotive glass readable, but allow the actual driver to
+    # be seen. Per-mesh transparency is presentation-only, never collision.
+    _glass.albedo_color = Color(0.10, 0.17, 0.23, 0.32)
+    _glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    _glass.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+    _glass.cull_mode = BaseMaterial3D.CULL_DISABLED
     _headlamp.emission_enabled = true
     _headlamp.emission = Color(0.36, 0.34, 0.22)
     _tail.emission_enabled = true
     _tail.emission = Color(0.24, 0.015, 0.015)
     _reshape_legacy()
     _build_details()
+    _build_driver_and_interior()
 
 static func _material(color: Color, rough: float, metallic: float = 0.0) -> StandardMaterial3D:
     var value := StandardMaterial3D.new()
@@ -61,11 +76,11 @@ func _reshape_legacy() -> void:
         base.position = Vector3(0, 0.58, 0)
         base.material_override = _paint
     if cabin != null:
-        # A tapered six-sided cabin replaces the rectangular shoebox roof.
-        # Roof pillars slope inwards and the front/rear glazing tilts back.
+        # The old six-sided opaque cabin shell hid all interior occupants.
+        # Keep the tapered geometry as a frame, not an opaque enclosure.
         cabin.mesh = _tapered_cabin()
         cabin.position = Vector3(0, 1.035, 0.10)
-        cabin.material_override = _paint
+        cabin.material_override = _glass
 
 func _tapered_cabin() -> ArrayMesh:
     var corners: Array[Vector3] = [
@@ -116,6 +131,74 @@ func _box(name: String, center: Vector3, dimensions: Vector3,
     item.material_override = surface
     item.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(item)
+
+## A visible, seated low-poly driver on the RIGHT (Indian road traffic).
+## All children are MeshInstance3D with no physics, scripts or gameplay input.
+## Keep the head inside the cabin roof and away from the windscreen plane.
+func _build_driver_and_interior() -> void:
+    _box("CabinFloor", Vector3(0, 0.825, 0.12),
+        Vector3(1.29, 0.055, 1.55), _upholstery)
+    for side in [-1, 1]:
+        var x: float = float(side) * 0.34
+        var label: String = "L" if side < 0 else "R"
+        _box("FrontSeat_" + label, Vector3(x, 0.99, -0.12),
+            Vector3(0.43, 0.34, 0.42), _upholstery)
+        _box("SeatBack_" + label, Vector3(x, 1.17, 0.12),
+            Vector3(0.42, 0.43, 0.11), _upholstery)
+        _box("HeadRest_" + label, Vector3(x, 1.37, 0.13),
+            Vector3(0.23, 0.17, 0.13), _upholstery)
+    # Right-hand-drive steering column and simple circular wheel.
+    _box("Dashboard", Vector3(0, 0.96, -0.61),
+        Vector3(1.23, 0.13, 0.22), _trim)
+    _box("SteeringHub", Vector3(0.35, 1.073, -0.46),
+        Vector3(0.075, 0.075, 0.12), _metal)
+    var wheel := MeshInstance3D.new()
+    wheel.name = "SteeringWheel"
+    var rim := TorusMesh.new()
+    rim.inner_radius = 0.105
+    rim.outer_radius = 0.136
+    rim.rings = 6
+    rim.ring_segments = 12
+    wheel.mesh = rim
+    wheel.rotation.x = 0.48
+    wheel.position = Vector3(0.35, 1.10, -0.49)
+    wheel.material_override = _trim
+    wheel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(wheel)
+    # The torso and head are true geometry behind glass, not a UI decal.
+    _box("DriverTorso", Vector3(0.34, 1.16, -0.09),
+        Vector3(0.35, 0.32, 0.22), _uniform)
+    _box("DriverNeck", Vector3(0.34, 1.34, -0.10),
+        Vector3(0.10, 0.08, 0.11), _skin)
+    _sphere("DriverHead", Vector3(0.34, 1.47, -0.12),
+        0.135, _skin)
+    _box("DriverHair", Vector3(0.34, 1.58, -0.13),
+        Vector3(0.26, 0.065, 0.24), _hair)
+    for side in [-1, 1]:
+        var x: float = 0.34 + float(side) * 0.14
+        _box("DriverArm_%d" % side, Vector3(x, 1.12, -0.29),
+            Vector3(0.095, 0.105, 0.34), _uniform)
+    # A visible A/B-pillar gives window structure without an opaque cabin.
+    for side in [-1, 1]:
+        var x: float = float(side) * 0.64
+        _box("WindshieldPillar_%d" % side, Vector3(x, 1.095, -0.61),
+            Vector3(0.055, 0.43, 0.065), _trim, -0.44)
+        _box("RearPillar_%d" % side, Vector3(x, 1.095, 0.69),
+            Vector3(0.055, 0.41, 0.075), _trim, 0.40)
+
+func _sphere(name: String, location: Vector3, radius: float, surface: Material) -> void:
+    var part := MeshInstance3D.new()
+    part.name = name
+    var shape := SphereMesh.new()
+    shape.radius = radius
+    shape.height = radius * 2.0
+    shape.radial_segments = 10
+    shape.rings = 5
+    part.mesh = shape
+    part.position = location
+    part.material_override = surface
+    part.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(part)
 
 func _hub(name: String, location: Vector3) -> void:
     var item := MeshInstance3D.new()
