@@ -27,7 +27,10 @@ const SERVICE_RECOVERY_SECONDS: float = 2.0
 const SERVICE_HOLD_BEFORE_RECOVERY_FRAMES: int = 180
 ## Two full N/E/S/W cycles before considering authorized on-site service.
 const STARVATION_MIN_SECONDS: float = 136.0
-const SERVICE_CLEARANCE_RADIUS_M: float = 2.25
+## The actual queued cars are spaced ~3.02m apart, with 3m bodies.
+## A broad 2.25m probe would permanently detect a *lawful* follower
+## even while the tow/offender worksite itself is physically clear.
+const SERVICE_CLEARANCE_RADIUS_M: float = 1.0
 ## An authorized on-road collection takes a short visible stationary
 ## interval; it NEVER applies vertical translation to vehicle bodies.
 const CHECKPOINT_VERSION: int = 1
