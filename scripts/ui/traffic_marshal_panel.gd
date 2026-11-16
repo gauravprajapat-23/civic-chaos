@@ -11,6 +11,8 @@ var heading: Label
 var status: Label
 var ns_button: Button
 var ew_button: Button
+var south_button: Button
+var west_button: Button
 var meter_button: Button
 var close_button: Button
 var _opened: bool = false
@@ -41,12 +43,16 @@ func _ready() -> void:
     status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     status.text = "Read signals and wait for a safe opening."
     content.add_child(status)
-    ns_button = _make_button(content, "Request N / S next green", "NS")
-    ew_button = _make_button(content, "Request E / W next green", "EW")
+    ns_button = _make_button(content, "Next: NORTH green", "N")
+    ew_button = _make_button(content, "Next: EAST green", "E")
+    south_button = _make_button(content, "Next: SOUTH green", "S")
+    west_button = _make_button(content, "Next: WEST green", "W")
     meter_button = _make_button(content, "Meter new arrivals (20 s)", "Meter")
     close_button = _make_button(content, "Close", "Close")
-    ns_button.pressed.connect(func() -> void: axis_requested.emit("NS"))
-    ew_button.pressed.connect(func() -> void: axis_requested.emit("EW"))
+    ns_button.pressed.connect(func() -> void: axis_requested.emit("N"))
+    ew_button.pressed.connect(func() -> void: axis_requested.emit("E"))
+    south_button.pressed.connect(func() -> void: axis_requested.emit("S"))
+    west_button.pressed.connect(func() -> void: axis_requested.emit("W"))
     meter_button.pressed.connect(func() -> void: metering_requested.emit())
     close_button.pressed.connect(close_panel)
     get_viewport().size_changed.connect(_fit)
@@ -69,8 +75,8 @@ func _fit() -> void:
     var available_width: float = minf(370.0, maxf(280.0, viewport.x - 28.0))
     margin.offset_left = -available_width * 0.5
     margin.offset_right = available_width * 0.5
-    margin.offset_top = -145.0
-    margin.offset_bottom = 145.0
+    margin.offset_top = -190.0
+    margin.offset_bottom = 190.0
     if frame != null:
         frame.custom_minimum_size.x = available_width
 
