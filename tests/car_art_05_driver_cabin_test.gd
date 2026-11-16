@@ -43,7 +43,7 @@ func _run() -> void:
     if head.position.x < 0.20 or wheel.position.x < 0.20:
         _fail("driver should be at the right-hand seat in Indian traffic")
         return
-    if head.position.y + 0.105 > 1.283 + 0.041:
+    if head.position.y + 0.105 >= 1.283 - 0.041:
         _fail("driver head clips into or through roof")
         return
     if not (wheel.mesh is TorusMesh) or wheel.position.distance_to(head.position) > 0.9:
