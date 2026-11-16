@@ -26,8 +26,17 @@ static func occupies(car: CivicVehicleAgent, graph: CivicRoadGraph) -> bool:
     var origin: Vector3 = lane.centerline[0]
     return absf(origin.x) <= 0.05 and absf(origin.z) <= 0.05 and car.lane_distance_m < EXIT_CLEARANCE_M
 
+static func approach(lane: CivicLaneData) -> String:
+    if not is_inbound(lane):
+        return ""
+    var heading: Vector3 = lane.centerline[lane.centerline.size() - 1] - lane.centerline[0]
+    if absf(heading.z) >= absf(heading.x):
+        return "N" if heading.z > 0.0 else "S"
+    return "W" if heading.x > 0.0 else "E"
+
 static func disposition(car: CivicVehicleAgent, graph: CivicRoadGraph,
-        fleet: Array[CivicVehicleAgent], stop_gap: float) -> Dictionary:
+        fleet: Array[CivicVehicleAgent], stop_gap: float,
+        signals: CivicTrafficSignalController = null) -> Dictionary:
     if car == null or graph == null or car.route.is_empty() or car.current_route_index < 0 or car.current_route_index >= car.route.size():
         return {"yield": false, "reason": "not_applicable"}
     var lane: CivicLaneData = graph.get_lane(car.route[car.current_route_index])
@@ -44,6 +53,8 @@ static func disposition(car: CivicVehicleAgent, graph: CivicRoadGraph,
             continue
         var competitor: CivicLaneData = graph.get_lane(other.route[other.current_route_index])
         if not is_inbound(competitor):
+            continue
+        if signals != null and signals.aspect_for_approach(approach(competitor)) != "green":
             continue
         var other_gap: float = maxf(0.0, competitor.length_m() - STOP_LINE_M) - other.lane_distance_m
         if other_gap < -ENTRY_EPSILON_M:
