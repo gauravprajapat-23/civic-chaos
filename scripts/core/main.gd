@@ -186,6 +186,12 @@ func _create_traffic_marshal_station() -> void:
     if sign != null:
         sign.text = "TRAFFIC MARSHAL\nE / USE | MANAGE QUEUE"
 
+func _set_traffic_marshal_sign(message: String) -> void:
+    if is_instance_valid(_marshal_post):
+        var sign: Label3D = _marshal_post.get_node_or_null("WrongWaySign") as Label3D
+        if sign != null:
+            sign.text = message
+
 func _on_traffic_marshal_activated(actor: Node) -> void:
     if actor != player or gameplay_session == null or not is_instance_valid(_marshal_post):
         return
@@ -217,6 +223,7 @@ func _on_traffic_marshal_activated(actor: Node) -> void:
     _marshal_assist_completed = spawner.completed_total
     _marshal_assist_stopped = int(pressure["stopped"])
     _marshal_assist_center_blockers = TrafficMarshalAssist.center_obstruction_count(spawner.stop_diagnostics())
+    _set_traffic_marshal_sign("MARSHAL ACTIVE\nHOLDING NEW ARRIVALS")
     _on_interaction_message("TRAFFIC MARSHAL | Holding new arrivals for 20 seconds. Existing signals and collisions stay active.")
 
 func _update_traffic_marshal_assist() -> void:
@@ -239,10 +246,12 @@ func _update_traffic_marshal_assist() -> void:
                 maxi(gameplay_session.tick, gameplay_session.metrics.last_tick),
                 {"safety": 10, "efficiency": 15, "cooperation": 10},
                 "player_assisted_verified_vehicle_clearance"):
+            _set_traffic_marshal_sign("TRAFFIC CLEARED\nCIVIC REPUTATION +")
             _on_interaction_message("TRAFFIC MARSHAL COMPLETE | Two real cars exited and the queue shrank. Civic reputation earned!")
         _marshal_assist_pending = false
     elif spawner.current_tick - _marshal_assist_start_tick >= TrafficMarshalAssist.REVIEW_TICKS:
         _marshal_assist_pending = false
+        _set_traffic_marshal_sign("TRAFFIC MARSHAL\nE / USE | TRY AGAIN")
         _on_interaction_message("Traffic Marshal: No verified queue recovery yet. No reward awarded; inspect the blocker and retry.")
 
 func _unhandled_key_input(event: InputEvent) -> void:
