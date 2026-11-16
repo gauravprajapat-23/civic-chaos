@@ -6,6 +6,7 @@ extends RefCounted
 const STOP_LINE_M: float = 5.0
 const EXIT_CLEARANCE_M: float = 7.0
 const ENTRY_EPSILON_M: float = 0.05
+const OUTBOUND_QUEUE_CLEARANCE_M: float = EXIT_CLEARANCE_M + 2.0
 
 static func is_inbound(lane: CivicLaneData) -> bool:
     if lane == null or lane.centerline.size() < 2:
@@ -34,6 +35,26 @@ static func approach(lane: CivicLaneData) -> String:
         return "N" if heading.z > 0.0 else "S"
     return "W" if heading.x > 0.0 else "E"
 
+## The incoming car needs a free exit, not just an unoccupied node.
+## Prevent downstream spillback from trapping a new car inside a junction.
+## Also skip competitors whose exit is blocked, so they cannot starve
+## another approach with an open route during the same green.
+static func exit_available(car: CivicVehicleAgent, fleet: Array[CivicVehicleAgent]) -> bool:
+    if car == null or not car.active or car.route.is_empty():
+        return false
+    var next_index: int = car.current_route_index + 1
+    if next_index >= car.route.size():
+        return true
+    var outbound_id: int = car.route[next_index]
+    for other in fleet:
+        if other == null or other == car or not other.active or other.route.is_empty():
+            continue
+        if other.current_route_index < 0 or other.current_route_index >= other.route.size():
+            continue
+        if other.route[other.current_route_index] == outbound_id and other.lane_distance_m < OUTBOUND_QUEUE_CLEARANCE_M:
+            return false
+    return true
+
 static func disposition(car: CivicVehicleAgent, graph: CivicRoadGraph,
         fleet: Array[CivicVehicleAgent], stop_gap: float,
         signals: CivicTrafficSignalController = null) -> Dictionary:
@@ -45,6 +66,8 @@ static func disposition(car: CivicVehicleAgent, graph: CivicRoadGraph,
     for other in fleet:
         if other != car and occupies(other, graph):
             return {"yield": true, "reason": "central_zone_occupied"}
+    if not exit_available(car, fleet):
+        return {"yield": true, "reason": "central_outbound_blocked"}
     var own_slot: int = fleet.find(car)
     for other in fleet:
         if other == null or other == car or not other.active or other.stop_requested or other.route.is_empty():
@@ -55,6 +78,8 @@ static func disposition(car: CivicVehicleAgent, graph: CivicRoadGraph,
         if not is_inbound(competitor):
             continue
         if signals != null and signals.aspect_for_approach(approach(competitor)) != "green":
+            continue
+        if not exit_available(other, fleet):
             continue
         var other_gap: float = maxf(0.0, competitor.length_m() - STOP_LINE_M) - other.lane_distance_m
         if other_gap < -ENTRY_EPSILON_M:
