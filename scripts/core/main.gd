@@ -54,6 +54,7 @@ var _marshal_assist_pending: bool = false
 var _marshal_assist_start_tick: int = 0
 var _marshal_assist_completed: int = 0
 var _marshal_assist_stopped: int = 0
+var _marshal_assist_center_blockers: int = 0
 var _wrong_way_retry_elapsed: float = 0.0
 var _checkpoint_load_queue: CivicCheckpointLoadQueue = CheckpointLoadQueue.new()
 
@@ -215,6 +216,7 @@ func _on_traffic_marshal_activated(actor: Node) -> void:
     _marshal_assist_start_tick = spawner.current_tick
     _marshal_assist_completed = spawner.completed_total
     _marshal_assist_stopped = int(pressure["stopped"])
+    _marshal_assist_center_blockers = TrafficMarshalAssist.center_obstruction_count(spawner.stop_diagnostics())
     _on_interaction_message("TRAFFIC MARSHAL | Holding new arrivals for 20 seconds. Existing signals and collisions stay active.")
 
 func _update_traffic_marshal_assist() -> void:
@@ -230,7 +232,9 @@ func _update_traffic_marshal_assist() -> void:
         return
     var pressure: Dictionary = spawner.queue_pressure()
     if TrafficMarshalAssist.verified(_marshal_assist_completed, spawner.completed_total,
-            _marshal_assist_stopped, int(pressure["stopped"])):
+            _marshal_assist_stopped, int(pressure["stopped"]),
+            _marshal_assist_center_blockers,
+            TrafficMarshalAssist.center_obstruction_count(spawner.stop_diagnostics())):
         if gameplay_session.metrics.apply_outcome(TrafficMarshalAssist.EVENT_ID,
                 maxi(gameplay_session.tick, gameplay_session.metrics.last_tick),
                 {"safety": 10, "efficiency": 15, "cooperation": 10},
