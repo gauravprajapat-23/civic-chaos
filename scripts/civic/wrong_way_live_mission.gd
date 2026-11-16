@@ -233,6 +233,7 @@ func _physics_process(delta: float) -> void:
 
 func _exit_tree() -> void:
     if traffic_system != null and is_instance_valid(traffic_system):
+        traffic_system.clear_central_service_priority()
         traffic_system.clear_incident_route_closure(MISSION_ID)
         for follower in followers:
             traffic_system.unregister_road_user(follower)
@@ -453,6 +454,7 @@ func _start_tow_convoy(restore_progress: float = -1.0) -> bool:
     tow_vehicle = truck
     if traffic_system != null:
         traffic_system.register_road_user(truck)
+        traffic_system.set_central_service_priority(truck)
     tow_progress_m = initial_progress
     _tow_stationary_seconds = 0.0
     _tow_last_diagnostic_seconds = 0.0
@@ -631,14 +633,25 @@ func _tow_gate_snapshot() -> Dictionary:
 
 ## Requires authorized intervention and long verified absence of progress.
 ## This never grants a green, teleports a car, or awards mission completion.
-func _tow_can_begin_starvation_recovery() -> bool:
+## Reuse safety and authorization for physical-roadblock and signal
+## starvation recovery. One path must never bypass the other's checks.
+func _tow_service_authorized() -> bool:
     if not tow_started or tow_completed or service_recovery_active:
         return false
     if reported_tick < 0 or intervention_tick < 0 or (
             not is_instance_valid(tow_vehicle) or not is_instance_valid(offender)):
         return false
-    if session == null or incident_id < 0 or (
-            session.incidents.incidents[incident_id]["state"] != CivicIncidentManager.INTERVENTION):
+    if session == null or incident_id < 0:
+        return false
+    return session.incidents.incidents[incident_id]["state"] == CivicIncidentManager.INTERVENTION
+
+func _tow_crossing_occupied() -> bool:
+    return traffic_system != null and traffic_system.crossing_reservations != null and (
+        traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or
+        traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew") >= 0)
+
+func _tow_can_begin_starvation_recovery() -> bool:
+    if not _tow_service_authorized():
         return false
     var minimum: float = STARVATION_MIN_SECONDS
     if traffic_system != null and traffic_system.traffic_signals != null:
@@ -690,7 +703,8 @@ func _note_tow_hold(reason: String) -> void:
     # convoy through other cars. Start an on-site collection while grounded.
     # Red lights alone must NOT trigger an emergency recovery.
     if reason.find("physically occupied") >= 0 and _tow_hold_frames >= SERVICE_HOLD_BEFORE_RECOVERY_FRAMES:
-        if tow_started and not tow_completed and is_instance_valid(tow_vehicle) and is_instance_valid(offender):
+        if _tow_service_authorized() and _tow_service_worksite_clear() and (
+                traffic_system == null or not _tow_crossing_occupied()):
             service_recovery_active = true
             service_recovery_seconds = 0.0
             tow_vehicle.speed_mps = 0.0
@@ -749,6 +763,7 @@ func _finish_tow_convoy() -> void:
     tow_completed = true
     blocker_removed = true
     if traffic_system != null:
+        traffic_system.clear_central_service_priority(tow_vehicle)
         traffic_system.clear_incident_route_closure(MISSION_ID)
     service_recovery_active = false
     if is_instance_valid(tow_vehicle):
@@ -1189,6 +1204,10 @@ func restore(raw: Variant) -> bool:
     tow_started = false
     tow_completed = false
     blocker_removed = false
+    _tow_stationary_seconds = 0.0
+    _tow_last_diagnostic_seconds = 0.0
+    if traffic_system != null:
+        traffic_system.clear_central_service_priority()
     if is_instance_valid(tow_vehicle):
         remove_child(tow_vehicle)
         tow_vehicle.queue_free()
