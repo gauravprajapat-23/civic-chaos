@@ -222,6 +222,38 @@ func _hub(name: String, location: Vector3) -> void:
     item.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(item)
 
+func _wheel_face(label: String, sign: float, axle: float) -> void:
+    var axle_name: String = "Front" if axle < 0.0 else "Rear"
+    var center := Vector3(sign * 0.935, 0.36, axle)
+    var face := MeshInstance3D.new()
+    face.name = axle_name + "WheelFace_" + label
+    var disc := CylinderMesh.new()
+    disc.top_radius = 0.255
+    disc.bottom_radius = 0.255
+    disc.height = 0.018
+    disc.radial_segments = 12
+    face.mesh = disc
+    face.position = center
+    face.rotation.z = PI / 2.0
+    face.material_override = _trim
+    face.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(face)
+    # Five simple radial spokes, all within the wheel's original 0.34 m
+    # radius; avoid a second transparent material on crowded Android roads.
+    for spoke in range(5):
+        var angle: float = TAU * float(spoke) / 5.0
+        var spoke_item := MeshInstance3D.new()
+        spoke_item.name = "%sWheelSpoke_%s_%d" % [axle_name, label, spoke]
+        var bar := BoxMesh.new()
+        bar.size = Vector3(0.025, 0.048, 0.19)
+        spoke_item.mesh = bar
+        spoke_item.position = center + Vector3(sign * 0.017,
+            sin(angle) * 0.11, cos(angle) * 0.11)
+        spoke_item.rotation.x = -angle
+        spoke_item.material_override = _hub_finish
+        spoke_item.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        add_child(spoke_item)
+
 func _build_details() -> void:
     # Slim hood/trunk shoulders create an actual car silhouette instead
     # of a monolithic tall cube. All pieces remain presentation-only.
@@ -281,10 +313,27 @@ func _build_details() -> void:
         _hub("RearHub_" + label, Vector3(s * 0.932, 0.36, 0.95))
     _box("FrontGrille", Vector3(0, 0.48, -1.485),
         Vector3(0.73, 0.18, 0.04), _trim)
+    # CAR-ART-05C: recessed grille and bounded trim distinguish the nose
+    # from the tail without exceeding the existing traffic collider.
+    _box("GrilleSurroundTop", Vector3(0, 0.588, -1.488),
+        Vector3(0.83, 0.028, 0.035), _metal)
+    _box("GrilleSurroundBottom", Vector3(0, 0.378, -1.488),
+        Vector3(0.83, 0.026, 0.035), _metal)
+    for side in [-1, 1]:
+        var sign: float = float(side)
+        var label: String = "L" if side < 0 else "R"
+        _box("GrilleSide_" + label, Vector3(sign * 0.408, 0.48, -1.489),
+            Vector3(0.024, 0.19, 0.035), _metal)
     _box("FrontBumper", Vector3(0, 0.30, -1.505),
         Vector3(1.53, 0.12, 0.065), _metal)
     _box("RearBumper", Vector3(0, 0.30, 1.505),
         Vector3(1.53, 0.12, 0.065), _metal)
+    _box("RearTrunkLip", Vector3(0, 0.90, 1.424),
+        Vector3(1.43, 0.028, 0.095), _paint)
+    _box("RearTailPanel", Vector3(0, 0.61, 1.497),
+        Vector3(0.73, 0.15, 0.025), _trim)
+    _box("RearLowerValance", Vector3(0, 0.255, 1.507),
+        Vector3(1.28, 0.055, 0.043), _trim)
     _box("LicensePlateFront", Vector3(0, 0.34, -1.545),
         Vector3(0.39, 0.10, 0.016), _metal)
     _box("LicensePlateRear", Vector3(0, 0.34, 1.545),
@@ -306,12 +355,25 @@ func _build_details() -> void:
             Vector3(0.018, 0.025, 2.10), _metal)
         _box("DoorSeam_" + label, Vector3(s * 0.814, 0.70, 0.2),
             Vector3(0.02, 0.38, 0.024), _trim)
+        # Two legible door outlines: narrow seams, not painted-on blocks.
+        _box("FrontDoorLowerLine_" + label, Vector3(s * 0.816, 0.47, -0.40),
+            Vector3(0.016, 0.018, 0.68), _trim)
+        _box("RearDoorLowerLine_" + label, Vector3(s * 0.816, 0.47, 0.57),
+            Vector3(0.016, 0.018, 0.57), _trim)
+        _box("FrontDoorHandle_" + label, Vector3(s * 0.819, 0.82, -0.41),
+            Vector3(0.018, 0.029, 0.13), _metal)
+        _box("RearDoorHandle_" + label, Vector3(s * 0.819, 0.82, 0.46),
+            Vector3(0.018, 0.029, 0.13), _metal)
         for axle in [-0.95, 0.95]:
             var axle_name: String = "Front" if axle < 0.0 else "Rear"
             _box(axle_name + "Arch_" + label, Vector3(s * 0.794, 0.59, axle),
                 Vector3(0.06, 0.045, 0.69), _trim)
         _box("FogLamp_" + label, Vector3(s * 0.67, 0.37, -1.535),
             Vector3(0.16, 0.065, 0.025), _headlamp)
+        # Visual-only wheel face: a centered rim and five spokes sit on
+        # the original wheel location. No wheel transforms or physics edits.
+        for axle in [-0.95, 0.95]:
+            _wheel_face(label, s, axle)
     _box("HoodCenterCrease", Vector3(0, 0.896, -1.09),
         Vector3(0.025, 0.014, 0.66), _metal)
     _box("RearWindowBrakeStrip", Vector3(0, 1.275, 0.54),
