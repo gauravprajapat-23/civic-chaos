@@ -772,6 +772,15 @@ func _can_cross(side: int) -> bool:
     var approach: String = "E" if side < 2 else "N"
     if _signal_controller.aspect_for_approach(approach) != "red":
         return false
+    # A walker requires roughly 12 m of actual travel through this
+    # crossing. Do not let them ENTER right before opposing traffic green:
+    # the previous policy could occupy the conflict zone for almost the
+    # entire next vehicle green, starving every approach for many cycles.
+    # Existing occupied crossings are still released only when physically
+    # clear; this check is for NEW entries only.
+    const MIN_ENTRY_RED_WINDOW_SECONDS: float = 13.0
+    if _signal_controller.seconds_until_green(approach) < MIN_ENTRY_RED_WINDOW_SECONDS:
+        return false
     if _traffic_spawner == null:
         return true
     for vehicle in _traffic_spawner.active_vehicles:
