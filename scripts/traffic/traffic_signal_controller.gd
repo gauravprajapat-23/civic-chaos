@@ -40,6 +40,30 @@ func advance_fixed(delta: float) -> void:
 			phase_elapsed = 0.0
 			phase_changed.emit(phase_name())
 
+## TRAFFIC-GAME-02 — constrained manual request, never an instant green.
+## Only a green that has already served four seconds may be shortened.
+## The normal phase machine still supplies amber and all-red; the next
+## phase is always the opposite vehicle axis. No save-schema changes.
+const MANUAL_MIN_GREEN_SECONDS: float = 4.0
+const MANUAL_CHANGE_WAIT_SECONDS: float = 0.8
+
+func request_next_green(axis: String) -> Dictionary:
+	if not is_valid() or not ["NS", "EW"].has(axis):
+		return {"accepted": false, "reason": "invalid_axis"}
+	var target: Phase = Phase.NS_GREEN if axis == "NS" else Phase.EW_GREEN
+	if phase == target:
+		return {"accepted": false, "reason": "already_green"}
+	var opposite: Phase = Phase.EW_GREEN if axis == "NS" else Phase.NS_GREEN
+	if phase != opposite:
+		return {"accepted": false, "reason": "clearance_in_progress"}
+	if phase_elapsed < minf(MANUAL_MIN_GREEN_SECONDS, green_seconds):
+		return {"accepted": false, "reason": "minimum_green"}
+	var remaining: float = green_seconds - phase_elapsed
+	if remaining <= MANUAL_CHANGE_WAIT_SECONDS:
+		return {"accepted": false, "reason": "already_changing"}
+	phase_elapsed = green_seconds - minf(MANUAL_CHANGE_WAIT_SECONDS, green_seconds * 0.5)
+	return {"accepted": true, "reason": "amber_then_all_red", "target": axis}
+
 func phase_name() -> String:
 	return ["NS_GREEN", "NS_AMBER", "ALL_RED_NS", "EW_GREEN", "EW_AMBER", "ALL_RED_EW"][int(phase)]
 
