@@ -49,6 +49,12 @@ func _on_simulation_tick(_tick_index: int, fixed_delta: float) -> void:
     intersection_reservations.advance_to(_tick_index)
     if is_instance_valid(traffic_spawner):
         traffic_spawner.advance_fixed(_tick_index, fixed_delta)
+        # CAR-ART-05E: update render-only fleet LOD twice per second.
+        # A headless scene without a camera keeps all detail by default.
+        if _tick_index % 10 == 0:
+            var camera: Camera3D = get_viewport().get_camera_3d()
+            if is_instance_valid(camera):
+                traffic_spawner.update_fleet_visual_lod(camera.global_position)
     if is_instance_valid(outer_lights):
         outer_lights.sync_tick(_tick_index)
 
