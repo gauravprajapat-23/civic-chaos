@@ -23,7 +23,7 @@ static func panel_bounds(viewport: Vector2) -> Rect2:
     var margin: float = 8.0 if viewport.x < 700.0 else 14.0
     var width: float = minf(356.0, maxf(0.0, viewport.x - margin * 2.0))
     var top: float = 8.0
-    var height: float = minf(226.0, maxf(0.0, viewport.y * 0.38))
+    var height: float = minf(138.0, maxf(0.0, viewport.y * 0.33))
     return Rect2(Vector2(viewport.x - margin - width, top),
         Vector2(width, height))
 
@@ -68,7 +68,13 @@ func _ready() -> void:
     objective_label = _line(stack, "NextObjective", 16)
     waypoint_label = _line(stack, "Waypoint", 15)
     dialogue_label = _line(stack, "Dialogue", 14)
+    # Dialogue remains in current_state/label text for mission logic and
+    # accessibility, but no longer repeats radio chatter over gameplay.
+    dialogue_label.visible = false
     help_label = _line(stack, "RecoveryHint", 14)
+    objective_label.max_lines_visible = 2
+    mission_label.max_lines_visible = 1
+    waypoint_label.max_lines_visible = 1
     var actions := HBoxContainer.new()
     actions.name = "RecoveryActions"
     stack.add_child(actions)
