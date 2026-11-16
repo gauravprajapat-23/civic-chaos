@@ -69,7 +69,7 @@ func request_next_green(axis: String) -> Dictionary:
 			return {"accepted": false, "reason": "minimum_green"}
 		if green_seconds - phase_elapsed <= MANUAL_CHANGE_WAIT_SECONDS:
 			return {"accepted": false, "reason": "already_changing"}
-		var next_index: int = ((int(phase) - FOUR_WAY_FIRST) / 3 + 1) % 4
+		var next_index: int = (int((int(phase) - FOUR_WAY_FIRST) / 3.0) + 1) % 4
 		if axis != ["N", "E", "S", "W"][next_index]:
 			return {"accepted": false, "reason": "not_next_approach"}
 		phase_elapsed = green_seconds - minf(MANUAL_CHANGE_WAIT_SECONDS, green_seconds * 0.5)
@@ -101,7 +101,7 @@ func aspect_for_approach(approach: String) -> String:
 		if direction_index < 0:
 			return "red"
 		var local_phase: int = int(phase) - FOUR_WAY_FIRST
-		if local_phase / 3 != direction_index:
+		if int(local_phase / 3.0) != direction_index:
 			return "red"
 		return "green" if local_phase % 3 == 0 else ("amber" if local_phase % 3 == 1 else "red")
 	var north_south := approach == "N" or approach == "S"
@@ -151,11 +151,13 @@ func seconds_until_green(approach: String) -> float:
 	return 0.0
 
 func has_conflicting_green() -> bool:
+	if not single_approach_mode:
+		return aspect_for_approach("N") == "green" and aspect_for_approach("E") == "green"
 	var green_count: int = 0
 	for direction in ["N", "E", "S", "W"]:
 		if aspect_for_approach(direction) == "green":
 			green_count += 1
-	return green_count > (1 if single_approach_mode else 2)
+	return green_count > 1
 
 func _phase_duration() -> float:
 	if int(phase) % 3 == 0:
