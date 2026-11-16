@@ -958,12 +958,12 @@ func guidance_state() -> Dictionary:
         has_target = false
         speaker = "Traffic Marshal"
     elif tow_started:
-        objective = "Keep the road clear as the municipal tow convoy reaches the legal exit."
-        has_target = false
+        objective = "Use Traffic Marshal station to remove the wrong-way car on site."
+        has_target = true
         speaker = "Traffic Marshal"
     elif intervention_tick >= 0:
-        objective = "Wait on the sidewalk while the marshal arranges vehicle removal."
-        has_target = false
+        objective = "At Traffic Marshal station, choose Clear Wrong-Way Vehicle."
+        has_target = true
         speaker = "Traffic Marshal"
     elif reported_tick >= 0:
         objective = "Report received. Wait safely for the marshal to arrive."
@@ -975,7 +975,8 @@ func guidance_state() -> Dictionary:
     return {
         "title": "Wrong Way, Wrong Day",
         "objective": objective,
-        "target": marker.global_position if is_instance_valid(marker) else Vector3.ZERO,
+        "target": Vector3(-5.5, 0.21, -10.0) if intervention_tick >= 0 and not blocker_removed else (
+            marker.global_position if is_instance_valid(marker) else Vector3.ZERO),
         "has_target": has_target and is_instance_valid(marker),
         "speaker": speaker,
         "dialogue": feedback,
