@@ -431,6 +431,7 @@ func request_marshal_clearance() -> Dictionary:
         return {"accepted": false, "reason": "people_or_cars_at_worksite"}
     marshal_clearance_active = true
     marshal_clearance_seconds = 0.0
+    print("CIVIC_MARSHAL_CLEARANCE phase=requested tick=%d incident=%d" % [tick, incident_id])
     _announce("Marshal authorized local removal. Keep the offender's worksite clear.")
     return {"accepted": true, "reason": "marshal_removing"}
 
@@ -454,6 +455,10 @@ func _marshal_roadside_clear() -> bool:
     query.exclude = exclude
     var locations: Array[Vector3] = [offender.global_position]
     if is_instance_valid(tow_vehicle):
+        # A tow already inside the protected intersection must also
+        # respect live crossing reservations before it can be retired.
+        if traffic_system != null and CivicCentralIntersectionPriority.occupies(tow_vehicle, city_graph) and _tow_crossing_occupied():
+            return false
         locations.append(tow_vehicle.global_position)
     for location in locations:
         query.transform = Transform3D(Basis.IDENTITY, location + Vector3.UP * 0.7)
@@ -474,6 +479,7 @@ func _advance_marshal_clearance(delta: float) -> void:
     tow_started = true
     tow_recovered_on_site = true
     tow_progress_m = maxf(tow_progress_m, OFFENDER_DISTANCE + TOW_GAP_M)
+    print("CIVIC_MARSHAL_CLEARANCE phase=completed tick=%d incident=%d" % [tick, incident_id])
     _finish_tow_convoy()
 
 func _advance_marshal(delta: float) -> void:
