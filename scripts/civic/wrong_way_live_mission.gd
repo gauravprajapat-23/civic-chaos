@@ -484,10 +484,20 @@ func _advance_tow_convoy(delta: float) -> void:
             return
     _tow_hold_frames = 0
     _tow_hold_reason = ""
+    var heading_before: float = tow_vehicle.rotation.y
     tow_progress_m += travel
     tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
     offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
     offender_distance_m = tow_progress_m - TOW_GAP_M
+    # The convoy bypasses regular VehicleAgent.advance_fixed(), so drive
+    # wheel visuals directly from the *actual* accepted tow displacement.
+    var tow_details: CivicVehicleVisuals = tow_vehicle.get_node_or_null("DetailVisuals") as CivicVehicleVisuals
+    if tow_details != null:
+        tow_details.update_motion_visuals(travel,
+            wrapf(tow_vehicle.rotation.y - heading_before, -PI, PI))
+    var offender_details: CivicVehicleVisuals = offender.get_node_or_null("DetailVisuals") as CivicVehicleVisuals
+    if offender_details != null:
+        offender_details.update_motion_visuals(travel, 0.0)
     var inbound_length: float = city_graph.get_lane(approach_lane_id).length_m()
     if tow_progress_m >= inbound_length:
         tow_vehicle.current_route_index = 1
