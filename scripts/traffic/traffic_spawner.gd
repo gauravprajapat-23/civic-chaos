@@ -39,6 +39,9 @@ var _vehicle_delay: Dictionary = {}
 const GRIDLOCK_MIN_VEHICLES: int = 3
 const GRIDLOCK_STOPPED_PERCENT: int = 75
 var _spawn_backpressure_ticks: int = 0
+## ROAD-GAME-01: player-authorized traffic metering pauses new arrivals,
+## never moving existing cars or changing signal / pedestrian permissions.
+var _marshal_meter_until_tick: int = 0
 ## Runtime-only stop evidence; never saved or used for traffic decisions.
 var diagnostics_enabled: bool = true
 var _observation_hold_reason: Dictionary = {}
@@ -103,6 +106,18 @@ func update_fleet_visual_lod(camera_position: Vector3) -> void:
 		if visuals != null:
 			visuals.update_lod_distance(car.global_position.distance_to(camera_position))
 
+func request_marshal_metering(duration_ticks: int) -> bool:
+	if road_graph == null or restore_prepared() or duration_ticks < 1 or duration_ticks > 1200:
+		return false
+	_marshal_meter_until_tick = maxi(_marshal_meter_until_tick, current_tick + duration_ticks)
+	return true
+
+func clear_marshal_metering() -> void:
+	_marshal_meter_until_tick = 0
+
+func marshal_metering_active() -> bool:
+	return current_tick < _marshal_meter_until_tick
+
 func queue_pressure() -> Dictionary:
 	var stopped: int = 0
 	for car in active_vehicles:
@@ -153,6 +168,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	_stop_streaks.clear()
 	_observed_blocker.clear()
 	_spawn_backpressure_ticks = 0
+	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
 	work_budget.reset_runtime()
 	road_graph = graph
@@ -213,7 +229,7 @@ func advance_fixed(tick: int, delta: float) -> void:
 	var congestion: Dictionary = queue_pressure()
 	if bool(congestion["congested"]):
 		_spawn_backpressure_ticks += 1
-	elif tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
+	elif not marshal_metering_active() and tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
 		try_spawn()
 	work_budget.record_duration_us(Time.get_ticks_usec() - started_us)
 
@@ -378,7 +394,7 @@ static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -
 func try_spawn() -> bool:
 	# Callers outside advance_fixed() must obey the same congestion rule.
 	# No RNG draws or rejection counters change for deferred arrivals.
-	if bool(queue_pressure()["congested"]):
+	if marshal_metering_active() or bool(queue_pressure()["congested"]):
 		return false
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
 		return false
