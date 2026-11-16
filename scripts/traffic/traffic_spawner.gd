@@ -201,6 +201,56 @@ func _record_stop_evidence(vehicle: CivicVehicleAgent) -> void:
 	print("CIVIC_TRAFFIC_HOLD tick=%d slot=%d lane=%d step=%d distance=%.2f speed=%.2f reason=%s phase=%s blocker=%s" % [
 		current_tick, slot, lane_id, vehicle.current_route_index, vehicle.lane_distance_m,
 		vehicle.speed_mps, reason, phase, str(_observed_blocker.get(id, ""))])
+	if streak % 600 == 0 and reason != "red_signal":
+		print("CIVIC_HEAD_OF_LINE tick=%d slot=%d trace=%s" % [
+			current_tick, slot, str(head_of_line(vehicle))])
+
+## TRAFFIC-FIX-12 — trace the *front* of a physical queue, rather
+## than reporting every stopped follower as a separate traffic fault.
+## Pure observation: no despawns, signal overrides or traffic decisions.
+func head_of_line(vehicle: CivicVehicleAgent) -> Dictionary:
+	if not is_instance_valid(vehicle) or not vehicle.active:
+		return {"valid": false}
+	var fleet: Array[CivicVehicleAgent] = traffic_road_users()
+	var chain: Array[String] = []
+	var seen: Dictionary = {}
+	var current: CivicVehicleAgent = vehicle
+	var terminal_reason: String = ""
+	var terminal_blocker: String = ""
+	for depth in range(24):
+		var id: int = current.get_instance_id()
+		if seen.has(id):
+			terminal_reason = "physical_cycle"
+			break
+		seen[id] = true
+		chain.append(str(current.get_path()) if current.is_inside_tree() else str(id))
+		var blocker_path: String = current.last_physics_blocker
+		var next_car: CivicVehicleAgent = null
+		if not blocker_path.is_empty() and current.is_inside_tree():
+			var candidate: Node = current.get_node_or_null(NodePath(blocker_path))
+			if candidate != null:
+				for car in fleet:
+					if candidate == car or car.is_ancestor_of(candidate):
+						next_car = car
+						break
+		# For stationary cars with no collider sweep, use the existing
+		# same-lane sensor; only an actual physically preceding car counts.
+		if next_car == null and current.route.size() > 0:
+			var observed: Dictionary = CivicTrafficSensor.nearest_lead(current, fleet)
+			if bool(observed.get("detected", false)):
+				for car in fleet:
+					if car.get_instance_id() == int(observed.get("object_id", -1)) and car.speed_mps < 0.2:
+						next_car = car
+						break
+		if next_car == null:
+			terminal_reason = str(_observed_stop_reason.get(id, current.last_physics_hold_reason))
+			terminal_blocker = blocker_path
+			break
+		current = next_car
+	return {"valid": true, "chain": chain, "head": current.name,
+		"head_lane": current.route[current.current_route_index] if not current.route.is_empty() else -1,
+		"head_distance": current.lane_distance_m, "head_reason": terminal_reason,
+		"head_blocker": terminal_blocker, "cycle": terminal_reason == "physical_cycle"}
 
 func stop_diagnostics() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
