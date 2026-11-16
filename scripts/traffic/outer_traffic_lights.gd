@@ -34,12 +34,14 @@ func _build() -> void:
             # Separate axis-specific heads at each outer city intersection.
             # Never add colliders to traffic signage: this fixes visibility
             # without blocking vehicles or pedestrians.
-            _add_head(node + Vector3(3.5, 0.0, 3.5), "ns")
-            _add_head(node + Vector3(-3.5, 0.0, -3.5), "ew")
+            _add_head(node + Vector3(-3.5, 0.0, -3.5), "N")
+            _add_head(node + Vector3(3.5, 0.0, -3.5), "E")
+            _add_head(node + Vector3(3.5, 0.0, 3.5), "S")
+            _add_head(node + Vector3(-3.5, 0.0, 3.5), "W")
 
-func _add_head(at: Vector3, axis: String) -> void:
+func _add_head(at: Vector3, approach: String) -> void:
     var head := Node3D.new()
-    head.name = "%s_%d" % [axis.to_upper(), _lamps.size()]
+    head.name = "%s_%d" % [approach, _lamps.size()]
     head.position = at
     add_child(head)
     var pole := MeshInstance3D.new()
@@ -60,7 +62,7 @@ func _add_head(at: Vector3, axis: String) -> void:
     head.add_child(housing)
     var red := _bulb(head, "RedBulb", Vector3(0, 3.50, -0.24))
     var green := _bulb(head, "GreenBulb", Vector3(0, 2.94, -0.24))
-    _lamps.append({"axis": axis, "red": red, "green": green})
+    _lamps.append({"approach": approach, "red": red, "green": green})
 
 func _bulb(head: Node3D, label: String, position: Vector3) -> MeshInstance3D:
     var light := MeshInstance3D.new()
@@ -76,12 +78,12 @@ func _bulb(head: Node3D, label: String, position: Vector3) -> MeshInstance3D:
 func sync_tick(tick: int) -> void:
     displayed_tick = tick
     for head in _lamps:
-        var green: bool = Policy.aspect(str(head["axis"]), tick) == "green"
+        var green: bool = Policy.aspect(str(head["approach"]), tick) == "green"
         (head["green"] as MeshInstance3D).material_override = _green_material if green else _dim_material
         (head["red"] as MeshInstance3D).material_override = _dim_material if green else _red_material
 
 func head_count() -> int:
     return _lamps.size()
 
-func displayed_aspect(axis: String) -> String:
-    return Policy.aspect(axis, displayed_tick)
+func displayed_aspect(approach: String) -> String:
+    return Policy.aspect(approach, displayed_tick)
