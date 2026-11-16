@@ -43,10 +43,16 @@ func _ready() -> void:
     status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     status.text = "Read signals and wait for a safe opening."
     content.add_child(status)
-    ns_button = _make_button(content, "Next: NORTH green", "N")
-    ew_button = _make_button(content, "Next: EAST green", "E")
-    south_button = _make_button(content, "Next: SOUTH green", "S")
-    west_button = _make_button(content, "Next: WEST green", "W")
+    var top_row := HBoxContainer.new()
+    top_row.name = "NorthEast"
+    content.add_child(top_row)
+    var bottom_row := HBoxContainer.new()
+    bottom_row.name = "SouthWest"
+    content.add_child(bottom_row)
+    ns_button = _make_button(top_row, "NORTH", "N")
+    ew_button = _make_button(top_row, "EAST", "E")
+    south_button = _make_button(bottom_row, "SOUTH", "S")
+    west_button = _make_button(bottom_row, "WEST", "W")
     meter_button = _make_button(content, "Meter new arrivals (20 s)", "Meter")
     close_button = _make_button(content, "Close", "Close")
     ns_button.pressed.connect(func() -> void: axis_requested.emit("N"))
@@ -58,11 +64,12 @@ func _ready() -> void:
     get_viewport().size_changed.connect(_fit)
     _fit()
 
-func _make_button(parent: VBoxContainer, label: String, key: String) -> Button:
+func _make_button(parent: Control, label: String, key: String) -> Button:
     var result := Button.new()
     result.name = key
     result.text = label
-    result.custom_minimum_size = Vector2(270, 44)
+    result.custom_minimum_size = Vector2(120, 44) if parent is HBoxContainer else Vector2(260, 44)
+    result.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     result.focus_mode = Control.FOCUS_ALL
     parent.add_child(result)
     return result
@@ -75,8 +82,8 @@ func _fit() -> void:
     var available_width: float = minf(370.0, maxf(280.0, viewport.x - 28.0))
     margin.offset_left = -available_width * 0.5
     margin.offset_right = available_width * 0.5
-    margin.offset_top = -190.0
-    margin.offset_bottom = 190.0
+    margin.offset_top = -160.0
+    margin.offset_bottom = 160.0
     if frame != null:
         frame.custom_minimum_size.x = available_width
 
