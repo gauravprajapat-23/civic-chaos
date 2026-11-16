@@ -464,7 +464,12 @@ func _advance_tow_convoy(delta: float) -> void:
             var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
             travel = minf(travel, stop_gap)
     if travel <= 0.0001:
-        _note_tow_hold("red light, active crossing or occupied junction")
+        var hold_reason: String = "physical traffic clearance"
+        if traffic_system != null:
+            var gate_reason: String = traffic_system.municipal_service_hold_reason(tow_vehicle)
+            if gate_reason != "":
+                hold_reason = gate_reason
+        _note_tow_hold(hold_reason)
         tow_vehicle.speed_mps = 0.0
         return
     # Probe several intermediate footprints, including corners, BEFORE
