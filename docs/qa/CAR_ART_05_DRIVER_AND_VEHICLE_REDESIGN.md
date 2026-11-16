@@ -189,3 +189,10 @@ The screenshot includes overlapping mission/debug/waypoint text boxes obscuring 
 5. **APK:** existing preset is named `Android Debug`; build after test gate with `--headless --path . --export-debug "Android Debug" "build/civic-chaos-car-art-05f-debug.apk"` and verify output exists.
 
 **Status:** Changes and source tests committed on existing branch using `[skip ci]`. Godot runtime tests/real screenshot replay/Android export have not been executed here. Do not mark TOW-FIX-05F-01 or CAR-ART-05F verified until acceptance evidence is recorded.
+
+
+### CAR-ART-05F verification blocker — mixed indentation (2026-11-16)
+
+**User Godot 4.7.2 local failure:** headless editor import reported `SCRIPT ERROR: Parse Error: Used space character for indentation instead of tab as used before in the file` at `scripts/traffic/traffic_spawner.gd:97` and `:294`. Consequently `wrong_way_tow_service_priority_test.gd` failed to preload `CivicTrafficSpawner` before any tow behavior or regression could run. No APK was built. Root cause is 39 space-indented lines added by CAR-ART-05E's fleet LOD helper and TOW-FIX-05F's municipal service helpers in a tab-indented GDScript.
+
+**Fix committed:** `df67713` reindents the complete two affected method groups (39 lines) to tabs, matching the rest of the file without changing stop permissions, traffic behavior, or visual logic. Source inspection shows `scripts/world/junction_scene.gd` and `scripts/civic/wrong_way_live_mission.gd` consistently use spaces, so no change was needed there. **Verification pending:** rerun the import and focused gate from the updated branch. Note that a Godot editor import can print script errors while exiting with status zero: inspect both the exit code and `SCRIPT ERROR:` / `ERROR:` text before running any tests or APK export.

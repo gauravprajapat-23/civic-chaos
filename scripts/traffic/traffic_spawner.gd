@@ -291,39 +291,39 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 ## signal, pedestrian reservation and occupied vehicle conflict zone.
 ## Physical sweeps in the mission separately protect its full route.
 func municipal_service_observation(vehicle: CivicVehicleAgent) -> Dictionary:
-    var clear: Dictionary = {"detected": false}
-    if road_graph == null or vehicle == null or vehicle.route.is_empty():
-        return clear
-    if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
-        return clear
-    var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
-    if lane == null or not CentralPriority.is_inbound(lane):
-        return clear
-    var gap: float = lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m
-    if gap < 0.0:
-        return clear
-    var hold_reason: String = municipal_service_hold_reason(vehicle)
-    return _merge_stop_line(clear, gap, vehicle.minimum_gap_m) if hold_reason != "" else clear
+	var clear: Dictionary = {"detected": false}
+	if road_graph == null or vehicle == null or vehicle.route.is_empty():
+		return clear
+	if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
+		return clear
+	var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
+	if lane == null or not CentralPriority.is_inbound(lane):
+		return clear
+	var gap: float = lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m
+	if gap < 0.0:
+		return clear
+	var hold_reason: String = municipal_service_hold_reason(vehicle)
+	return _merge_stop_line(clear, gap, vehicle.minimum_gap_m) if hold_reason != "" else clear
 
 func municipal_service_hold_reason(vehicle: CivicVehicleAgent) -> String:
-    if road_graph == null or vehicle == null or vehicle.route.is_empty():
-        return ""
-    if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
-        return ""
-    var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
-    if lane == null or not CentralPriority.is_inbound(lane):
-        return ""
-    if lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m < 0.0:
-        return ""
-    if traffic_signals != null and traffic_signals.aspect_for_approach(signal_approach_for_lane(lane, city_mode)) != "green":
-        return "red_signal"
-    if crossing_reservations != null:
-        if crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0:
-            return "pedestrian_crossing"
-    for car in active_vehicles:
-        if CentralPriority.occupies(car, road_graph):
-            return "central_zone_occupied"
-    return ""
+	if road_graph == null or vehicle == null or vehicle.route.is_empty():
+		return ""
+	if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
+		return ""
+	var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
+	if lane == null or not CentralPriority.is_inbound(lane):
+		return ""
+	if lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m < 0.0:
+		return ""
+	if traffic_signals != null and traffic_signals.aspect_for_approach(signal_approach_for_lane(lane, city_mode)) != "green":
+		return "red_signal"
+	if crossing_reservations != null:
+		if crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0:
+			return "pedestrian_crossing"
+	for car in active_vehicles:
+		if CentralPriority.occupies(car, road_graph):
+			return "central_zone_occupied"
+	return ""
 
 static func _merge_stop_line(observation: Dictionary, gap: float, minimum_gap: float) -> Dictionary:
 	var safe_gap: float = maxf(0.0, gap + minimum_gap)
