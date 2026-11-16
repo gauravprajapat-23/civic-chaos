@@ -96,6 +96,11 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
     if not bool(created.get("ok", false)):
         return false
     incident_id = int(created["id"])
+    # Separate mission simulation, shared physical road: register the
+    # followers for central occupancy and car-following observations.
+    if traffic_system != null:
+        for follower in followers:
+            traffic_system.register_road_user(follower)
     if not session.missions.register_mission({"id": MISSION_ID, "reward": 100, "objectives": [
         {"event": "congestion_observed", "target": 1},
         {"event": "incident_reported", "target": 1},
@@ -215,12 +220,20 @@ func _physics_process(delta: float) -> void:
     if tick % 45 == 0:
         feedback_changed.emit(feedback)
 
+func _exit_tree() -> void:
+    if traffic_system != null and is_instance_valid(traffic_system):
+        for follower in followers:
+            traffic_system.unregister_road_user(follower)
+        if is_instance_valid(tow_vehicle):
+            traffic_system.unregister_road_user(tow_vehicle)
+
 func _advance_cars(delta: float) -> void:
     # Probe all leads before advancing any follower, like CivicTrafficSpawner.
     var observations: Dictionary = {}
+    var road_users: Array[CivicVehicleAgent] = traffic_system.traffic_road_users() if traffic_system != null else followers
     for car in followers:
         if is_instance_valid(car) and car.active:
-            observations[car.get_instance_id()] = CivicTrafficSensor.nearest_lead(car, followers)
+            observations[car.get_instance_id()] = CivicTrafficSensor.nearest_lead(car, road_users)
     for car in followers:
         if not is_instance_valid(car) or not car.active:
             continue
@@ -401,6 +414,8 @@ func _start_tow_convoy(restore_progress: float = -1.0) -> bool:
         truck.queue_free()
         return false
     tow_vehicle = truck
+    if traffic_system != null:
+        traffic_system.register_road_user(truck)
     tow_progress_m = initial_progress
     var paint := StandardMaterial3D.new()
     paint.albedo_color = Color(1.0, 0.68, 0.08)
