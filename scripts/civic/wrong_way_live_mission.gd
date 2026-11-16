@@ -103,6 +103,7 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
     if traffic_system != null:
         for follower in followers:
             traffic_system.register_road_user(follower)
+        traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
     if not session.missions.register_mission({"id": MISSION_ID, "reward": 100, "objectives": [
         {"event": "congestion_observed", "target": 1},
         {"event": "incident_reported", "target": 1},
@@ -224,6 +225,7 @@ func _physics_process(delta: float) -> void:
 
 func _exit_tree() -> void:
     if traffic_system != null and is_instance_valid(traffic_system):
+        traffic_system.clear_incident_route_closure(MISSION_ID)
         for follower in followers:
             traffic_system.unregister_road_user(follower)
         if is_instance_valid(tow_vehicle):
@@ -637,6 +639,8 @@ func _finish_tow_convoy() -> void:
     offender_distance_m = tow_progress_m - TOW_GAP_M
     tow_completed = true
     blocker_removed = true
+    if traffic_system != null:
+        traffic_system.clear_incident_route_closure(MISSION_ID)
     service_recovery_active = false
     if is_instance_valid(tow_vehicle):
         tow_vehicle.queue_free()
@@ -1000,6 +1004,10 @@ func prepare_restore(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_
     if not _find_approach() or not _stage_vehicles():
         _clear_staging()
         return false
+    if traffic_system != null:
+        traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
+        for follower in followers:
+            traffic_system.register_road_user(follower)
     marker = ReportPoint.new() as CivicWrongWayReportMarker
     marker.name = "WrongWayEvidencePoint"
     marker.position = Vector3(-20.0, 0.2, -5.3)
