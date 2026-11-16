@@ -47,6 +47,9 @@ var lead_gap_m: float = INF
 var lead_speed_mps: float = 0.0
 ## Disabled only for legacy isolated junction throughput simulations.
 var physics_obstacle_checks_enabled: bool = true
+## Read-only evidence from actual movement probes (never checkpointed).
+var last_physics_hold_reason: String = ""
+var last_physics_blocker: String = ""
 
 func set_lead_observation(gap_m: float, speed: float) -> void:
     lead_gap_m = maxf(0.0, gap_m)
@@ -94,6 +97,8 @@ func configure(graph: CivicRoadGraph, lane_ids: PackedInt32Array, vehicle_profil
 func advance_fixed(delta: float) -> void:
     if not active or delta <= 0.0 or not is_finite(delta):
         return
+    last_physics_hold_reason = ""
+    last_physics_blocker = ""
     var lane := road_graph.get_lane(route[current_route_index])
     if lane == null:
         active = false
@@ -117,7 +122,11 @@ func advance_fixed(delta: float) -> void:
     if physics_obstacle_checks_enabled:
         # A character can enter a stationary car's path between fixed ticks.
         # Hold the vehicle immediately rather than accelerating from overlap.
-        if not people_clear_at(global_transform) or (travel > 0.0 and _path_has_vulnerable_obstacle(travel)):
+        var people_clear: bool = people_clear_at(global_transform)
+        var path_blocked: bool = false
+        if people_clear and travel > 0.0:
+            path_blocked = _path_has_vulnerable_obstacle(travel)
+        if not people_clear or path_blocked:
             travel = 0.0
             next_speed = 0.0
     speed_mps = next_speed
@@ -207,7 +216,11 @@ func people_clear_at(vehicle_transform: Transform3D) -> bool:
     probe.collision_mask = 2 | 8 # Player and pedestrian sensing layers.
     probe.exclude = [body.get_rid()]
     probe.margin = 0.01
-    return get_world_3d().direct_space_state.intersect_shape(probe, 16).is_empty()
+    var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(probe, 16)
+    if not hits.is_empty():
+        var obstacle: CollisionObject3D = hits[0].get("collider") as CollisionObject3D
+        _record_physics_blocker(obstacle, "pedestrian")
+    return hits.is_empty()
 
 ## Reused by spawn validation and movement: floors support the car,
 ## while pedestrians, other cars, buildings, walls and street furniture block it.
@@ -237,17 +250,37 @@ func footprint_blocked_at(vehicle_transform: Transform3D) -> bool:
         if obstacle == null:
             continue
         if (obstacle.collision_layer & 1) == 0:
+            _record_physics_blocker(obstacle, "world_collider")
             return true
         # Broad, horizontal terrain/road support is not a traffic obstruction.
         # A sidewalk, building or sign protruding above the tyre clearance is.
         var world_shape: CollisionShape3D = obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
         if world_shape == null or not (world_shape.shape is BoxShape3D):
+            _record_physics_blocker(obstacle, "world_collider")
             return true
         var world_box: BoxShape3D = world_shape.shape as BoxShape3D
         var surface_top: float = world_shape.global_position.y + world_box.size.y * 0.5
         if surface_top > car_bottom + 0.035:
+            _record_physics_blocker(obstacle, "world_collider")
             return true
     return false
+
+## Tags only the *same* collision query that actually prevented travel.
+## Called by existing safety checks, so diagnostics never introduce a
+## second speculative physics query or alter traffic decision ordering.
+func _record_physics_blocker(obstacle: CollisionObject3D, fallback: String) -> void:
+    if obstacle == null:
+        return
+    var layer: int = obstacle.collision_layer
+    if layer & 8:
+        last_physics_hold_reason = "pedestrian"
+    elif layer & 2:
+        last_physics_hold_reason = "player"
+    elif layer & 4:
+        last_physics_hold_reason = "lead_vehicle"
+    else:
+        last_physics_hold_reason = fallback
+    last_physics_blocker = str(obstacle.get_path()) + " layer=" + str(layer)
 
 func _travel(distance: float) -> void:
     var remaining := distance
