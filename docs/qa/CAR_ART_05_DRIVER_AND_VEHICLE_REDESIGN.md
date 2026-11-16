@@ -34,7 +34,7 @@ Source inspected: `scenes/traffic/vehicle_agent.tscn`, `scripts/traffic/vehicle_
 | **CAR-ART-05B** | P1 | Refine cabin shape, glass blending and occlusion | Driver visible in front/side views; no see-through roof, transparency sorting or head clipping | SOURCE IMPLEMENTED — PC/Android VISUAL QA PENDING |
 | **CAR-ART-05C** | P2 | Refine low-poly wheel faces, door lines/handles, grille surround and rear tail silhouette | 3D screenshots with intact 1.6×1.2×3 m collision and no decorative colliders | SOURCE IMPLEMENTED — GODOT/ANDROID VISUAL QA PENDING |
 | **CAR-ART-05D** | P2 | Deterministic driver clothing, hair/skin tones, upholstery and rim finish from saved first route lane | Same saved route restores same visual driver, no state-schema changes | SOURCE IMPLEMENTED — GODOT/ANDROID QA PENDING |
-| **CAR-ART-05E** | P2 | LOD/mobile optimization: combine repeated mesh pieces, share material resources, limit transparent faces and detail distance | Stable FPS and bounded draw calls for 8/12/20 cars on Android | OPEN |
+| **CAR-ART-05E** | P2 | Batch 20 wheel spokes into one MultiMesh group per car, keep six glass panes, implement near/mid/far camera LOD with hysteresis | Godot regression, visual reversibility and measured FPS/draw calls at 8/12/20 cars on Android | SOURCE IMPLEMENTED — GODOT/ANDROID QA PENDING |
 | **CAR-ART-05F** | P2 | Steering/wheel visual response and lights consistency | Steering cosmetic-only, existing brake signals never misreport state, no traffic physics changes | OPEN |
 | **CAR-ART-05G** | P1 | Full QA/regression + debug APK | Godot import/test pass, Android renders true occupants, collisions/traffic/checkpoints unchanged | OPEN |
 
@@ -58,6 +58,7 @@ foreach ($test in @(
     "car_art_05b_cabin_polish_test.gd",
     "car_art_05c_exterior_test.gd",
     "car_art_05d_driver_variants_test.gd",
+    "car_art_05e_mobile_lod_test.gd",
     "vehicle_visuals_test.gd",
     "car_art_04bc_visual_test.gd",
     "car_art_04d_materials_test.gd",
@@ -135,3 +136,21 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path "build/civic-chaos-car-art-05c-test.
 **Limitations:** Lane ID is the stable existing identity input, so traffic cars spawned from the same start lane will share a cosmetic driver and paint. A unique per-car identity would require an explicit deterministic spawn serial persisted in checkpoints; that broader change is **out of scope** to avoid changing traffic RNG/save behavior now. No true rigged driver, animation or higher-poly models. The source has not been run in Godot locally here. Real Android screenshots and 8/12/20-car GPU checks are pending. CAR-ART-05D must remain SOURCE IMPLEMENTED until those tests and visual checks pass.
 
 **No GitHub Actions triggered manually.** Commits include `[skip ci]`.
+
+
+## CAR-ART-05E — Mobile Rendering Budget & Distance LOD (2026-11-16)
+
+**Existing cause:** `scripts/traffic/vehicle_visuals.gd` creates many independent `MeshInstance3D` decorative features for each traffic car, including 20 small metallic wheel spokes, plus six translucent window panes and the right-hand driver. Repeating this 8–20 times can inflate mesh submissions and fragment the Android frame, though no device metrics are yet available.
+
+**Source implementation:**
+- `CivicVehicleVisuals._batch_wheel_spokes()` creates **one `MultiMeshInstance3D` containing 20 spokes** using the existing metallic wheel-finish material. Original per-spoke nodes remain available for compatibility tests but stay invisible, avoiding their individual draw submissions. Each car has exactly one new batched wheel-spoke rendering node; no collision geometry.
+- `CivicVehicleVisuals.update_lod_distance()` implements three reversible camera-distance levels with a **4-metre hysteresis band**: **near** below ~24 m (full driver, panes and trim), **mid** from ~24–54 m (driver and windows remain; small trim and spokes hidden), **far** beyond ~54 m (body, roof, hood/trunk and safety lamps remain; interior/glass and trim are hidden). LOD changes occur only when crossing thresholds.
+- `scripts/world/junction_scene.gd` samples the actual viewport's active `Camera3D` every **10 fixed ticks** (nominally twice per second at 20 Hz) and asks `CivicTrafficSpawner.update_fleet_visual_lod(camera.global_position)` to apply levels. A missing active camera (e.g., headless verification) leaves vehicles in their default near/full-detail mode. All LOD state is transient; none is saved or consulted by traffic or physics.
+- Existing car meshes `Visual`, `Cabin` and four wheel nodes live outside `DetailVisuals` and are **never hidden**. Nearby cars retain the five stable driver/paint palettes and readable front/side views. Far cars retain the raised roof and active lamps rather than becoming wheel-and-box placeholders.
+- No changes to `vehicle_agent.gd`, `vehicle_agent.tscn`, collision layers/shapes, signal phases, mission rewards, traffic RNG or checkpoint format. Existing brake light material remains operational even when a distant visual element is hidden.
+
+**Regression:** Added `tests/car_art_05e_mobile_lod_test.gd` for the one-group/20-spoke batch, permanent hiding of 20 unbatched spokes, near/mid/far and hysteresis, returning from far to near, fleet updater, driving movement, vehicle layer-4 1.6×1.2×3 m collider and unchanged paint/driver identity. Also run `car_art_05d_driver_variants_test.gd`, `car_art_05c_exterior_test.gd`, `car_art_05b_cabin_polish_test.gd`, `car_art_05_driver_cabin_test.gd`, `vehicle_visuals_test.gd`, `car_art_04d_materials_test.gd`, `vehicle_scene_contract_test.gd`, `vehicle_world_obstacle_test.gd`, `traffic_checkpoint_invariants_test.gd`.
+
+**Physical verification:** The code changes *intend* to reduce rendering work but **do not establish measured performance**. On a real Android phone inspect nearby drivers, moving cars at 30 m and far traffic at 65 m, including oscillation around 24/54 m. Profile 8/12/20 visible cars, record p50/p95 frame times, FPS, GPU and draw calls for the same fixed scene before/after. If static hidden spoke nodes remain too expensive in object count, a later phase can move them behind a test-only compatibility fixture and keep the MultiMesh in production. Measure occlusion and glass sorting on Android Compatibility and Mobile renderers.
+
+**Status:** SOURCE IMPLEMENTED, focused Godot and Android verification pending. No APK built by GitHub coding; no GitHub Actions manually triggered.
