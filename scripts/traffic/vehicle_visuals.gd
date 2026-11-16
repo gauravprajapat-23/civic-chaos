@@ -50,7 +50,8 @@ func _ready() -> void:
     _glass.albedo_color = Color(0.10, 0.17, 0.23, 0.32)
     _glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     _glass.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
-    _glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+    # Avoid drawing both faces of every window; cabin structural paint stays opaque.
+    _glass.cull_mode = BaseMaterial3D.CULL_BACK
     _headlamp.emission_enabled = true
     _headlamp.emission = Color(0.36, 0.34, 0.22)
     _tail.emission_enabled = true
@@ -76,22 +77,28 @@ func _reshape_legacy() -> void:
         base.position = Vector3(0, 0.58, 0)
         base.material_override = _paint
     if cabin != null:
-        # The old six-sided opaque cabin shell hid all interior occupants.
-        # Keep the tapered geometry as a frame, not an opaque enclosure.
+        # CAR-ART-05B: the original full-height six-sided shell obscured
+        # the driver and double-rendered transparent polygons. Rebuild it
+        # as an OPAQUE low beltline; windows and windshield are separate,
+        # single-layer alpha panes with no hidden glass shell behind them.
         cabin.mesh = _tapered_cabin()
         cabin.position = Vector3(0, 1.035, 0.10)
-        cabin.material_override = _glass
+        cabin.material_override = _paint
 
 func _tapered_cabin() -> ArrayMesh:
+    # Existing scene contract: one ArrayMesh surface. Only the lower
+    # body-colored door belt remains; no opaque roof/window faces. Upper
+    # windshield, sides, rear glazing and pillars are separate meshes.
     var corners: Array[Vector3] = [
         Vector3(-0.675, -0.225, -0.75), Vector3(0.675, -0.225, -0.75),
         Vector3(0.675, -0.225, 0.78), Vector3(-0.675, -0.225, 0.78),
-        Vector3(-0.58, 0.225, -0.46), Vector3(0.58, 0.225, -0.46),
-        Vector3(0.58, 0.225, 0.53), Vector3(-0.58, 0.225, 0.53)
+        Vector3(-0.645, -0.095, -0.71), Vector3(0.645, -0.095, -0.71),
+        Vector3(0.645, -0.095, 0.72), Vector3(-0.645, -0.095, 0.72)
     ]
     var faces: Array = [
-        [0, 4, 5, 1], [1, 5, 6, 2], [2, 6, 7, 3],
-        [3, 7, 4, 0], [4, 7, 6, 5], [0, 1, 2, 3]
+        [0, 4, 5, 1], [1, 5, 6, 2],
+        [2, 6, 7, 3], [3, 7, 4, 0],
+        [4, 7, 6, 5]
     ]
     var surface := SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -145,8 +152,8 @@ func _build_driver_and_interior() -> void:
             Vector3(0.43, 0.34, 0.42), _upholstery)
         _box("SeatBack_" + label, Vector3(x, 1.17, 0.12),
             Vector3(0.42, 0.43, 0.11), _upholstery)
-        _box("HeadRest_" + label, Vector3(x, 1.37, 0.13),
-            Vector3(0.23, 0.17, 0.13), _upholstery)
+        _box("HeadRest_" + label, Vector3(x, 1.19, 0.13),
+            Vector3(0.23, 0.10, 0.13), _upholstery)
     # Right-hand-drive steering column and simple circular wheel.
     _box("Dashboard", Vector3(0, 0.96, -0.61),
         Vector3(1.23, 0.13, 0.22), _trim)
@@ -220,8 +227,21 @@ func _build_details() -> void:
     # of a monolithic tall cube. All pieces remain presentation-only.
     _box("Hood", Vector3(0, 0.83, -1.04), Vector3(1.53, 0.10, 0.77), _paint)
     _box("Trunk", Vector3(0, 0.83, 1.16), Vector3(1.52, 0.10, 0.54), _paint)
+    # CAR-ART-05B: body shoulder lines and a subdued hood intake make the
+    # low-poly sedan readable from the elevated third-person camera.
+    for side in [-1, 1]:
+        var side_f: float = float(side)
+        var side_name: String = "L" if side < 0 else "R"
+        _box("HoodShoulder_" + side_name, Vector3(side_f * 0.68, 0.866, -1.05),
+            Vector3(0.095, 0.055, 0.77), _paint)
+        _box("TrunkShoulder_" + side_name, Vector3(side_f * 0.68, 0.875, 1.16),
+            Vector3(0.095, 0.055, 0.54), _paint)
     # The roof bridges the tapered cabin; glass sits within its silhouette.
     _box("Roof", Vector3(0, 1.283, 0.13), Vector3(1.19, 0.08, 1.00), _paint)
+    _box("RoofFrontLip", Vector3(0, 1.265, -0.372),
+        Vector3(1.17, 0.068, 0.062), _trim)
+    _box("RoofRearLip", Vector3(0, 1.265, 0.633),
+        Vector3(1.17, 0.068, 0.062), _trim)
     _box("Windscreen", Vector3(0, 1.035, -0.607),
         Vector3(1.12, 0.36, 0.035), _glass, -0.53)
     _box("RearGlass", Vector3(0, 1.037, 0.755),
@@ -231,10 +251,13 @@ func _build_details() -> void:
         var label: String = "L" if side < 0 else "R"
         # Keep both panes inset from the cabin corner instead of floating
         # outside its tapered body. Small frames separate the two doors.
-        _box("FrontSideWindow_" + label, Vector3(s * 0.673, 1.04, -0.265),
-            Vector3(0.024, 0.235, 0.49), _glass)
-        _box("RearSideWindow_" + label, Vector3(s * 0.673, 1.04, 0.405),
-            Vector3(0.024, 0.235, 0.39), _glass)
+        _box("FrontSideWindow_" + label, Vector3(s * 0.632, 1.115, -0.265),
+            Vector3(0.018, 0.205, 0.49), _glass)
+        _box("RearSideWindow_" + label, Vector3(s * 0.632, 1.115, 0.405),
+            Vector3(0.018, 0.205, 0.39), _glass)
+        # Opaque window lower rail separates body paint from thin glass.
+        _box("WindowSill_" + label, Vector3(s * 0.67, 0.998, 0.07),
+            Vector3(0.035, 0.035, 1.25), _trim)
         # Three-piece compact mirror: a short arm attached at the door,
         # dark housing and inset rear-facing metallic glass. Preserve the
         # legacy Mirror_L/R names for visual contracts.
@@ -248,6 +271,10 @@ func _build_details() -> void:
             Vector3(0.32, 0.13, 0.035), _headlamp)
         _box("RearLamp_" + label, Vector3(s * 0.56, 0.68, 1.485),
             Vector3(0.28, 0.14, 0.035), _tail)
+        _box("FrontLampBrow_" + label, Vector3(s * 0.56, 0.765, -1.486),
+            Vector3(0.34, 0.025, 0.045), _trim)
+        _box("RearLampBorder_" + label, Vector3(s * 0.56, 0.77, 1.48),
+            Vector3(0.30, 0.023, 0.043), _trim)
         _box("DoorHandle_" + label, Vector3(s * 0.806, 0.83, 0.0),
             Vector3(0.019, 0.035, 0.17), _metal)
         _hub("FrontHub_" + label, Vector3(s * 0.932, 0.36, -0.95))
