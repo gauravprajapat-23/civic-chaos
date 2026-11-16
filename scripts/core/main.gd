@@ -310,7 +310,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
     if not event.pressed or event.echo or (district_finale != null and district_finale.is_open()):
         return
     if _marshal_panel != null and _marshal_panel.is_open():
-        if event.keycode == KEY_ESCAPE:
+        if event is InputEventKey and (event as InputEventKey).keycode == KEY_ESCAPE:
             _marshal_panel.close_panel()
             get_viewport().set_input_as_handled()
         return
