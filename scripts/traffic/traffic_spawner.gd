@@ -52,6 +52,28 @@ var _observed_blocker: Dictionary = {}
 ## though mission scripts advance them separately and own their save state.
 ## Never copy them into active_vehicles or count them as completed routes.
 var _external_road_users: Array[CivicVehicleAgent] = []
+## Incident detours affect only FUTURE background spawns. Existing cars
+## remain physical; authorized mission actions must clear the obstruction.
+var _incident_route_closures: Dictionary = {}
+
+func set_incident_route_closure(owner: String, lane_id: int) -> bool:
+	if owner.is_empty() or road_graph == null or road_graph.get_lane(lane_id) == null:
+		return false
+	_incident_route_closures[owner] = lane_id
+	return true
+
+func clear_incident_route_closure(owner: String) -> void:
+	_incident_route_closures.erase(owner)
+
+func route_lane_closed(lane_id: int) -> bool:
+	return _incident_route_closures.values().has(lane_id)
+
+func _open_route_options(options: Array[int]) -> Array[int]:
+	var available: Array[int] = []
+	for lane_id in options:
+		if not route_lane_closed(lane_id):
+			available.append(lane_id)
+	return available
 
 func register_road_user(car: CivicVehicleAgent) -> void:
 	if is_instance_valid(car) and not _external_road_users.has(car):
@@ -189,6 +211,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	_stop_streaks.clear()
 	_observed_blocker.clear()
 	_external_road_users.clear()
+	_incident_route_closures.clear()
 	_spawn_backpressure_ticks = 0
 	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
@@ -421,11 +444,15 @@ func try_spawn() -> bool:
 		return false
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
 		return false
-	var entry_lanes := city_entry_lanes if city_mode else normal_entry_lanes
+	var original_entries: PackedInt32Array = city_entry_lanes if city_mode else normal_entry_lanes
+	var entry_lanes := PackedInt32Array()
+	for candidate_id in original_entries:
+		if not route_lane_closed(candidate_id):
+			entry_lanes.append(candidate_id)
 	if entry_lanes.is_empty():
 		return false
 	var entry: int = entry_lanes[rng.randi_range(0, entry_lanes.size() - 1)]
-	var exits: Array[int] = road_graph.outgoing_legal_lanes(entry, 1)
+	var exits: Array[int] = _open_route_options(road_graph.outgoing_legal_lanes(entry, 1))
 	if exits.is_empty():
 		rejected_total += 1
 		return false
@@ -437,7 +464,7 @@ func try_spawn() -> bool:
 	var path := PackedInt32Array([entry, destination])
 	if city_mode:
 		for step in range(rng.randi_range(2, 5)):
-			var choices: Array[int] = road_graph.outgoing_legal_lanes(path[path.size() - 1], 1)
+			var choices: Array[int] = _open_route_options(road_graph.outgoing_legal_lanes(path[path.size() - 1], 1))
 			if choices.is_empty():
 				break
 			path.append(choices[rng.randi_range(0, choices.size() - 1)])
