@@ -32,7 +32,7 @@ Source inspected: `scenes/traffic/vehicle_agent.tscn`, `scripts/traffic/vehicle_
 | ID | Priority | Description | Acceptance | Status |
 |---|---|---|---|---|
 | **CAR-ART-05B** | P1 | Refine cabin shape, glass blending and occlusion | Driver visible in front/side views; no see-through roof, transparency sorting or head clipping | SOURCE IMPLEMENTED — PC/Android VISUAL QA PENDING |
-| **CAR-ART-05C** | P2 | Improve vehicle identity: distinct bumpers/grille, correctly proportioned doors, windshield angle, tail surfaces, wheel arches and front/rear readability | 3D screenshots with intact 1.6×1.2×3 m collision and no decorative colliders | OPEN |
+| **CAR-ART-05C** | P2 | Refine low-poly wheel faces, door lines/handles, grille surround and rear tail silhouette | 3D screenshots with intact 1.6×1.2×3 m collision and no decorative colliders | SOURCE IMPLEMENTED — GODOT/ANDROID VISUAL QA PENDING |
 | **CAR-ART-05D** | P2 | Driver variants (hair/skin/shirt) tied deterministically to lane/route, not runtime RNG or gameplay clock | Same saved route restores same visual driver, no state-schema changes | OPEN |
 | **CAR-ART-05E** | P2 | LOD/mobile optimization: combine repeated mesh pieces, share material resources, limit transparent faces and detail distance | Stable FPS and bounded draw calls for 8/12/20 cars on Android | OPEN |
 | **CAR-ART-05F** | P2 | Steering/wheel visual response and lights consistency | Steering cosmetic-only, existing brake signals never misreport state, no traffic physics changes | OPEN |
@@ -56,6 +56,7 @@ if ($LASTEXITCODE -ne 0) { throw "Godot import failed" }
 foreach ($test in @(
     "car_art_05_driver_cabin_test.gd",
     "car_art_05b_cabin_polish_test.gd",
+    "car_art_05c_exterior_test.gd",
     "vehicle_visuals_test.gd",
     "car_art_04bc_visual_test.gd",
     "car_art_04d_materials_test.gd",
@@ -99,3 +100,24 @@ Write-Host "CAR-ART-05 focused gate passed!" -ForegroundColor Green
 **QA still pending:** Run Godot 4.7.2 import and both new/legacy vehicle art tests, then visually inspect driver from front/left/right and top-down camera. Verify transparency sorting in Android Compatibility/Mobile renderers at 8, 12 and 20 cars; capture frame-time and draw calls. Do not label transparent-car performance improved until a real device comparison is available. If visual driver is hard to see behind tinted windows, tune *only* the six glass panes and cabin materials, not the collision body.
 
 **Debug APK:** Once the import and focused tests pass, use `godot --headless --path . --export-debug "Android Debug" build/civic-chaos-car-art-05b-test.apk` with installed Android export templates/SDK and an existing matching export preset. No APK was built during this GitHub-only coding step.
+
+
+## CAR-ART-05C — Exterior Vehicle Redesign (2026-11-16)
+
+**Source implemented:** `scripts/traffic/vehicle_visuals.gd` now adds front grille border pieces, rear trunk lip and tail panel/valance, paired front/rear lower door outlines and handles, and four simplified wheel faces with five rim spokes each. These reuse existing material resources and create only `MeshInstance3D` children; existing front/rear lamps, mirror assemblies, brake lights, windows, right-hand driver and original traffic car physics are unchanged.
+
+**Geometry decision:** The authoritative car collider is intentionally fixed at `BoxShape3D(1.6, 1.2, 3.0)` on layer 4. The visual wheel accents remain centered over the existing wheels and are not used by tire contact, suspension, movement or traffic policy. The inherited wheel nodes from `vehicle_agent.tscn` remain intact; the detailing is an additional non-interactive layer.
+
+**Regression added:** `tests/car_art_05c_exterior_test.gd` checks all exterior nodes, wheel-face and spoke alignment, door trim, six intentional transparent panes, original collision shape, brake-lamp response, paint determinism and real route movement. Also run `car_art_05_driver_cabin_test.gd`, `car_art_05b_cabin_polish_test.gd`, `vehicle_visuals_test.gd`, `car_art_04bc_visual_test.gd`, `car_art_04d_materials_test.gd`, `vehicle_scene_contract_test.gd`, `vehicle_world_obstacle_test.gd`, `vehicle_actor_safety_test.gd`.
+
+**Still pending:** Godot 4.7.2 import/run, front/side/rear visual snapshots with driver visible, visual overlap/culling review, and real Android GPU/frame-time measurements with multiple traffic cars. No screenshots or runtime tests were produced during this GitHub coding pass. If the per-wheel spoke mesh count is expensive on Android, the follow-up **CAR-ART-05E** should merge wheel submeshes or use distance-based LOD rather than changing car collisions.
+
+**Local Android debug export** after tests pass:
+
+```powershell
+New-Item -ItemType Directory -Force build | Out-Null
+& "C:\Godot\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --export-debug "Android Debug" "build/civic-chaos-car-art-05c-test.apk"
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path "build/civic-chaos-car-art-05c-test.apk")) { throw "Debug APK export failed" }
+```
+
+**Tracking status:** source/test committed, verification and APK build pending. No manual GitHub Actions.
