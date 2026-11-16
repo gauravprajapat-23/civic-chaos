@@ -53,11 +53,21 @@ func _run() -> void:
     if group == null or group.multimesh == null or group.multimesh.instance_count != 20:
         _fail("batched wheel spokes missing")
         return
-    var before: Transform3D = group.multimesh.get_instance_transform(0)
+    var before: Array[Transform3D] = []
+    for i in range(group.multimesh.instance_count):
+        before.append(group.multimesh.get_instance_transform(i))
     visual.update_motion_visuals(0.3, -0.08)
-    var after: Transform3D = group.multimesh.get_instance_transform(0)
-    if before.origin.distance_to(after.origin) <= 0.01:
-        _fail("wheel spokes do not rotate with wheel")
+    var moved: int = 0
+    var max_shift: float = 0.0
+    for i in range(group.multimesh.instance_count):
+        var after: Transform3D = group.multimesh.get_instance_transform(i)
+        var shift: float = before[i].origin.distance_to(after.origin)
+        max_shift = maxf(max_shift, shift)
+        if shift > 0.01:
+            moved += 1
+    if moved < 16:
+        _fail("batched spokes failed to rotate: changed=%d/20 max_shift=%.4f current_lod=%d" % [
+            moved, max_shift, visual.detail_level()])
         return
     if front.rotation.y >= 0.0:
         _fail("front tires failed to reverse cosmetic steering")
