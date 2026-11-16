@@ -98,7 +98,7 @@ func _run() -> void:
     if not Priority.occupies(restored_inside, graph, node):
         _fail("restored outbound clearance lost ownership")
         return
-    restored_inside.lane_distance_m = Priority.EXIT_CLEARANCE_M + 0.3
+    restored_inside.lane_distance_m = Priority.OUTBOUND_QUEUE_CLEARANCE_M + 0.3
     restored_inside._place_on_lane()
     if Priority.occupies(restored_inside, graph, node):
         _fail("crossing ownership remained after clearance")
