@@ -59,7 +59,7 @@ func _run() -> void:
     if spawner.apply_stop_line_observation(east, empty).get("detected", false):
         _fail("released crossing still blocks green")
         return
-    east.lane_distance_m = 15.0
+    east.lane_distance_m = graph.get_lane(3).length_m() - 5.0
     var stop_observation: Dictionary = spawner.apply_stop_line_observation(east, empty)
     if stop_observation.get("detected", false):
         _fail("green stop-line boundary blocked")
