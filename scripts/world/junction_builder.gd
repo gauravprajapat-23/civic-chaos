@@ -20,10 +20,10 @@ static func make_test_graph() -> CivicRoadGraph:
     for arm in range(4):
         var inbound := Lane.new()
         inbound.lane_id = arm * 2 + 1
-        inbound.centerline = _city_left_side_centerline(endpoints[arm * 2], Vector3.ZERO)
+        inbound.centerline = _city_left_side_centerline(endpoints[arm * 2], Vector3.ZERO, 1.6)
         var outbound := Lane.new()
         outbound.lane_id = arm * 2 + 2
-        outbound.centerline = _city_left_side_centerline(Vector3.ZERO, endpoints[arm * 2])
+        outbound.centerline = _city_left_side_centerline(Vector3.ZERO, endpoints[arm * 2], 1.6)
         inbound.next_lane_ids = PackedInt32Array([2, 4, 6, 8])
         # Do not U-turn onto the same arm.
         var exits := PackedInt32Array()
@@ -97,14 +97,13 @@ static func make_city_graph() -> CivicRoadGraph:
 ## Enter/exit the central junction node so legal route connections remain exact.
 ## This is a lane-separation baseline; junction conflict scheduling still needs
 ## dedicated intersection handling and physical playtests.
-static func _city_left_side_centerline(start: Vector3, finish: Vector3) -> PackedVector3Array:
+static func _city_left_side_centerline(start: Vector3, finish: Vector3, shoulder: float = 1.25) -> PackedVector3Array:
     var direction: Vector3 = finish - start
     var road_length: float = direction.length()
     if road_length < 10.0:
         return PackedVector3Array([start, finish])
     var forward: Vector3 = direction / road_length
     var left: Vector3 = Vector3(forward.z, 0.0, -forward.x)
-    var shoulder: float = 1.25
     var ramp_length: float = 4.0
     return PackedVector3Array([
         start,
