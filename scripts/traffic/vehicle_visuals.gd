@@ -166,17 +166,17 @@ func _build_driver_and_interior() -> void:
     wheel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(wheel)
     # The torso and head are true geometry behind glass, not a UI decal.
-    _box("DriverTorso", Vector3(0.34, 1.16, -0.09),
-        Vector3(0.35, 0.32, 0.22), _uniform)
-    _box("DriverNeck", Vector3(0.34, 1.34, -0.10),
+    _box("DriverTorso", Vector3(0.34, 0.995, -0.09),
+        Vector3(0.35, 0.30, 0.22), _uniform)
+    _box("DriverNeck", Vector3(0.34, 1.095, -0.10),
         Vector3(0.10, 0.08, 0.11), _skin)
-    _sphere("DriverHead", Vector3(0.34, 1.47, -0.12),
-        0.135, _skin)
-    _box("DriverHair", Vector3(0.34, 1.58, -0.13),
-        Vector3(0.26, 0.065, 0.24), _hair)
+    _sphere("DriverHead", Vector3(0.34, 1.16, -0.12),
+        0.105, _skin)
+    _box("DriverHair", Vector3(0.34, 1.255, -0.13),
+        Vector3(0.205, 0.045, 0.205), _hair)
     for side in [-1, 1]:
         var x: float = 0.34 + float(side) * 0.14
-        _box("DriverArm_%d" % side, Vector3(x, 1.12, -0.29),
+        _box("DriverArm_%d" % side, Vector3(x, 1.005, -0.29),
             Vector3(0.095, 0.105, 0.34), _uniform)
     # A visible A/B-pillar gives window structure without an opaque cabin.
     for side in [-1, 1]:
