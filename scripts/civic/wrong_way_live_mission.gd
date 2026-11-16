@@ -1113,6 +1113,13 @@ func restore(raw: Variant) -> bool:
             # Finished worlds cannot be rewound into an unsafe active phase
             # without a new scene; this is the only rejected rewind case.
             return false
+    # The route closure is ephemeral but must reproduce the authoritative
+    # restored incident state, not the state before the checkpoint.
+    if traffic_system != null:
+        if blocker_removed:
+            traffic_system.clear_incident_route_closure(MISSION_ID)
+        else:
+            traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
     finished = bool(data["finished"])
     if finished and is_instance_valid(marker):
         marker.queue_free()
