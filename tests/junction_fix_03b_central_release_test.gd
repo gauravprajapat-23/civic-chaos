@@ -65,7 +65,7 @@ func _run() -> void:
         return
 
     var person_id: int = 100001
-    var zone := "pedestrian_crossing_ns"
+    var zone := "pedestrian_crossing_ew"
     var result: Dictionary = reservations.request(person_id,
         PackedStringArray([zone]), 0, 50)
     if not bool(result.get("granted", false)) or not reservations.occupy(person_id, zone):
