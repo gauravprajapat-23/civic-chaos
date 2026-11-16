@@ -709,6 +709,14 @@ func _advance_ground_recovery(delta: float) -> void:
     if not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
         return
     tow_vehicle.speed_mps = 0.0
+    # Roadside collection is suspended if a real person/vehicle steps into
+    # the worksite. No progress or reward can be made during that interval.
+    if not _tow_service_worksite_clear():
+        return
+    if traffic_system != null and traffic_system.crossing_reservations != null and (
+            traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or
+            traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew") >= 0):
+        return
     service_recovery_seconds = minf(SERVICE_RECOVERY_SECONDS,
         service_recovery_seconds + delta)
     if service_recovery_seconds >= SERVICE_RECOVERY_SECONDS:
