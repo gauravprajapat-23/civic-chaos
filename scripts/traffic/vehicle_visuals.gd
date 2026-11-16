@@ -10,6 +10,34 @@ const PALETTE: Array[Color] = [
     Color(0.18, 0.21, 0.23), # Graphite
     Color(0.18, 0.33, 0.28)  # Forest green
 ]
+## CAR-ART-05D: bounded, deterministic visual variety. Each car's
+## original first-route lane ID already survives checkpoint restoration.
+## Do not use RNG, object IDs, simulation ticks or new save fields.
+const DRIVER_SHIRTS: Array[Color] = [
+    Color(0.25, 0.43, 0.54), Color(0.61, 0.29, 0.23),
+    Color(0.25, 0.44, 0.32), Color(0.51, 0.43, 0.61),
+    Color(0.64, 0.57, 0.30)
+]
+const DRIVER_SKIN: Array[Color] = [
+    Color(0.58, 0.34, 0.22), Color(0.37, 0.21, 0.14),
+    Color(0.70, 0.46, 0.30), Color(0.49, 0.29, 0.19),
+    Color(0.63, 0.41, 0.27)
+]
+const DRIVER_HAIR: Array[Color] = [
+    Color(0.095, 0.075, 0.067), Color(0.18, 0.12, 0.08),
+    Color(0.055, 0.055, 0.06), Color(0.29, 0.18, 0.11),
+    Color(0.115, 0.09, 0.085)
+]
+const SEAT_TRIMS: Array[Color] = [
+    Color(0.20, 0.23, 0.24), Color(0.27, 0.22, 0.19),
+    Color(0.18, 0.22, 0.27), Color(0.23, 0.23, 0.20),
+    Color(0.24, 0.19, 0.21)
+]
+const RIM_FINISHES: Array[Color] = [
+    Color(0.46, 0.50, 0.54), Color(0.64, 0.65, 0.63),
+    Color(0.31, 0.35, 0.39), Color(0.56, 0.50, 0.44),
+    Color(0.40, 0.44, 0.48)
+]
 var _paint: StandardMaterial3D
 var _glass: StandardMaterial3D
 var _mirror_glass: StandardMaterial3D
@@ -24,6 +52,7 @@ var _uniform: StandardMaterial3D
 var _skin: StandardMaterial3D
 var _hair: StandardMaterial3D
 var _color_slot: int = 0
+var _driver_slot: int = 0
 var _braking: bool = false
 
 func _ready() -> void:
@@ -109,14 +138,40 @@ func _tapered_cabin() -> ArrayMesh:
     return surface.commit()
 
 func set_lane_variant(lane_id: int) -> void:
-    # The existing lane is deterministic and saved with route state.
-    # Do NOT use the simulation RNG for cosmetic choices.
+    # Preserve the established lane-based body paint contract. Derive a
+    # separate identity from that same original lane, without touching the
+    # traffic RNG or updating the driver's look on subsequent route steps.
     _color_slot = posmod(lane_id, PALETTE.size())
+    _driver_slot = posmod(lane_id * 7 + 3, DRIVER_SHIRTS.size())
     if _paint != null:
         _paint.albedo_color = PALETTE[_color_slot]
+    if _uniform != null:
+        _uniform.albedo_color = DRIVER_SHIRTS[_driver_slot]
+    if _skin != null:
+        _skin.albedo_color = DRIVER_SKIN[_driver_slot]
+    if _hair != null:
+        _hair.albedo_color = DRIVER_HAIR[_driver_slot]
+    if _upholstery != null:
+        _upholstery.albedo_color = SEAT_TRIMS[_driver_slot]
+    if _hub_finish != null:
+        _hub_finish.albedo_color = RIM_FINISHES[_driver_slot]
+    # Five reversible hair silhouettes using the same low-poly mesh; no
+    # additional drawing surfaces, collisions, or separate occupant scripts.
+    var hair: MeshInstance3D = get_node_or_null("DriverHair") as MeshInstance3D
+    if hair != null:
+        hair.scale = Vector3(1.0 + float(_driver_slot % 3) * 0.08,
+            1.0 + float(_driver_slot % 2) * 0.18, 1.0)
+    # Vehicle badge uses existing metal material; no unique license plate
+    # text/font needed for thousands of moving vehicles.
 
 func color_variant() -> int:
     return _color_slot
+
+func driver_variant() -> int:
+    return _driver_slot
+
+func visual_identity() -> Dictionary:
+    return {"paint": _color_slot, "driver": _driver_slot}
 
 func set_braking(value: bool) -> void:
     if _braking == value or _tail == null:
