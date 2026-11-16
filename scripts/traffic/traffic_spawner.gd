@@ -47,7 +47,6 @@ const CITY_SOFT_QUEUE_MIN: int = 5
 const CITY_SOFT_STOPPED_PERCENT: int = 50
 const CITY_DRAIN_CLEAR_TICKS: int = 80
 var _city_drain_until_tick: int = 0
-var _city_last_completion_tick: int = 0
 
 static func city_soft_congested(active_count: int, stopped_count: int) -> bool:
 	return active_count >= CITY_SOFT_QUEUE_MIN and (
@@ -69,10 +68,6 @@ func _update_city_drain() -> void:
 	var pressure: Dictionary = queue_pressure()
 	if city_soft_congested(int(pressure["active"]), int(pressure["stopped"])):
 		_city_drain_until_tick = maxi(_city_drain_until_tick, current_tick + CITY_DRAIN_CLEAR_TICKS)
-	elif completed_total > 0 and _city_last_completion_tick < current_tick:
-		# Completion is useful evidence of actual throughput, not permission
-		# to immediately flood the city on the next tick.
-		_city_last_completion_tick = current_tick
 
 var _spawn_backpressure_ticks: int = 0
 ## ROAD-GAME-01: player-authorized traffic metering pauses new arrivals,
@@ -303,7 +298,6 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	clear_central_recovery()
 	_spawn_backpressure_ticks = 0
 	_city_drain_until_tick = 0
-	_city_last_completion_tick = 0
 	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
 	work_budget.reset_runtime()
