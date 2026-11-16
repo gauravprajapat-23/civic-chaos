@@ -33,11 +33,20 @@ func _run() -> void:
         _fail("car could not configure")
         return
     await physics_frame
+    # Legacy full-length strips are gone; safe segmented pedestrian floor
+    # bodies may be solid only between crossing openings.
     for sidewalk_name in ["SidewalkX-1", "SidewalkX1", "SidewalkZ-1", "SidewalkZ1"]:
-        var sidewalk := district.get_node_or_null(sidewalk_name) as StaticBody3D
-        if sidewalk == null or sidewalk.collision_layer != 0:
-            _fail("continuous sidewalk still has solid car-blocking collider: " + sidewalk_name)
+        if district.get_node_or_null(sidewalk_name) != null:
+            _fail("old continuous road-blocking sidewalk remains: " + sidewalk_name)
             return
+    for side in [-1, 1]:
+        for index in range(4):
+            for prefix in ["SidewalkX", "SidewalkZ"]:
+                var sidewalk_name: String = "%s%d_%d" % [prefix, side, index]
+                var sidewalk := district.get_node_or_null(sidewalk_name) as StaticBody3D
+                if sidewalk == null or sidewalk.collision_layer != 1:
+                    _fail("safe sidewalk segment is missing solid floor support: " + sidewalk_name)
+                    return
     var lane: CivicLaneData = graph.get_lane(lane_id)
     for distance in [3.0, 4.2, 5.0, 5.8, 7.0, 9.0, 12.0]:
         var pose: Dictionary = car.sample_centerline(lane.centerline, distance)
