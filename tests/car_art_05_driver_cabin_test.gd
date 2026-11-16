@@ -25,8 +25,8 @@ func _run() -> void:
         return
     var glass: StandardMaterial3D = windshield.material_override as StandardMaterial3D
     var shell: StandardMaterial3D = cabin.material_override as StandardMaterial3D
-    if glass == null or shell == null or glass.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA or shell.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA:
-        _fail("driver is still hidden behind an opaque windscreen or cabin")
+    if glass == null or shell == null or glass.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA or shell.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+        _fail("windshield must be transparent, lower cabin shell must be solid paint")
         return
     if glass.albedo_color.a > 0.60 or glass.albedo_color.a < 0.15:
         _fail("driver window tint is unusable")
