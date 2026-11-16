@@ -29,10 +29,10 @@ func rebuild() -> void:
     _block("SouthRoad", Vector3(0, -0.005, half * 0.5), Vector3(road_width, 0.08, half))
     _block("EastRoad", Vector3(half * 0.5, -0.012, 0), Vector3(half, 0.08, road_width))
     _block("WestRoad", Vector3(-half * 0.5, -0.012, 0), Vector3(half, 0.08, road_width))
-    for side in [-1, 1]:
-        var sign_value: float = float(side)
-        _block("SidewalkX%d" % side, Vector3(sign_value * (road_half + sidewalk_width * 0.5), 0.1, 0), Vector3(sidewalk_width, 0.2, half * 2.0))
-        _block("SidewalkZ%d" % side, Vector3(0, 0.1, sign_value * (road_half + sidewalk_width * 0.5)), Vector3(half * 2.0, 0.2, sidewalk_width))
+    # ROAD-FIX-01: walkable, solid slabs *between* intersections.
+    # Never span an east/west road with the north/south sidewalk (or vice versa).
+    # Leave a full carriageway plus 1.5 m turning clearance at each cross street.
+    _sidewalk_sections(half, road_half)
     for x in [-1, 1]:
         for z in [-1, 1]:
             var variation: int = (int(x) + 1) / 2 + (int(z) + 1)
@@ -75,6 +75,21 @@ func rebuild() -> void:
         info.name = "DistrictInfoPoint"
         info.position = Vector3(road_half + sidewalk_width + 1.0, 0.2, -12)
         add_child(info)
+
+func _sidewalk_sections(half: float, road_half: float) -> void:
+    var spans: Array[Vector2] = CityRoadLayout.sidewalk_intervals(half, road_half)
+    for side in [-1, 1]:
+        var offset: float = float(side) * (road_half + sidewalk_width * 0.5)
+        for index in range(spans.size()):
+            var interval: Vector2 = spans[index]
+            var length: float = interval.y - interval.x
+            var middle: float = (interval.x + interval.y) * 0.5
+            # Raised sidewalk is real floor support; no special collision
+            # override is needed now that it does not cross the road.
+            _block("SidewalkX%d_%d" % [side, index],
+                Vector3(offset, 0.1, middle), Vector3(sidewalk_width, 0.2, length))
+            _block("SidewalkZ%d_%d" % [side, index],
+                Vector3(middle, 0.1, offset), Vector3(length, 0.2, sidewalk_width))
 
 func _outer_blocks(half: float) -> void:
     # The 5x5 city graph drives on x/z = 0, +/-46 and +/-120. Paint *every*
@@ -136,14 +151,8 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     var body := StaticBody3D.new()
     body.name = block_name
     body.position = center
-    # The primary sidewalk ribbons run across every secondary/perimeter
-    # street. Their raised physics slabs used to span the driveable lanes and
-    # could permanently trap a green-light car. Keep the visible sidewalk
-    # but rely on the continuous terrain below for pedestrian support.
-    # Traffic signals, people, cars and real building colliders remain solid.
-    if block_name.begins_with("Sidewalk"):
-        body.collision_layer = 0
-        body.collision_mask = 0
+    # Sidewalk sections are actual solid pedestrian support, but their
+    # footprints never cover a traversable intersection or vehicle lane.
     add_child(body)
     var shape := CollisionShape3D.new()
     shape.name = "CollisionShape3D"
@@ -209,16 +218,22 @@ func _stop_bars(road_half: float) -> void:
             Vector3(0.24, 0.012, road_width - 0.7), paint)
 
 func _curb_accents(half: float, road_half: float) -> void:
-    # Thin raised edges add street depth without extra physics or textures.
+    # Curb accents are decorative (no physics), but must also stop at cross
+    # streets so that an open carriageway looks open in PC/Android builds.
     var curb_material := _material(Color(0.81, 0.78, 0.69))
+    var spans: Array[Vector2] = CityRoadLayout.sidewalk_intervals(half, road_half)
     for side in [-1, 1]:
-        var direction: float = float(side)
-        _facade_panel(self, "CurbNorthSouth_%d" % side,
-            Vector3(direction * (road_half + 0.08), 0.13, 0),
-            Vector3(0.16, 0.18, half * 2.0), curb_material)
-        _facade_panel(self, "CurbEastWest_%d" % side,
-            Vector3(0, 0.13, direction * (road_half + 0.08)),
-            Vector3(half * 2.0, 0.18, 0.16), curb_material)
+        var offset: float = float(side) * (road_half + 0.08)
+        for index in range(spans.size()):
+            var interval: Vector2 = spans[index]
+            var length: float = interval.y - interval.x
+            var middle: float = (interval.x + interval.y) * 0.5
+            _facade_panel(self, "CurbNorthSouth_%d_%d" % [side, index],
+                Vector3(offset, 0.13, middle),
+                Vector3(0.16, 0.18, length), curb_material)
+            _facade_panel(self, "CurbEastWest_%d_%d" % [side, index],
+                Vector3(middle, 0.13, offset),
+                Vector3(length, 0.18, 0.16), curb_material)
 
 func _decorate_building(building: Node3D, size: Vector3) -> void:
     var glass := _material(Color(0.17, 0.31, 0.40))
