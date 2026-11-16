@@ -35,6 +35,13 @@ func set_state(next_state: String) -> bool:
         audio.play()
     return true
 
+## The simulated speed can remain stale when a mission script stops
+## ticking. Presentation takes actual accepted distance when available.
+func observe_displacement(distance_m: float, delta: float, is_active: bool, is_alert: bool = false) -> void:
+    if not is_finite(distance_m) or not is_finite(delta) or delta <= 0.0:
+        return
+    observe_vehicle(maxf(0.0, distance_m) / delta, is_active, is_alert)
+
 func observe_vehicle(speed_mps: float, is_active: bool, is_alert: bool = false) -> void:
     if not is_finite(speed_mps) or speed_mps < 0.0:
         return
