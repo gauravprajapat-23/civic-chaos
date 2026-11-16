@@ -60,6 +60,30 @@ func aspect_for_approach(approach: String) -> String:
 			return "amber"
 	return "red"
 
+## TRAFFIC-FIX-06: how long until this approach *next* receives green.
+## Returns 0 when already green; read-only, exact same six-phase clock.
+## Pedestrians use this to avoid starting a crossing that would persist
+## into the conflicting vehicle axis's green.
+func seconds_until_green(approach: String) -> float:
+	if not is_valid() or not ["N", "S", "E", "W"].has(approach):
+		return 0.0
+	if aspect_for_approach(approach) == "green":
+		return 0.0
+	var elapsed_remaining: float = _phase_duration() - phase_elapsed
+	for shift in range(1, 7):
+		var upcoming: int = (int(phase) + shift) % 6
+		var matched: bool = (approach == "N" or approach == "S") and upcoming == Phase.NS_GREEN
+		matched = matched or ((approach == "E" or approach == "W") and upcoming == Phase.EW_GREEN)
+		if matched:
+			return maxf(0.0, elapsed_remaining)
+		if upcoming == Phase.NS_GREEN or upcoming == Phase.EW_GREEN:
+			elapsed_remaining += green_seconds
+		elif upcoming == Phase.NS_AMBER or upcoming == Phase.EW_AMBER:
+			elapsed_remaining += amber_seconds
+		else:
+			elapsed_remaining += clearance_seconds
+	return 0.0
+
 func has_conflicting_green() -> bool:
 	return aspect_for_approach("N") == "green" and aspect_for_approach("E") == "green"
 
