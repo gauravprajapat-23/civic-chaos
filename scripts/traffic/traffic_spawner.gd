@@ -6,6 +6,7 @@ const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Budget = preload("res://scripts/traffic/traffic_budget.gd")
 const OuterPriority = preload("res://scripts/traffic/outer_intersection_priority.gd")
+const StopDiag = preload("res://scripts/traffic/traffic_stop_diagnostics.gd")
 var work_budget: CivicTrafficBudget = Budget.new()
 
 @export_range(1, 100, 1) var maximum_active: int = 20
@@ -37,11 +38,57 @@ var _vehicle_delay: Dictionary = {}
 const GRIDLOCK_MIN_VEHICLES: int = 3
 const GRIDLOCK_STOPPED_PERCENT: int = 75
 var _spawn_backpressure_ticks: int = 0
+## Runtime-only stop evidence; never saved or used for traffic decisions.
+var diagnostics_enabled: bool = true
+var _observation_hold_reason: Dictionary = {}
+var _observed_stop_reason: Dictionary = {}
+var _stop_streaks: Dictionary = {}
+var _observed_blocker: Dictionary = {}
 
 static func congestion_backpressure(active_count: int, stopped_count: int) -> bool:
 	if active_count < GRIDLOCK_MIN_VEHICLES:
 		return false
 	return stopped_count * 100 >= active_count * GRIDLOCK_STOPPED_PERCENT
+
+## Purely observational, indexed by live fleet slot when exported. Logs
+## every 120 same-cause stopped ticks (six seconds at fixed 20 Hz).
+func _record_stop_evidence(vehicle: CivicVehicleAgent) -> void:
+	var id: int = vehicle.get_instance_id()
+	var reason: String = StopDiag.stop_reason(vehicle, str(_observation_hold_reason.get(id, "")))
+	if reason == "":
+		_observed_stop_reason.erase(id)
+		_observed_blocker.erase(id)
+		_stop_streaks.erase(id)
+		return
+	var streak: int = int(_stop_streaks.get(id, 0)) + 1 if _observed_stop_reason.get(id, "") == reason else 1
+	_observed_stop_reason[id] = reason
+	_stop_streaks[id] = streak
+	_observed_blocker[id] = vehicle.last_physics_blocker
+	if not StopDiag.should_log(streak):
+		return
+	var slot: int = active_vehicles.find(vehicle)
+	var lane_id: int = vehicle.route[vehicle.current_route_index] if not vehicle.route.is_empty() else -1
+	var phase: String = traffic_signals.phase_name() if traffic_signals != null else "no_central_signal"
+	print("CIVIC_TRAFFIC_HOLD tick=%d slot=%d lane=%d step=%d distance=%.2f speed=%.2f reason=%s phase=%s blocker=%s" % [
+		current_tick, slot, lane_id, vehicle.current_route_index, vehicle.lane_distance_m,
+		vehicle.speed_mps, reason, phase, str(_observed_blocker.get(id, ""))])
+
+func stop_diagnostics() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for slot in range(active_vehicles.size()):
+		var car: CivicVehicleAgent = active_vehicles[slot]
+		if not is_instance_valid(car) or not car.active:
+			continue
+		var id: int = car.get_instance_id()
+		result.append({"slot": slot, "tick": current_tick,
+			"lane_id": car.route[car.current_route_index] if not car.route.is_empty() else -1,
+			"route_step": car.current_route_index, "distance": car.lane_distance_m,
+			"speed": car.speed_mps, "position": car.global_position,
+			"reason": str(_observed_stop_reason.get(id, "")),
+			"streak_ticks": int(_stop_streaks.get(id, 0)),
+			"blocker": str(_observed_blocker.get(id, "")),
+			"signal_phase": traffic_signals.phase_name() if traffic_signals != null else "no_central_signal"})
+	return result
 
 func queue_pressure() -> Dictionary:
 	var stopped: int = 0
@@ -88,6 +135,10 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 			vehicle.queue_free()
 	active_vehicles.clear()
 	_vehicle_delay.clear()
+	_observation_hold_reason.clear()
+	_observed_stop_reason.clear()
+	_stop_streaks.clear()
+	_observed_blocker.clear()
 	_spawn_backpressure_ticks = 0
 	work_budget.configure(maximum_active, 8)
 	work_budget.reset_runtime()
@@ -115,6 +166,7 @@ func advance_fixed(tick: int, delta: float) -> void:
 	# Otherwise an earlier fleet slot can enter a conflict zone while a later
 	# slot arbitrates against already-mutated positions in the same fixed tick.
 	var observations: Dictionary = {}
+	_observation_hold_reason.clear()
 	for vehicle in active_vehicles:
 		var observation: Dictionary = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
 		observations[vehicle.get_instance_id()] = apply_stop_line_observation(vehicle, observation)
@@ -130,12 +182,17 @@ func advance_fixed(tick: int, delta: float) -> void:
 		if vehicle.speed_mps < 0.2:
 			_vehicle_delay[vehicle.get_instance_id()] = float(_vehicle_delay.get(vehicle.get_instance_id(), 0.0)) + delta
 		vehicle.advance_fixed(delta)
+		if diagnostics_enabled:
+			_record_stop_evidence(vehicle)
 	for index in range(active_vehicles.size() - 1, -1, -1):
 		var vehicle := active_vehicles[index]
 		if not vehicle.active:
 			completed_total += 1
 			total_delay_seconds += float(_vehicle_delay.get(vehicle.get_instance_id(), 0.0))
 			_vehicle_delay.erase(vehicle.get_instance_id())
+			_observed_stop_reason.erase(vehicle.get_instance_id())
+			_stop_streaks.erase(vehicle.get_instance_id())
+			_observed_blocker.erase(vehicle.get_instance_id())
 			active_vehicles.remove_at(index)
 			vehicle.queue_free()
 	# Check after movement: resumed traffic can immediately admit arrivals,
@@ -149,6 +206,9 @@ func advance_fixed(tick: int, delta: float) -> void:
 
 func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation: Dictionary) -> Dictionary:
 	var observation: Dictionary = initial_observation.duplicate()
+	var id: int = vehicle.get_instance_id() if vehicle != null else -1
+	if diagnostics_enabled and id >= 0:
+		_observation_hold_reason[id] = "lead_vehicle" if bool(initial_observation.get("detected", false)) else ""
 	# The central junction keeps its original signal + crossing reservation
 	# contract. Outer junctions use a fixed-tick stateless priority policy,
 	# independent of the one central signal and safe across F5/F9 restores.
@@ -172,7 +232,11 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 		if not must_yield and gap >= 0.0 and gap <= 12.0:
 			must_yield = _outer_pedestrian_occupied(OuterPriority.junction_for_lane(lane))
 		if must_yield and gap >= 0.0:
-			return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+			var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+			if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
+					float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
+				_observation_hold_reason[id] = "outer_pedestrian" if not bool(decision.get("yield", false)) else StopDiag.outer_reason(str(decision.get("reason", "")))
+			return merged
 		return observation
 	if traffic_signals == null:
 		return observation
@@ -182,8 +246,14 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 	var pedestrian_occupied: bool = false
 	if crossing_reservations != null:
 		pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
-	if gap >= 0.0 and (traffic_signals.aspect_for_approach(approach) != "green" or pedestrian_occupied):
-		return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+	var aspect: String = traffic_signals.aspect_for_approach(approach)
+	var signal_hold: String = StopDiag.signal_reason(aspect, pedestrian_occupied)
+	if gap >= 0.0 and signal_hold != "":
+		var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+		if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
+				float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
+			_observation_hold_reason[id] = signal_hold
+		return merged
 	return observation
 
 static func _merge_stop_line(observation: Dictionary, gap: float, minimum_gap: float) -> Dictionary:
