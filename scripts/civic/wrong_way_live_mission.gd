@@ -80,6 +80,10 @@ var _tow_last_diagnostic_seconds: float = 0.0
 var service_recovery_seconds: float = 0.0
 var service_recovery_active: bool = false
 var tow_recovered_on_site: bool = false
+## Runtime-only marshal order; checkpoints during the short operation
+## safely resume before the operation so the player can request it again.
+var marshal_clearance_active: bool = false
+var marshal_clearance_seconds: float = 0.0
 
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -218,7 +222,9 @@ func _physics_process(delta: float) -> void:
     peak_stopped = maxi(peak_stopped, stopped_count)
     if reported_tick >= 0:
         _advance_marshal(delta)
-    if tow_started and not tow_completed:
+    if marshal_clearance_active:
+        _advance_marshal_clearance(delta)
+    elif tow_started and not tow_completed:
         if service_recovery_active:
             _advance_ground_recovery(delta)
         else:
@@ -354,6 +360,8 @@ func incident_card_state() -> Dictionary:
         status = "Traffic restored"
     elif blocker_removed:
         status = "Tow complete; verifying traffic flow"
+    elif marshal_clearance_active:
+        status = "Marshal securing the offending vehicle at the roadside"
     elif tow_started:
         status = "Municipal tow convoy clearing the legal route"
     elif intervention_tick >= 0:
@@ -405,6 +413,69 @@ func perform_incident_action(actor: Node, action: String) -> bool:
     _announce("Report received. Marshal dispatched to remove the obstruction safely.")
     return true
 
+## TRAFFIC-FIX-12: the player's actual report and arriving marshal may
+## order LOCAL removal. Do not force a municipal truck across a jam.
+## No deletion occurs on button press, and the incident cannot be claimed
+## before the follower cars demonstrate physical recovery.
+func request_marshal_clearance() -> Dictionary:
+    if finished or blocker_removed or marshal_clearance_active:
+        return {"accepted": false, "reason": "already_handled"}
+    if reported_tick < 0 or intervention_tick < 0 or not inspected or (
+            not is_instance_valid(marshal) or session == null or incident_id < 0):
+        return {"accepted": false, "reason": "report_and_marshal_required"}
+    if session.incidents.incidents[incident_id]["state"] != CivicIncidentManager.INTERVENTION:
+        return {"accepted": false, "reason": "intervention_not_authorized"}
+    if not is_instance_valid(offender):
+        return {"accepted": false, "reason": "offender_unavailable"}
+    if not _marshal_roadside_clear():
+        return {"accepted": false, "reason": "people_or_cars_at_worksite"}
+    marshal_clearance_active = true
+    marshal_clearance_seconds = 0.0
+    _announce("Marshal authorized local removal. Keep the offender's worksite clear.")
+    return {"accepted": true, "reason": "marshal_removing"}
+
+## The only geometry touched by manual removal is the actual offender
+## (and tow if one exists), never a follower, background car or pedestrian.
+func _marshal_roadside_clear() -> bool:
+    if not is_inside_tree() or not is_instance_valid(offender):
+        return false
+    var sphere := SphereShape3D.new()
+    sphere.radius = SERVICE_CLEARANCE_RADIUS_M
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = sphere
+    query.collision_mask = 2 | 4 | 8
+    query.collide_with_bodies = true
+    var exclude: Array[RID] = []
+    for car in [offender, tow_vehicle]:
+        if is_instance_valid(car):
+            var body := car.get_node_or_null("CollisionBody") as CollisionObject3D
+            if body != null:
+                exclude.append(body.get_rid())
+    query.exclude = exclude
+    var locations: Array[Vector3] = [offender.global_position]
+    if is_instance_valid(tow_vehicle):
+        locations.append(tow_vehicle.global_position)
+    for location in locations:
+        query.transform = Transform3D(Basis.IDENTITY, location + Vector3.UP * 0.7)
+        if not get_world_3d().direct_space_state.intersect_shape(query, 16).is_empty():
+            return false
+    return true
+
+func _advance_marshal_clearance(delta: float) -> void:
+    # A person entering the worksite pauses service; no forced collision
+    # suppression, vehicle teleportation or instant objective payout.
+    if not _marshal_roadside_clear():
+        return
+    marshal_clearance_seconds += delta
+    if marshal_clearance_seconds < SERVICE_RECOVERY_SECONDS:
+        return
+    marshal_clearance_active = false
+    marshal_clearance_seconds = 0.0
+    tow_started = true
+    tow_recovered_on_site = true
+    tow_progress_m = maxf(tow_progress_m, OFFENDER_DISTANCE + TOW_GAP_M)
+    _finish_tow_convoy()
+
 func _advance_marshal(delta: float) -> void:
     if intervention_tick < 0 and tick - reported_tick >= MARSHAL_DISPATCH_TICKS:
         if not is_instance_valid(marshal):
@@ -416,7 +487,7 @@ func _advance_marshal(delta: float) -> void:
                 intervention_tick = tick
                 session.missions.record_event(MISSION_ID, "marshal_intervened")
                 _announce("Marshal arrived. The driver is being directed out of the lane.")
-    if intervention_tick >= 0 and not tow_started and tick - intervention_tick >= MARSHAL_SERVICE_TICKS:
+    if intervention_tick >= 0 and not tow_started and not marshal_clearance_active and tick - intervention_tick >= MARSHAL_SERVICE_TICKS:
         if _start_tow_convoy():
             _announce("City tow service connected. The wrong-way car is being moved along a legal lane.")
 
@@ -757,6 +828,8 @@ func _update_tow_link() -> void:
 func _finish_tow_convoy() -> void:
     if tow_completed or not tow_started:
         return
+    marshal_clearance_active = false
+    marshal_clearance_seconds = 0.0
     if not tow_recovered_on_site and tow_progress_m < _tow_route_length() - 0.01:
         return
     # Store the canonical route endpoint, not the last incremental floating
@@ -872,6 +945,10 @@ func guidance_state() -> Dictionary:
         speaker = "Traffic Marshal"
     elif blocker_removed:
         objective = "Watch for actual cars to resume; recovery is not confirmed yet."
+        has_target = false
+        speaker = "Traffic Marshal"
+    elif marshal_clearance_active:
+        objective = "Stay clear while the marshal removes the offending car."
         has_target = false
         speaker = "Traffic Marshal"
     elif tow_started:
@@ -1165,6 +1242,8 @@ func restore(raw: Variant) -> bool:
         # A completed scene cannot be rewound in place after its collider
         # was deleted. Reject before mutating missions or actor positions.
         return false
+    marshal_clearance_active = false
+    marshal_clearance_seconds = 0.0
     tick = int(data["tick"])
     incident_id = int(data["incident_id"])
     inspected = data["inspected"]
