@@ -209,9 +209,14 @@ func _clear_staging() -> void:
     followers.clear()
 
 func _physics_process(delta: float) -> void:
-    if incident_id < 0 or finished:
+    if incident_id < 0 or delta <= 0.0:
         return
-    if delta <= 0.0:
+    # Mission completion must NOT freeze remaining collision-bearing cars
+    # in the active street. Continue their real fixed-step route movement
+    # until route_completed deactivates them and retires their colliders.
+    # Only campaign/civic progression stops when finished.
+    if finished:
+        _advance_cars(delta)
         return
     tick += 1
     if is_instance_valid(offender) and reported_tick < 0:
