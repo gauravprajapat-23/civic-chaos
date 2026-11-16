@@ -455,13 +455,16 @@ func _advance_tow_convoy(delta: float) -> void:
     var travel: float = minf(TOW_SPEED_MPS * delta, remaining)
     # A convoy obeys the central signal and the pedestrian crossing.
     if traffic_system != null:
-        var signal_observation: Dictionary = traffic_system.apply_stop_line_observation(
-            tow_vehicle, {"detected": false})
+        # Scripted tow vehicles are not in the background fleet. Using
+        # ordinary fleet-slot arbitration here can make the convoy lose
+        # every green to stopped cars it is supposed to clear.
+        var signal_observation: Dictionary = traffic_system.municipal_service_observation(
+            tow_vehicle)
         if bool(signal_observation.get("detected", false)):
             var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
             travel = minf(travel, stop_gap)
     if travel <= 0.0001:
-        _note_tow_hold("traffic signal or pedestrian crossing")
+        _note_tow_hold("red light, active crossing or occupied junction")
         tow_vehicle.speed_mps = 0.0
         return
     # Probe several intermediate footprints, including corners, BEFORE
