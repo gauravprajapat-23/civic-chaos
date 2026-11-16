@@ -299,7 +299,7 @@ func municipal_service_observation(vehicle: CivicVehicleAgent) -> Dictionary:
     var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
     if lane == null or not CentralPriority.is_inbound(lane):
         return clear
-    var gap: float = maxf(0.0, lane.length_m() - CentralPriority.STOP_LINE_M) - vehicle.lane_distance_m
+    var gap: float = lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m
     if gap < 0.0:
         return clear
     var hold: bool = false
