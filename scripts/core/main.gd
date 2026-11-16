@@ -93,6 +93,10 @@ func _ready() -> void:
     player.interaction_message.connect(_on_interaction_message)
     lifecycle.lifecycle_message.connect(_on_interaction_message)
     status_label.text = "F1 pause | F5 save | F9 load | F10 restart | F12 menu"
+    # Old scene debug banner contained permanent title, keyboard commands
+    # and raw status text across the top-center. Keep its data for code
+    # compatibility, but remove the overlapping legacy presentation.
+    $CanvasLayer/HUD.visible = false
     civic_hud = StatusHUD.new()
     civic_hud.name = "CivicStatusHUD"
     $CanvasLayer.add_child(civic_hud)
