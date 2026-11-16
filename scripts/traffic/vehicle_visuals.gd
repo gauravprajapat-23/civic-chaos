@@ -168,11 +168,11 @@ func _build_driver_and_interior() -> void:
     # The torso and head are true geometry behind glass, not a UI decal.
     _box("DriverTorso", Vector3(0.34, 0.995, -0.09),
         Vector3(0.35, 0.30, 0.22), _uniform)
-    _box("DriverNeck", Vector3(0.34, 1.095, -0.10),
+    _box("DriverNeck", Vector3(0.34, 1.03, -0.10),
         Vector3(0.10, 0.08, 0.11), _skin)
-    _sphere("DriverHead", Vector3(0.34, 1.16, -0.12),
+    _sphere("DriverHead", Vector3(0.34, 1.115, -0.12),
         0.105, _skin)
-    _box("DriverHair", Vector3(0.34, 1.255, -0.13),
+    _box("DriverHair", Vector3(0.34, 1.215, -0.13),
         Vector3(0.205, 0.045, 0.205), _hair)
     for side in [-1, 1]:
         var x: float = 0.34 + float(side) * 0.14
