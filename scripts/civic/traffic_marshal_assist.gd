@@ -13,7 +13,10 @@ static func center_obstruction_count(diagnostics: Array[Dictionary]) -> int:
     var count: int = 0
     for record in diagnostics:
         var position: Variant = record.get("position", null)
-        if not (position is Vector3) or (position as Vector3).distance_to(Vector3.ZERO) > 18.0:
+        if not (position is Vector3):
+            continue
+        var world_position: Vector3 = position
+        if world_position.distance_to(Vector3.ZERO) > 18.0:
             continue
         if str(record.get("reason", "")) in [
                 "lead_vehicle", "world_collider", "central_zone_occupied",
