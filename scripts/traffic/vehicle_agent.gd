@@ -130,9 +130,14 @@ func advance_fixed(delta: float) -> void:
             travel = 0.0
             next_speed = 0.0
     speed_mps = next_speed
+    var visual_heading_before: float = rotation.y
     _travel(travel)
     if active:
         _place_on_lane()
+    var visual_heading_change: float = wrapf(rotation.y - visual_heading_before, -PI, PI)
+    var motion_details: Node = get_node_or_null("DetailVisuals")
+    if motion_details != null and motion_details.has_method("update_motion_visuals"):
+        motion_details.call("update_motion_visuals", travel, visual_heading_change)
     # Brake lamps are cosmetic and never control vehicle movement. An
     # obstacle stop or explicit stop command illuminates rear lamps.
     var visual_details: Node = get_node_or_null("DetailVisuals")
