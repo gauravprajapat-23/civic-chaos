@@ -196,19 +196,25 @@ func _redraw() -> void:
     if _map_area != null:
         _map_area.queue_redraw()
 
+## UI-HUD-01: deterministic screen-space placement, clear of mobile
+## bottom touch controls and safe areas. The full map is unchanged.
+static func minimap_bounds(viewport: Vector2) -> Rect2:
+    if not viewport.is_finite() or viewport.x < 240.0 or viewport.y < 240.0:
+        return Rect2()
+    var edge: float = minf(156.0, maxf(100.0, minf(viewport.x * 0.22, viewport.y * 0.25)))
+    var bottom_safe: float = 16.0 if viewport.x >= 700.0 else 74.0
+    return Rect2(Vector2(12.0, viewport.y - bottom_safe - edge - 38.0), Vector2(edge, edge))
+
 func _fit() -> void:
     if small_frame == null:
         return
     var size: Vector2 = get_viewport().get_visible_rect().size
-    var edge: float = minf(156.0, maxf(100.0, minf(size.x * 0.22, size.y * 0.25)))
-    var margin: float = 12.0
-    var button_height: float = 34.0
-    var bottom_safe: float = 16.0 if size.x >= 700.0 else 74.0
-    small_frame.position = Vector2(margin, size.y - bottom_safe - edge - button_height - 4.0)
-    small_frame.size = Vector2(edge, edge)
-    map_surface.custom_minimum_size = Vector2(edge, edge)
-    map_button.position = Vector2(margin, size.y - bottom_safe - button_height)
-    map_button.size = Vector2(edge, button_height)
+    var bounds: Rect2 = minimap_bounds(size)
+    small_frame.position = bounds.position
+    small_frame.size = bounds.size
+    map_surface.custom_minimum_size = bounds.size
+    map_button.position = Vector2(bounds.position.x, bounds.end.y + 4.0)
+    map_button.size = Vector2(bounds.size.x, 34.0)
     large_frame.position = Vector2(maxf(8, size.x * 0.08), maxf(8, size.y * 0.06))
     large_frame.size = Vector2(maxf(250, size.x * 0.84), maxf(200, size.y * 0.88))
     _redraw()
