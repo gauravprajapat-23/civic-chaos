@@ -6,6 +6,7 @@ extends SceneTree
 const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
 const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
 const Builder = preload("res://scripts/world/junction_builder.gd")
+const Priority = preload("res://scripts/traffic/central_intersection_priority.gd")
 const Walkers = preload("res://scripts/npc/district_pedestrians.gd")
 
 func _initialize() -> void:
@@ -25,7 +26,7 @@ func _run() -> void:
     for id in graph.sorted_lane_ids():
         var lane: CivicLaneData = graph.get_lane(id)
         var approach: String = Spawner.signal_approach_for_lane(lane, true)
-        if approach != "" and not inbound.has(approach):
+        if Priority.is_inbound(lane) and approach != "" and not inbound.has(approach):
             inbound[approach] = lane
     if inbound.size() != 4:
         _fail("could not find four legal inbound approaches")
