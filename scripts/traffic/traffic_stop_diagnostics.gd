@@ -33,6 +33,8 @@ static func outer_reason(reason: String) -> String:
             return "red_signal"
         "zone_occupied":
             return "outer_zone_occupied"
+        "outbound_blocked":
+            return "outbound_blocked"
         "higher_priority_approach", "higher_priority_lane", "higher_priority_slot":
             return "outer_priority"
     return ""
