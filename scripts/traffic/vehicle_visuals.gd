@@ -65,6 +65,10 @@ const LOD_HYSTERESIS_M: float = 4.0
 var _detail_level: int = DETAIL_NEAR
 var _wheel_rotation: float = 0.0
 var _steer_visual: float = 0.0
+## Immutable build-pose snapshots: never derive animated spokes from
+## their currently rendered MultiMesh transforms or hidden scene nodes.
+var _spoke_rest_transforms: Array[Transform3D] = []
+var _spoke_axle_centers: Array[Vector3] = []
 
 func _ready() -> void:
     # Opaque PBR materials remain readable in Godot Mobile/Compatibility.
@@ -260,9 +264,17 @@ func _batch_wheel_spokes() -> void:
     multi.transform_format = MultiMesh.TRANSFORM_3D
     multi.mesh = mesh
     multi.instance_count = spokes.size()
+    _spoke_rest_transforms.clear()
+    _spoke_axle_centers.clear()
     for index in range(spokes.size()):
-        multi.set_instance_transform(index, spokes[index].transform)
-        spokes[index].visible = false
+        var spoke: MeshInstance3D = spokes[index]
+        var pose: Transform3D = spoke.transform
+        _spoke_rest_transforms.append(pose)
+        var side: float = -1.0 if str(spoke.name).contains("_L_") else 1.0
+        var axial_z: float = -0.95 if str(spoke.name).begins_with("Front") else 0.95
+        _spoke_axle_centers.append(Vector3(side * 0.935, 0.36, axial_z))
+        multi.set_instance_transform(index, pose)
+        spoke.visible = false
     batch.multimesh = multi
     batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(batch)
@@ -302,20 +314,15 @@ func _update_batched_spoke_rotation() -> void:
     var group: MultiMeshInstance3D = get_node_or_null("BatchedWheelSpokes") as MultiMeshInstance3D
     if group == null or group.multimesh == null:
         return
-    var i: int = 0
-    for spoke in get_children():
-        if not (spoke is MeshInstance3D) or not str(spoke.name).contains("WheelSpoke_"):
-            continue
-        var wheel_side: float = -1.0 if str(spoke.name).contains("_L_") else 1.0
-        var axle_z: float = -0.95 if str(spoke.name).begins_with("Front") else 0.95
-        var center := Vector3(wheel_side * 0.935, 0.36, axle_z)
-        var motion := Transform3D(Basis(Vector3.RIGHT, _wheel_rotation), Vector3.ZERO)
-        var initial: Transform3D = (spoke as MeshInstance3D).transform
-        var relative: Vector3 = initial.origin - center
-        var rotated := Transform3D(motion.basis * initial.basis,
-            center + motion.basis * relative)
-        group.multimesh.set_instance_transform(i, rotated)
-        i += 1
+    if group.multimesh.instance_count != _spoke_rest_transforms.size() or _spoke_rest_transforms.size() != _spoke_axle_centers.size():
+        return
+    var rotation_basis := Basis(Vector3.RIGHT, _wheel_rotation)
+    for index in range(_spoke_rest_transforms.size()):
+        var initial: Transform3D = _spoke_rest_transforms[index]
+        var center: Vector3 = _spoke_axle_centers[index]
+        var rotated := Transform3D(rotation_basis * initial.basis,
+            center + rotation_basis * (initial.origin - center))
+        group.multimesh.set_instance_transform(index, rotated)
 
 func set_braking(value: bool) -> void:
     if _braking == value or _tail == null:
