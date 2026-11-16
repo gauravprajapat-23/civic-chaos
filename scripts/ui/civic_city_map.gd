@@ -200,13 +200,15 @@ func _fit() -> void:
     if small_frame == null:
         return
     var size: Vector2 = get_viewport().get_visible_rect().size
-    var edge: float = minf(150.0, maxf(94.0, size.x * 0.14))
-    var center_x: float = size.x * 0.5
-    small_frame.position = Vector2(center_x - edge * 0.5, 8)
+    var edge: float = minf(156.0, maxf(100.0, minf(size.x * 0.22, size.y * 0.25)))
+    var margin: float = 12.0
+    var button_height: float = 34.0
+    var bottom_safe: float = 16.0 if size.x >= 700.0 else 74.0
+    small_frame.position = Vector2(margin, size.y - bottom_safe - edge - button_height - 4.0)
     small_frame.size = Vector2(edge, edge)
     map_surface.custom_minimum_size = Vector2(edge, edge)
-    map_button.position = Vector2(center_x - 48, edge + 16)
-    map_button.size = Vector2(96, 44)
+    map_button.position = Vector2(margin, size.y - bottom_safe - button_height)
+    map_button.size = Vector2(edge, button_height)
     large_frame.position = Vector2(maxf(8, size.x * 0.08), maxf(8, size.y * 0.06))
     large_frame.size = Vector2(maxf(250, size.x * 0.84), maxf(200, size.y * 0.88))
     _redraw()
@@ -220,8 +222,54 @@ static func world_to_map(world: Vector3, area: Rect2) -> Vector2:
         clampf((world.z + EXTENT) / (EXTENT * 2.0), 0.0, 1.0)
     ) * square
 
+## Player-centred square minimap, oriented with actual player heading.
+## Only the full map uses the global overview/world_to_map projection.
+const MINI_RADIUS_M: float = 37.0
+
+static func minimap_project(world: Vector3, player_at: Vector3,
+        player_facing: Vector3, area: Rect2) -> Vector2:
+    var forward := Vector2(player_facing.x, player_facing.z)
+    if forward.length_squared() < 0.0001:
+        forward = Vector2(0, -1)
+    forward = forward.normalized()
+    var right := Vector2(-forward.y, forward.x)
+    var delta := Vector2(world.x - player_at.x, world.z - player_at.z)
+    var local := Vector2(delta.dot(right), -delta.dot(forward))
+    return area.get_center() + local * minf(area.size.x, area.size.y) / (MINI_RADIUS_M * 2.0)
+
 func _draw_small() -> void:
-    _draw_map(map_surface, Rect2(Vector2(8, 8), map_surface.size - Vector2(16, 16)), false)
+    if map_surface == null:
+        return
+    var area := Rect2(Vector2(7, 7), map_surface.size - Vector2(14, 14))
+    if area.size.x <= 0.0 or area.size.y <= 0.0:
+        return
+    map_surface.draw_rect(area, MAP_BACKGROUND, true)
+    var world_edges: Array[float] = RoadLayout.coordinates()
+    var road_width: float = maxf(3.0, area.size.x * RoadLayout.ROAD_WIDTH_M / (MINI_RADIUS_M * 2.0))
+    for coordinate in world_edges:
+        var vertical_a: Vector2 = minimap_project(Vector3(coordinate, 0, -EXTENT), player_position, player_forward, area)
+        var vertical_b: Vector2 = minimap_project(Vector3(coordinate, 0, EXTENT), player_position, player_forward, area)
+        var horizontal_a: Vector2 = minimap_project(Vector3(-EXTENT, 0, coordinate), player_position, player_forward, area)
+        var horizontal_b: Vector2 = minimap_project(Vector3(EXTENT, 0, coordinate), player_position, player_forward, area)
+        map_surface.draw_line(vertical_a, vertical_b, ROAD_EDGE, road_width + 2.0)
+        map_surface.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, road_width + 2.0)
+        map_surface.draw_line(vertical_a, vertical_b, ROAD, road_width)
+        map_surface.draw_line(horizontal_a, horizontal_b, ROAD, road_width)
+    if bool(route_state.get("ok", false)):
+        var path: PackedVector3Array = route_state["points"]
+        for i in range(1, path.size()):
+            map_surface.draw_line(minimap_project(path[i - 1], player_position, player_forward, area),
+                minimap_project(path[i], player_position, player_forward, area), ROUTE_COLOR, 2.5, true)
+    var destination: Dictionary = _navigation_goal()
+    if bool(destination.get("has_target", false)):
+        var target: Vector2 = minimap_project(destination["target"], player_position, player_forward, area)
+        target = Vector2(clampf(target.x, area.position.x + 5.0, area.end.x - 5.0),
+            clampf(target.y, area.position.y + 5.0, area.end.y - 5.0))
+        map_surface.draw_circle(target, 5.0, TARGET)
+    var center: Vector2 = area.get_center()
+    map_surface.draw_colored_polygon(PackedVector2Array([
+        center + Vector2(0, -8), center + Vector2(-5, 6), center + Vector2(5, 6)]), PLAYER)
+    map_surface.draw_arc(center, 10.0, 0, TAU, 24, Color.WHITE, 1.2)
 
 func _draw_large() -> void:
     _draw_map(_map_area, Rect2(Vector2(16, 10), _map_area.size - Vector2(32, 20)), true)
