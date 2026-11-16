@@ -7,6 +7,7 @@ const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Budget = preload("res://scripts/traffic/traffic_budget.gd")
 const OuterPriority = preload("res://scripts/traffic/outer_intersection_priority.gd")
 const StopDiag = preload("res://scripts/traffic/traffic_stop_diagnostics.gd")
+const CentralPriority = preload("res://scripts/traffic/central_intersection_priority.gd")
 var work_budget: CivicTrafficBudget = Budget.new()
 
 @export_range(1, 100, 1) var maximum_active: int = 20
@@ -238,22 +239,38 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 				_observation_hold_reason[id] = "outer_pedestrian" if not bool(decision.get("yield", false)) else StopDiag.outer_reason(str(decision.get("reason", "")))
 			return merged
 		return observation
-	if traffic_signals == null:
-		return observation
 	var approach: String = signal_approach_for_lane(lane, city_mode)
 	if approach.is_empty():
 		return observation
+	# First preserve the explicit signal / physical pedestrian reservation.
+	# The unsignalled legacy graph still gets a safe single-entrant junction.
 	var pedestrian_occupied: bool = false
 	if crossing_reservations != null:
 		pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
-	var aspect: String = traffic_signals.aspect_for_approach(approach)
-	var signal_hold: String = StopDiag.signal_reason(aspect, pedestrian_occupied)
+	var signal_hold: String = ""
+	if traffic_signals != null:
+		signal_hold = StopDiag.signal_reason(traffic_signals.aspect_for_approach(approach), pedestrian_occupied)
+	elif pedestrian_occupied:
+		signal_hold = "crossing_occupied"
 	if gap >= 0.0 and signal_hold != "":
 		var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
 		if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
 				float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
 			_observation_hold_reason[id] = signal_hold
 		return merged
+	# Next arbitrate one physical entrant at a time. This prevents four
+	# unsignalled fixture arms (and opposing green turning cars in the city)
+	# from entering a central conflict zone simultaneously. No occupant is
+	# removed, and a car already through the stopline remains committed.
+	if gap >= 0.0 and CentralPriority.is_inbound(lane):
+		var decision: Dictionary = CentralPriority.disposition(vehicle, road_graph,
+			active_vehicles, gap, traffic_signals)
+		if bool(decision.get("yield", false)):
+			var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+			if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
+					float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
+				_observation_hold_reason[id] = str(decision.get("reason", "central_priority"))
+			return merged
 	return observation
 
 static func _merge_stop_line(observation: Dictionary, gap: float, minimum_gap: float) -> Dictionary:
