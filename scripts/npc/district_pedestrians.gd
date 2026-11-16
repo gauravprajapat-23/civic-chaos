@@ -770,7 +770,11 @@ func _can_cross(side: int) -> bool:
         return true
     # Pedestrians cross only while the parallel vehicle axis is stopped.
     var approach: String = "E" if side < 2 else "N"
-    if _signal_controller.aspect_for_approach(approach) != "red":
+    var opposing: String = "W" if side < 2 else "S"
+    # With four one-way greens, BOTH opposing directions must be red
+    # before a pedestrian starts across their common conflict area.
+    if _signal_controller.aspect_for_approach(approach) != "red" or (
+            _signal_controller.aspect_for_approach(opposing) != "red"):
         return false
     # A walker requires roughly 12 m of actual travel through this
     # crossing. Do not let them ENTER right before opposing traffic green:
@@ -779,7 +783,8 @@ func _can_cross(side: int) -> bool:
     # Existing occupied crossings are still released only when physically
     # clear; this check is for NEW entries only.
     const MIN_ENTRY_RED_WINDOW_SECONDS: float = 13.0
-    if _signal_controller.seconds_until_green(approach) < MIN_ENTRY_RED_WINDOW_SECONDS:
+    if minf(_signal_controller.seconds_until_green(approach),
+            _signal_controller.seconds_until_green(opposing)) < MIN_ENTRY_RED_WINDOW_SECONDS:
         return false
     if _traffic_spawner == null:
         return true
