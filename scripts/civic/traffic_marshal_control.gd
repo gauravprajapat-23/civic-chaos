@@ -10,7 +10,9 @@ static func request_axis(axis: String, signals: CivicTrafficSignalController,
         mission_cars: Array[CivicVehicleAgent] = []) -> Dictionary:
     if signals == null or spawner == null or spawner.road_graph == null:
         return {"accepted": false, "reason": "controller_unavailable"}
-    var valid_directions: Array[String] = ["N", "E", "S", "W"] if signals.single_approach_mode else ["NS", "EW"]
+    var valid_directions: Array[String] = ["NS", "EW"]
+    if signals.single_approach_mode:
+        valid_directions = ["N", "E", "S", "W"]
     if not valid_directions.has(axis):
         return {"accepted": false, "reason": "invalid_axis"}
     var approach: String = axis if signals.single_approach_mode else ("N" if axis == "NS" else "E")
