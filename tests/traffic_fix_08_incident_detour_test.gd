@@ -30,7 +30,8 @@ func _run() -> void:
     if not spawner.route_lane_closed(restricted_id):
         _fail("closed incident route remains open")
         return
-    if spawner._open_route_options([restricted_id]).size() != 0:
+    var incident_only: Array[int] = [restricted_id]
+    if spawner._open_route_options(incident_only).size() != 0:
         _fail("route planner still advertises blocked civic lane")
         return
     var valid_routes: int = 0
