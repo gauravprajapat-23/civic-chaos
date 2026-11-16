@@ -235,7 +235,7 @@ func set_detail_level(level: int) -> void:
             (part as VisualInstance3D).visible = _distant_silhouette(name)
 
 static func _tiny_decoration(name: String) -> bool:
-    return name.begins_with("GrilleSlat_") or name.begins_with("WheelFace_") or name.begins_with("FrontHub_") or name.begins_with("RearHub_") or name.begins_with("DoorSeam_") or name.begins_with("DoorHandle_") or name.begins_with("FrontDoor") or name.begins_with("RearDoor") or name.begins_with("MirrorGlass_") or name.begins_with("MirrorMount_") or name.begins_with("FrontBadge") or name.begins_with("WindowSill_") or name.begins_with("HoodCenterCrease") or name.begins_with("Waistline_") or name.begins_with("GrilleSide_") or name.begins_with("GrilleSurround") or name.begins_with("FrontSideMarker") or name.begins_with("RearSideReflector")
+    return name.begins_with("GrilleSlat_") or name.contains("WheelFace_") or name.begins_with("FrontHub_") or name.begins_with("RearHub_") or name.begins_with("DoorSeam_") or name.begins_with("DoorHandle_") or name.begins_with("FrontDoor") or name.begins_with("RearDoor") or name.begins_with("MirrorGlass_") or name.begins_with("MirrorMount_") or name.begins_with("FrontBadge") or name.begins_with("WindowSill_") or name.begins_with("HoodCenterCrease") or name.begins_with("Waistline_") or name.begins_with("GrilleSide_") or name.begins_with("GrilleSurround") or name.begins_with("FrontSideMarker") or name.begins_with("RearSideReflector")
 
 static func _distant_silhouette(name: String) -> bool:
     return name == "Hood" or name == "Trunk" or name == "Roof" or name == "FrontGrille" or name == "FrontBumper" or name == "RearBumper" or name == "RearTrunkLip" or name == "RearTailPanel" or name.begins_with("FrontLamp_") or name.begins_with("RearLamp_")
