@@ -63,6 +63,8 @@ const NEAR_DISTANCE_M: float = 24.0
 const FAR_DISTANCE_M: float = 54.0
 const LOD_HYSTERESIS_M: float = 4.0
 var _detail_level: int = DETAIL_NEAR
+var _wheel_rotation: float = 0.0
+var _steer_visual: float = 0.0
 
 func _ready() -> void:
     # Opaque PBR materials remain readable in Godot Mobile/Compatibility.
@@ -265,6 +267,56 @@ func _batch_wheel_spokes() -> void:
     batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(batch)
 
+## CAR-ART-05F: purely cosmetic motion fed by *actual* route travel.
+## Front wheels steer slightly in curves; tire tread and disc rotate on
+## every moving axle. Nothing writes into car position/speed/traffic RNG.
+func update_motion_visuals(actual_travel_m: float, yaw_delta_rad: float) -> void:
+    if not is_finite(actual_travel_m) or not is_finite(yaw_delta_rad):
+        return
+    _wheel_rotation = wrapf(_wheel_rotation + maxf(0.0, actual_travel_m) / 0.34, -PI, PI)
+    _steer_visual = clampf(yaw_delta_rad * 3.0, -0.38, 0.38)
+    var owner: Node = get_parent()
+    if owner == null:
+        return
+    for side in ["L", "R"]:
+        for axle in ["Front", "Rear"]:
+            var key: String = "Wheel_" + side + "_" + axle
+            var wheel: MeshInstance3D = owner.get_node_or_null(key) as MeshInstance3D
+            if wheel != null:
+                wheel.rotation.x = _wheel_rotation
+                if axle == "Front":
+                    wheel.rotation.y = _steer_visual
+            var hub: MeshInstance3D = get_node_or_null(axle + "Hub_" + side) as MeshInstance3D
+            if hub != null:
+                hub.rotation.x = _wheel_rotation
+            var face: MeshInstance3D = get_node_or_null(axle + "WheelFace_" + side) as MeshInstance3D
+            if face != null:
+                face.rotation.x = _wheel_rotation
+    var steering: MeshInstance3D = get_node_or_null("SteeringWheel") as MeshInstance3D
+    if steering != null:
+        steering.rotation.z = _steer_visual * 0.40
+    if _detail_level == DETAIL_NEAR:
+        _update_batched_spoke_rotation()
+
+func _update_batched_spoke_rotation() -> void:
+    var group: MultiMeshInstance3D = get_node_or_null("BatchedWheelSpokes") as MultiMeshInstance3D
+    if group == null or group.multimesh == null:
+        return
+    var i: int = 0
+    for spoke in get_children():
+        if not (spoke is MeshInstance3D) or not str(spoke.name).contains("WheelSpoke_"):
+            continue
+        var wheel_side: float = -1.0 if str(spoke.name).contains("_L_") else 1.0
+        var axle_z: float = -0.95 if str(spoke.name).begins_with("Front") else 0.95
+        var center := Vector3(wheel_side * 0.935, 0.36, axle_z)
+        var motion := Transform3D(Basis(Vector3.RIGHT, _wheel_rotation), Vector3.ZERO)
+        var initial: Transform3D = (spoke as MeshInstance3D).transform
+        var relative: Vector3 = initial.origin - center
+        var rotated := Transform3D(motion.basis * initial.basis,
+            center + motion.basis * relative)
+        group.multimesh.set_instance_transform(i, rotated)
+        i += 1
+
 func set_braking(value: bool) -> void:
     if _braking == value or _tail == null:
         return
@@ -336,9 +388,9 @@ func _build_driver_and_interior() -> void:
     for side in [-1, 1]:
         var x: float = float(side) * 0.64
         _box("WindshieldPillar_%d" % side, Vector3(x, 1.095, -0.61),
-            Vector3(0.055, 0.43, 0.065), _trim, -0.44)
+            Vector3(0.035, 0.31, 0.047), _paint, -0.44)
         _box("RearPillar_%d" % side, Vector3(x, 1.095, 0.69),
-            Vector3(0.055, 0.41, 0.075), _trim, 0.40)
+            Vector3(0.035, 0.31, 0.047), _paint, 0.40)
 
 func _sphere(name: String, location: Vector3, radius: float, surface: Material) -> void:
     var part := MeshInstance3D.new()
@@ -417,10 +469,12 @@ func _build_details() -> void:
             Vector3(0.095, 0.055, 0.54), _paint)
     # The roof bridges the tapered cabin; glass sits within its silhouette.
     _box("Roof", Vector3(0, 1.283, 0.13), Vector3(1.19, 0.08, 1.00), _paint)
-    _box("RoofFrontLip", Vector3(0, 1.265, -0.372),
-        Vector3(1.17, 0.068, 0.062), _trim)
-    _box("RoofRearLip", Vector3(0, 1.265, 0.633),
-        Vector3(1.17, 0.068, 0.062), _trim)
+    # Preserve the old named roof pieces for art contracts, but recess
+    # them into painted roof edges. Dark raised bars looked like a cage.
+    _box("RoofFrontLip", Vector3(0, 1.25, -0.345),
+        Vector3(1.12, 0.035, 0.06), _paint)
+    _box("RoofRearLip", Vector3(0, 1.25, 0.605),
+        Vector3(1.12, 0.035, 0.06), _paint)
     _box("Windscreen", Vector3(0, 1.035, -0.607),
         Vector3(1.12, 0.36, 0.035), _glass, -0.53)
     _box("RearGlass", Vector3(0, 1.037, 0.755),
@@ -440,12 +494,14 @@ func _build_details() -> void:
         # Three-piece compact mirror: a short arm attached at the door,
         # dark housing and inset rear-facing metallic glass. Preserve the
         # legacy Mirror_L/R names for visual contracts.
-        _box("MirrorMount_" + label, Vector3(s * 0.743, 0.972, -0.62),
-            Vector3(0.115, 0.055, 0.085), _trim)
-        _box("Mirror_" + label, Vector3(s * 0.811, 1.00, -0.65),
-            Vector3(0.145, 0.105, 0.165), _trim)
-        _box("MirrorGlass_" + label, Vector3(s * 0.811, 1.008, -0.56),
-            Vector3(0.119, 0.075, 0.012), _mirror_glass)
+        # Mirror shell visibly projects beyond the door side, with real
+        # rear-facing reflective glass. All presentation-only.
+        _box("MirrorMount_" + label, Vector3(s * 0.747, 0.997, -0.60),
+            Vector3(0.115, 0.045, 0.06), _trim)
+        _box("Mirror_" + label, Vector3(s * 0.847, 1.005, -0.61),
+            Vector3(0.145, 0.10, 0.135), _paint)
+        _box("MirrorGlass_" + label, Vector3(s * 0.847, 1.012, -0.535),
+            Vector3(0.119, 0.078, 0.012), _mirror_glass)
         _box("FrontLamp_" + label, Vector3(s * 0.56, 0.69, -1.483),
             Vector3(0.32, 0.13, 0.035), _headlamp)
         _box("RearLamp_" + label, Vector3(s * 0.56, 0.68, 1.485),
