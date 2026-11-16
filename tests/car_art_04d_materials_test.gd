@@ -38,8 +38,13 @@ func _run() -> void:
     if paint == windshield or windshield == mirror or mirror == housing or metal == hub or hub == tire:
         _fail("body paint, window, mirror casing, glass, hub and tire must use separate finishes")
         return
-    if windshield.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or mirror.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
-        _fail("expensive transparent car glass was introduced in Android traffic")
+    # CAR-ART-05 requires a visible driver behind the windscreen. Only the
+    # cabin/window glass may blend; mirror glass stays opaque and cheap.
+    if windshield.transparency != BaseMaterial3D.TRANSPARENCY_ALPHA or mirror.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+        _fail("driver visibility glazing or opaque mirror contract failed")
+        return
+    if windshield.albedo_color.a >= 0.60 or windshield.albedo_color.a <= 0.15:
+        _fail("tinted glass does not reveal the driver clearly")
         return
     if mirror.metallic < 0.4 or mirror.albedo_color.r < 0.35:
         _fail("mirror glass is dark and indistinct")
