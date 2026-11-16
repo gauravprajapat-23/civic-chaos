@@ -9,6 +9,7 @@ var dimensions_label: Label
 var traffic_label: Label
 var roam_label: Label
 var feedback_label: Label
+var compact_label: Label
 var _last_state: Dictionary = {}
 
 func _ready() -> void:
@@ -31,6 +32,14 @@ func _ready() -> void:
     traffic_label = _line(content)
     roam_label = _line(content)
     feedback_label = _line(content)
+    # Keep the full diagnostic labels populated for telemetry and legacy
+    # tests, but never render a seven-paragraph wall during normal play.
+    for verbose in [mission_label, incidents_label, reputation_label,
+            dimensions_label, traffic_label, roam_label, feedback_label]:
+        verbose.visible = false
+    compact_label = _line(content)
+    compact_label.name = "CompactCivicSummary"
+    compact_label.add_theme_font_size_override("font_size", 13)
     render_state({})
 
 ## UX-02: pure geometry helper makes small-display behavior testable.
@@ -38,12 +47,12 @@ static func layout_for(viewport: Vector2) -> Rect2:
     if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
         return Rect2()
     var left: float = 8.0 if viewport.x < 600.0 else 12.0
-    # Narrow portrait: reserve the upper strip for the objective guide.
-    # On landscape/desktop they occupy opposite corners instead.
-    var top: float = 250.0 if viewport.x < 600.0 else (80.0 if viewport.y < 560.0 else 120.0)
+    # Keep the compact score strip clear of the right-hand mission card.
+    # In portrait it sits below the mission strip, leaving the map below.
+    var top: float = 148.0 if viewport.x < 600.0 else 10.0
     var available_width: float = maxf(0.0, viewport.x - left * 2.0)
-    var width: float = minf(348.0, available_width)
-    var height: float = minf(260.0, maxf(0.0, viewport.y - top - 8.0))
+    var width: float = minf(224.0, available_width)
+    var height: float = minf(74.0, maxf(0.0, viewport.y - top - 8.0))
     return Rect2(Vector2(left, top), Vector2(width, height))
 
 func _fit() -> void:
@@ -136,6 +145,12 @@ func render_state(state: Dictionary) -> void:
                 roam_label.text += "\nNEXT PROJECT | %s (%d to go)" % [
                     upcoming, int(projects.get("remaining", 0))]
     feedback_label.text = str(state.get("feedback", "E interact | F1 pause"))
+    var compact_reputation: String = "--" if reputation == null else str(clampi(int(reputation), 0, 1000))
+    var compact_incidents: String = "--" if incident_count == null else str(maxi(0, int(incident_count)))
+    var safety: String = "--" if not civic_scores.has("safety") else str(int(civic_scores["safety"]))
+    var flow: String = "--" if not civic_scores.has("efficiency") else str(int(civic_scores["efficiency"]))
+    compact_label.text = "REP %s   INCIDENTS %s\nSAFETY %s   FLOW %s" % [
+        compact_reputation, compact_incidents, safety, flow]
 
 func current_state() -> Dictionary:
     return _last_state.duplicate(true)
