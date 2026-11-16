@@ -9,6 +9,8 @@ const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 static func make_test_graph() -> CivicRoadGraph:
     var graph := Graph.new()
     # Four incoming lanes converge on the junction; each has an outbound continuation.
+    # Match Indian left-side road placement on the isolated fixture too:
+    # overlapping opposing lane centerlines caused permanent head-on queues.
     var endpoints: Array[Vector3] = [
         Vector3(0, 0, -20), Vector3(0, 0, 0),
         Vector3(20, 0, 0), Vector3(0, 0, 0),
@@ -18,10 +20,10 @@ static func make_test_graph() -> CivicRoadGraph:
     for arm in range(4):
         var inbound := Lane.new()
         inbound.lane_id = arm * 2 + 1
-        inbound.centerline = PackedVector3Array([endpoints[arm * 2], Vector3.ZERO])
+        inbound.centerline = _city_left_side_centerline(endpoints[arm * 2], Vector3.ZERO)
         var outbound := Lane.new()
         outbound.lane_id = arm * 2 + 2
-        outbound.centerline = PackedVector3Array([Vector3.ZERO, endpoints[arm * 2]])
+        outbound.centerline = _city_left_side_centerline(Vector3.ZERO, endpoints[arm * 2])
         inbound.next_lane_ids = PackedInt32Array([2, 4, 6, 8])
         # Do not U-turn onto the same arm.
         var exits := PackedInt32Array()
