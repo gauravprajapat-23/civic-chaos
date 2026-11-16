@@ -12,6 +12,8 @@ const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
+const TrafficMarshalAssist = preload("res://scripts/civic/traffic_marshal_assist.gd")
+const TrafficMarshalPost = preload("res://scripts/civic/wrong_way_report_marker.gd")
 const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
 const DistrictCampaign = preload("res://scripts/civic/district_campaign.gd")
@@ -47,6 +49,11 @@ var _dispatch_open: bool = false
 var _map_open: bool = false
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
+var _marshal_post: CivicWrongWayReportMarker
+var _marshal_assist_pending: bool = false
+var _marshal_assist_start_tick: int = 0
+var _marshal_assist_completed: int = 0
+var _marshal_assist_stopped: int = 0
 var _wrong_way_retry_elapsed: float = 0.0
 var _checkpoint_load_queue: CivicCheckpointLoadQueue = CheckpointLoadQueue.new()
 
@@ -141,6 +148,7 @@ func _ready() -> void:
     add_child(incident_card)
     incident_card.action_selected.connect(_on_incident_card_action)
     incident_card.dismissed.connect(_on_incident_card_dismissed)
+    _create_traffic_marshal_station()
     mission_guide = MissionGuide.new() as CivicMissionGuide
     mission_guide.name = "CivicMissionGuide"
     add_child(mission_guide)
@@ -164,6 +172,74 @@ func _ready() -> void:
     district_finale.review_selected.connect(_present_campaign_finale)
     _refresh_mission_guide()
     print("CIVIC_CHAOS_MAIN_READY")
+
+## Roadside player action, independent of campaign mission progression.
+## Does not change signals, pedestrian ownership or physical road agents.
+func _create_traffic_marshal_station() -> void:
+    _marshal_post = TrafficMarshalPost.new() as CivicWrongWayReportMarker
+    _marshal_post.name = "CivicTrafficMarshalPost"
+    _marshal_post.position = Vector3(-10.0, 0.21, -10.0)
+    add_child(_marshal_post)
+    _marshal_post.activated.connect(_on_traffic_marshal_activated)
+    var sign: Label3D = _marshal_post.get_node_or_null("WrongWaySign") as Label3D
+    if sign != null:
+        sign.text = "TRAFFIC MARSHAL\nE / USE | MANAGE QUEUE"
+
+func _on_traffic_marshal_activated(actor: Node) -> void:
+    if actor != player or gameplay_session == null or not is_instance_valid(_marshal_post):
+        return
+    if player.global_position.distance_to(_marshal_post.global_position) > 3.5:
+        _on_interaction_message("Move closer to the Traffic Marshal post.")
+        return
+    if _marshal_assist_pending:
+        _on_interaction_message("Traffic Marshal: New arrivals are being held while existing cars clear.")
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        return
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    if spawner == null:
+        return
+    var rewarded: bool = gameplay_session.metrics.processed_events.has(TrafficMarshalAssist.EVENT_ID)
+    if rewarded:
+        _on_interaction_message("Traffic Marshal: Verified clearance reward already earned.")
+        return
+    var pressure: Dictionary = spawner.queue_pressure()
+    if not TrafficMarshalAssist.eligible(pressure, spawner.stop_diagnostics(), rewarded):
+        _on_interaction_message("Traffic Marshal: Wait for a real persistent blockage. A red light alone is not a violation.")
+        return
+    if not spawner.request_marshal_metering(TrafficMarshalAssist.METER_TICKS):
+        _on_interaction_message("Traffic Marshal: Unable to start safe traffic management.")
+        return
+    _marshal_assist_pending = true
+    _marshal_assist_start_tick = spawner.current_tick
+    _marshal_assist_completed = spawner.completed_total
+    _marshal_assist_stopped = int(pressure["stopped"])
+    _on_interaction_message("TRAFFIC MARSHAL | Holding new arrivals for 20 seconds. Existing signals and collisions stay active.")
+
+func _update_traffic_marshal_assist() -> void:
+    if not _marshal_assist_pending or gameplay_session == null:
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        _marshal_assist_pending = false
+        return
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    if spawner == null:
+        _marshal_assist_pending = false
+        return
+    var pressure: Dictionary = spawner.queue_pressure()
+    if TrafficMarshalAssist.verified(_marshal_assist_completed, spawner.completed_total,
+            _marshal_assist_stopped, int(pressure["stopped"])):
+        if gameplay_session.metrics.apply_outcome(TrafficMarshalAssist.EVENT_ID,
+                maxi(gameplay_session.tick, gameplay_session.metrics.last_tick),
+                {"safety": 10, "efficiency": 15, "cooperation": 10},
+                "player_assisted_verified_vehicle_clearance"):
+            _on_interaction_message("TRAFFIC MARSHAL COMPLETE | Two real cars exited and the queue shrank. Civic reputation earned!")
+        _marshal_assist_pending = false
+    elif spawner.current_tick - _marshal_assist_start_tick >= TrafficMarshalAssist.REVIEW_TICKS:
+        _marshal_assist_pending = false
+        _on_interaction_message("Traffic Marshal: No verified queue recovery yet. No reward awarded; inspect the blocker and retry.")
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event.pressed or event.echo or (district_finale != null and district_finale.is_open()):
@@ -618,6 +694,12 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         var state: Dictionary = civic_hud.current_state()
         state.merge(wrong_way_world.hud_state(), true)
         civic_hud.render_state(state)
+    _marshal_assist_pending = false
+    var resumed_junction: Node = get_node_or_null("FourWayJunction")
+    if resumed_junction != null:
+        var resumed_spawner: CivicTrafficSpawner = resumed_junction.get("traffic_spawner") as CivicTrafficSpawner
+        if resumed_spawner != null:
+            resumed_spawner.clear_marshal_metering()
     _on_interaction_message("Checkpoint restored. All active civic incidents and physical actors resumed.")
     _refresh_mission_guide()
     return true
@@ -1103,6 +1185,7 @@ func _process(delta: float) -> void:
     if _traffic_display_elapsed < 0.5 or civic_hud == null:
         return
     _traffic_display_elapsed = 0.0
+    _update_traffic_marshal_assist()
     _refresh_mission_guide()
     var junction := get_node_or_null("FourWayJunction")
     if junction == null:
