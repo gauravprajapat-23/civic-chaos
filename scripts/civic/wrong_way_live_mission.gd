@@ -25,6 +25,9 @@ const TOW_SPEED_MPS: float = 7.0
 const TOW_SWEEP_STEP_M: float = 0.30
 const SERVICE_RECOVERY_SECONDS: float = 2.0
 const SERVICE_HOLD_BEFORE_RECOVERY_FRAMES: int = 180
+## Two full N/E/S/W cycles before considering authorized on-site service.
+const STARVATION_MIN_SECONDS: float = 136.0
+const SERVICE_CLEARANCE_RADIUS_M: float = 2.25
 ## An authorized on-road collection takes a short visible stationary
 ## interval; it NEVER applies vertical translation to vehicle bodies.
 const CHECKPOINT_VERSION: int = 1
@@ -69,6 +72,8 @@ var _last_progress_signature: String = ""
 var _stalled: bool = false
 var _tow_hold_reason: String = ""
 var _tow_hold_frames: int = 0
+var _tow_stationary_seconds: float = 0.0
+var _tow_last_diagnostic_seconds: float = 0.0
 var service_recovery_seconds: float = 0.0
 var service_recovery_active: bool = false
 var tow_recovered_on_site: bool = false
@@ -446,6 +451,8 @@ func _start_tow_convoy(restore_progress: float = -1.0) -> bool:
     if traffic_system != null:
         traffic_system.register_road_user(truck)
     tow_progress_m = initial_progress
+    _tow_stationary_seconds = 0.0
+    _tow_last_diagnostic_seconds = 0.0
     var paint := StandardMaterial3D.new()
     paint.albedo_color = Color(1.0, 0.68, 0.08)
     var visual := truck.get_node_or_null("Visual") as MeshInstance3D
@@ -526,6 +533,16 @@ func _advance_tow_convoy(delta: float) -> void:
             var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
             travel = minf(travel, stop_gap)
     if travel <= 0.0001:
+        _tow_stationary_seconds += maxf(0.0, delta)
+        if _tow_stationary_seconds - _tow_last_diagnostic_seconds >= 6.0:
+            _tow_last_diagnostic_seconds = _tow_stationary_seconds
+            print("CIVIC_TOW_GATE %s" % str(_tow_gate_snapshot()))
+        if _tow_can_begin_starvation_recovery():
+            service_recovery_active = true
+            service_recovery_seconds = 0.0
+            tow_vehicle.speed_mps = 0.0
+            _announce("Municipal crew starting authorized roadside collection after prolonged signal starvation.")
+            return
         var hold_reason: String = "physical traffic clearance"
         if traffic_system != null:
             var gate_reason: String = traffic_system.municipal_service_hold_reason(tow_vehicle)
@@ -549,6 +566,8 @@ func _advance_tow_convoy(delta: float) -> void:
             _note_tow_hold("offender route physically occupied")
             tow_vehicle.speed_mps = 0.0
             return
+    _tow_stationary_seconds = 0.0
+    _tow_last_diagnostic_seconds = 0.0
     _tow_hold_frames = 0
     _tow_hold_reason = ""
     var heading_before: float = tow_vehicle.rotation.y
@@ -577,6 +596,85 @@ func _advance_tow_convoy(delta: float) -> void:
     # Only declare physical clearance once the whole convoy reaches the exit.
     if tow_progress_m >= _tow_route_length() - 0.01:
         _finish_tow_convoy()
+
+## Read-only diagnostics of exact service direction, lights and occupants.
+func _tow_gate_snapshot() -> Dictionary:
+    var details: Dictionary = {
+        "tick": tick, "progress": snappedf(tow_progress_m, 0.01),
+        "stationary_seconds": snappedf(_tow_stationary_seconds, 0.1),
+        "authorized": reported_tick >= 0 and intervention_tick >= 0,
+        "reason": _tow_hold_reason, "approach": "", "aspect": "unknown",
+        "next_green_seconds": -1.0, "crossing_ns_owner": -1,
+        "crossing_ew_owner": -1, "central_occupant": false
+    }
+    if traffic_system == null or not is_instance_valid(tow_vehicle):
+        return details
+    var lane: CivicLaneData = city_graph.get_lane(approach_lane_id) if city_graph != null else null
+    if lane != null:
+        var direction: String = traffic_system.signal_approach_for_lane(lane, true)
+        details["approach"] = direction
+        if traffic_system.traffic_signals != null:
+            details["aspect"] = traffic_system.traffic_signals.aspect_for_approach(direction)
+            details["next_green_seconds"] = snappedf(
+                traffic_system.traffic_signals.seconds_until_green(direction), 0.1)
+    if traffic_system.crossing_reservations != null:
+        details["crossing_ns_owner"] = traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns")
+        details["crossing_ew_owner"] = traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew")
+    for other in traffic_system.traffic_road_users():
+        if other != tow_vehicle and CivicCentralIntersectionPriority.occupies(other, city_graph):
+            details["central_occupant"] = true
+            break
+    return details
+
+## Requires authorized intervention and long verified absence of progress.
+## This never grants a green, teleports a car, or awards mission completion.
+func _tow_can_begin_starvation_recovery() -> bool:
+    if not tow_started or tow_completed or service_recovery_active:
+        return false
+    if reported_tick < 0 or intervention_tick < 0 or (
+            not is_instance_valid(tow_vehicle) or not is_instance_valid(offender)):
+        return false
+    if session == null or incident_id < 0 or (
+            session.incidents.incidents[incident_id]["state"] != CivicIncidentManager.INTERVENTION):
+        return false
+    var minimum: float = STARVATION_MIN_SECONDS
+    if traffic_system != null and traffic_system.traffic_signals != null:
+        var signals: CivicTrafficSignalController = traffic_system.traffic_signals
+        minimum = maxf(minimum, 2.0 * 4.0 * (
+            signals.green_seconds + signals.amber_seconds + signals.clearance_seconds))
+    if _tow_stationary_seconds < minimum:
+        return false
+    if traffic_system != null:
+        if traffic_system.crossing_reservations != null and (
+                traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or
+                traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew") >= 0):
+            return false
+        for other in traffic_system.traffic_road_users():
+            if other != tow_vehicle and CivicCentralIntersectionPriority.occupies(other, city_graph):
+                return false
+    return _tow_service_worksite_clear()
+
+## Inspect stationary worksite only. Do not disable collision bodies.
+func _tow_service_worksite_clear() -> bool:
+    if not is_inside_tree() or not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
+        return false
+    var probe: SphereShape3D = SphereShape3D.new()
+    probe.radius = SERVICE_CLEARANCE_RADIUS_M
+    var query: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+    query.shape = probe
+    query.collision_mask = 2 | 4 | 8
+    query.collide_with_bodies = true
+    var excluded: Array[RID] = []
+    for actor in [tow_vehicle, offender]:
+        var own_collider: CollisionObject3D = actor.get_node_or_null("CollisionBody") as CollisionObject3D
+        if own_collider != null:
+            excluded.append(own_collider.get_rid())
+    query.exclude = excluded
+    for position in [tow_vehicle.global_position, offender.global_position]:
+        query.transform = Transform3D(Basis.IDENTITY, position + Vector3.UP * 0.7)
+        if not get_world_3d().direct_space_state.intersect_shape(query, 16).is_empty():
+            return false
+    return true
 
 ## Keep collision and signal rules authoritative, but identify what
 ## actually prevents service movement rather than silently waiting forever.
