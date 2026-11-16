@@ -538,23 +538,12 @@ func _advance_tow_convoy(delta: float) -> void:
             var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
             travel = minf(travel, stop_gap)
     if travel <= 0.0001:
-        _tow_stationary_seconds += maxf(0.0, delta)
-        if _tow_stationary_seconds - _tow_last_diagnostic_seconds >= 6.0:
-            _tow_last_diagnostic_seconds = _tow_stationary_seconds
-            print("CIVIC_TOW_GATE %s" % str(_tow_gate_snapshot()))
-        if _tow_can_begin_starvation_recovery():
-            service_recovery_active = true
-            service_recovery_seconds = 0.0
-            tow_vehicle.speed_mps = 0.0
-            _announce("Municipal crew starting authorized roadside collection after prolonged signal starvation.")
-            return
         var hold_reason: String = "physical traffic clearance"
         if traffic_system != null:
             var gate_reason: String = traffic_system.municipal_service_hold_reason(tow_vehicle)
             if gate_reason != "":
                 hold_reason = gate_reason
-        _note_tow_hold(hold_reason)
-        tow_vehicle.speed_mps = 0.0
+        _record_tow_stalled_frame(delta, hold_reason)
         return
     # Probe several intermediate footprints, including corners, BEFORE
     # advancing either collision body; nothing may overlap an actor or prop.
@@ -564,12 +553,10 @@ func _advance_tow_convoy(delta: float) -> void:
         var tow_pose: Transform3D = _tow_pose(candidate_progress, false)
         var offender_pose: Transform3D = _tow_pose(candidate_progress - TOW_GAP_M, true)
         if tow_vehicle.footprint_blocked_at(tow_pose):
-            _note_tow_hold("tow-truck route physically occupied")
-            tow_vehicle.speed_mps = 0.0
+            _record_tow_stalled_frame(delta, "tow-truck route physically occupied")
             return
         if offender.footprint_blocked_at(offender_pose):
-            _note_tow_hold("offender route physically occupied")
-            tow_vehicle.speed_mps = 0.0
+            _record_tow_stalled_frame(delta, "offender route physically occupied")
             return
     _tow_stationary_seconds = 0.0
     _tow_last_diagnostic_seconds = 0.0
@@ -601,6 +588,22 @@ func _advance_tow_convoy(delta: float) -> void:
     # Only declare physical clearance once the whole convoy reaches the exit.
     if tow_progress_m >= _tow_route_length() - 0.01:
         _finish_tow_convoy()
+
+## All reasons for zero displacement contribute to the SAME progress clock.
+## Alternating red/physical/pedestrian causes must not reset starvation.
+func _record_tow_stalled_frame(delta: float, reason: String) -> void:
+    _tow_stationary_seconds += maxf(0.0, delta)
+    if _tow_stationary_seconds - _tow_last_diagnostic_seconds >= 6.0:
+        _tow_last_diagnostic_seconds = _tow_stationary_seconds
+        print("CIVIC_TOW_GATE %s" % str(_tow_gate_snapshot()))
+    if _tow_can_begin_starvation_recovery():
+        service_recovery_active = true
+        service_recovery_seconds = 0.0
+        tow_vehicle.speed_mps = 0.0
+        _announce("Municipal crew starting authorized roadside collection after prolonged traffic starvation.")
+        return
+    _note_tow_hold(reason)
+    tow_vehicle.speed_mps = 0.0
 
 ## Read-only diagnostics of exact service direction, lights and occupants.
 func _tow_gate_snapshot() -> Dictionary:
