@@ -45,6 +45,8 @@ var offender_distance_m: float = OFFENDER_DISTANCE + 3.0
 var tow_started: bool = false
 var tow_completed: bool = false
 var followers: Array[CivicVehicleAgent] = []
+## Runtime-only, per-follower collision evidence; never saved or used for progress.
+var _follower_hold_ticks: Dictionary = {}
 var approach_lane_id: int = -1
 var exit_lane_id: int = -1
 var incident_id: int = -1
@@ -250,6 +252,7 @@ func _advance_cars(delta: float) -> void:
         # its collider and visuals. An inactive stranded StaticBody3D was
         # previously left on the live street indefinitely.
         _sync_follower_presence(car)
+        _record_follower_hold(car, obs)
         if car.speed_mps > 0.8 and car.lane_distance_m > float(starting_distances.get(car.get_instance_id(), 0.0)) + 0.6:
             moved_ids[car.get_instance_id()] = true
         # Count real vehicles that pass the *former* blockage while the
@@ -261,6 +264,30 @@ func _advance_cars(delta: float) -> void:
         # Movement before passing is required; never manufacture a release.
         if (blocker_removed or old_obstruction_clear) and moved_ids.has(car.get_instance_id()) and _passed_incident(car):
             released_ids[car.get_instance_id()] = true
+
+## A live queued follower can be the *physical blocker* of normal cars.
+## Report the follower's own reason too so we can diagnose both ends of a
+## reciprocal jam instead of weakening traffic collisions.
+func _record_follower_hold(car: CivicVehicleAgent, observation: Dictionary) -> void:
+    var id: int = car.get_instance_id()
+    if not car.active or car.speed_mps >= 0.2:
+        _follower_hold_ticks.erase(id)
+        return
+    var held: int = int(_follower_hold_ticks.get(id, 0)) + 1
+    _follower_hold_ticks[id] = held
+    if held < 120 or held % 120 != 0:
+        return
+    var reason: String = car.last_physics_hold_reason
+    if reason == "":
+        reason = "lead_or_stopline" if bool(observation.get("detected", false)) else "unknown"
+    var lane_id: int = car.route[car.current_route_index] if not car.route.is_empty() else -1
+    var signal_phase: String = "none"
+    if traffic_system != null and traffic_system.traffic_signals != null:
+        signal_phase = traffic_system.traffic_signals.phase_name()
+    print("CIVIC_MISSION_CAR_HOLD car=%s tick=%d lane=%d step=%d distance=%.2f speed=%.2f reason=%s gap=%.2f phase=%s blocker=%s" % [
+        car.name, tick, lane_id, car.current_route_index, car.lane_distance_m,
+        car.speed_mps, reason, float(observation.get("gap_m", -1.0)),
+        signal_phase, car.last_physics_blocker])
 
 ## Preserve logical actor records for checkpoint validation while removing
 ## only cars that have *actually* completed their road-graph route.
