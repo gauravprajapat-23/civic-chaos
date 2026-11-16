@@ -54,6 +54,15 @@ var _hair: StandardMaterial3D
 var _color_slot: int = 0
 var _driver_slot: int = 0
 var _braking: bool = false
+## CAR-ART-05E: only presentation nodes are hidden at distance. Vehicle
+## physics, visible body/roof, routing and checkpoint remain unchanged.
+const DETAIL_NEAR: int = 0
+const DETAIL_MID: int = 1
+const DETAIL_FAR: int = 2
+const NEAR_DISTANCE_M: float = 24.0
+const FAR_DISTANCE_M: float = 54.0
+const LOD_HYSTERESIS_M: float = 4.0
+var _detail_level: int = DETAIL_NEAR
 
 func _ready() -> void:
     # Opaque PBR materials remain readable in Godot Mobile/Compatibility.
@@ -88,6 +97,8 @@ func _ready() -> void:
     _reshape_legacy()
     _build_details()
     _build_driver_and_interior()
+    _batch_wheel_spokes()
+    set_detail_level(DETAIL_NEAR)
 
 static func _material(color: Color, rough: float, metallic: float = 0.0) -> StandardMaterial3D:
     var value := StandardMaterial3D.new()
@@ -172,6 +183,87 @@ func driver_variant() -> int:
 
 func visual_identity() -> Dictionary:
     return {"paint": _color_slot, "driver": _driver_slot}
+
+## Stable hysteresis prevents visible popping when a moving camera
+## hovers near one of the boundaries. LOD is deliberately not saved.
+func update_lod_distance(distance_m: float) -> void:
+    if not is_finite(distance_m) or distance_m < 0.0:
+        return
+    var level: int = _detail_level
+    match _detail_level:
+        DETAIL_NEAR:
+            if distance_m > FAR_DISTANCE_M + LOD_HYSTERESIS_M:
+                level = DETAIL_FAR
+            elif distance_m > NEAR_DISTANCE_M + LOD_HYSTERESIS_M:
+                level = DETAIL_MID
+        DETAIL_MID:
+            if distance_m < NEAR_DISTANCE_M - LOD_HYSTERESIS_M:
+                level = DETAIL_NEAR
+            elif distance_m > FAR_DISTANCE_M + LOD_HYSTERESIS_M:
+                level = DETAIL_FAR
+        DETAIL_FAR:
+            if distance_m < NEAR_DISTANCE_M - LOD_HYSTERESIS_M:
+                level = DETAIL_NEAR
+            elif distance_m < FAR_DISTANCE_M - LOD_HYSTERESIS_M:
+                level = DETAIL_MID
+    set_detail_level(level)
+
+func detail_level() -> int:
+    return _detail_level
+
+func set_detail_level(level: int) -> void:
+    if level < DETAIL_NEAR or level > DETAIL_FAR:
+        return
+    _detail_level = level
+    for part in get_children():
+        if not (part is VisualInstance3D):
+            continue
+        var name: String = str(part.name)
+        # The legacy spoke nodes are kept for older scene contracts, but
+        # permanently hidden: a single MultiMesh renders all 20 instead.
+        if name.contains("WheelSpoke_"):
+            (part as VisualInstance3D).visible = false
+            continue
+        if name == "BatchedWheelSpokes":
+            (part as VisualInstance3D).visible = level == DETAIL_NEAR
+            continue
+        if level == DETAIL_NEAR:
+            (part as VisualInstance3D).visible = true
+        elif level == DETAIL_MID:
+            (part as VisualInstance3D).visible = not _tiny_decoration(name)
+        else:
+            (part as VisualInstance3D).visible = _distant_silhouette(name)
+
+static func _tiny_decoration(name: String) -> bool:
+    return name.begins_with("GrilleSlat_") or name.begins_with("WheelFace_") or name.begins_with("FrontHub_") or name.begins_with("RearHub_") or name.begins_with("DoorSeam_") or name.begins_with("DoorHandle_") or name.begins_with("FrontDoor") or name.begins_with("RearDoor") or name.begins_with("MirrorGlass_") or name.begins_with("MirrorMount_") or name.begins_with("FrontBadge") or name.begins_with("WindowSill_") or name.begins_with("HoodCenterCrease") or name.begins_with("Waistline_") or name.begins_with("GrilleSide_") or name.begins_with("GrilleSurround") or name.begins_with("FrontSideMarker") or name.begins_with("RearSideReflector")
+
+static func _distant_silhouette(name: String) -> bool:
+    return name == "Hood" or name == "Trunk" or name == "Roof" or name == "FrontGrille" or name == "FrontBumper" or name == "RearBumper" or name == "RearTrunkLip" or name == "RearTailPanel" or name.begins_with("FrontLamp_") or name.begins_with("RearLamp_")
+
+## Combining 20 identical small spokes into a *single* MultiMesh draw
+## group avoids 20 tiny draw submissions per near car. No collision/RNG.
+func _batch_wheel_spokes() -> void:
+    var spokes: Array[MeshInstance3D] = []
+    for part in get_children():
+        if part is MeshInstance3D and str(part.name).contains("WheelSpoke_"):
+            spokes.append(part as MeshInstance3D)
+    if spokes.is_empty():
+        return
+    var batch := MultiMeshInstance3D.new()
+    batch.name = "BatchedWheelSpokes"
+    var mesh := BoxMesh.new()
+    mesh.size = Vector3(0.025, 0.048, 0.19)
+    mesh.material = _hub_finish
+    var multi := MultiMesh.new()
+    multi.transform_format = MultiMesh.TRANSFORM_3D
+    multi.mesh = mesh
+    multi.instance_count = spokes.size()
+    for index in range(spokes.size()):
+        multi.set_instance_transform(index, spokes[index].transform)
+        spokes[index].visible = false
+    batch.multimesh = multi
+    batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    add_child(batch)
 
 func set_braking(value: bool) -> void:
     if _braking == value or _tail == null:
