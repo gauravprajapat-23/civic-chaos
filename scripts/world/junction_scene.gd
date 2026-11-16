@@ -34,6 +34,9 @@ func _ready() -> void:
         push_error("Could not initialize traffic spawner")
         return
     traffic_signals = SignalController.new()
+    if expanded_city:
+        # Player-requested junction rule: exactly one approach green.
+        traffic_signals.enable_single_approach_mode()
     intersection_reservations = Reservations.new()
     traffic_spawner.configure_intersection(traffic_signals, intersection_reservations)
     if expanded_city:
