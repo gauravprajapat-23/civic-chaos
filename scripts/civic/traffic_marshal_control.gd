@@ -10,9 +10,10 @@ static func request_axis(axis: String, signals: CivicTrafficSignalController,
         mission_cars: Array[CivicVehicleAgent] = []) -> Dictionary:
     if signals == null or spawner == null or spawner.road_graph == null:
         return {"accepted": false, "reason": "controller_unavailable"}
-    if not ["NS", "EW"].has(axis):
+    var valid_directions: Array[String] = ["N", "E", "S", "W"] if signals.single_approach_mode else ["NS", "EW"]
+    if not valid_directions.has(axis):
         return {"accepted": false, "reason": "invalid_axis"}
-    var approach: String = "N" if axis == "NS" else "E"
+    var approach: String = axis if signals.single_approach_mode else ("N" if axis == "NS" else "E")
     if signals.aspect_for_approach(approach) == "green":
         return {"accepted": false, "reason": "already_green"}
     # A real pedestrian reservation cannot be cancelled by any manual
@@ -42,5 +43,7 @@ static func message(result: Dictionary) -> String:
             return "That direction already has green. Let vehicles move."
         "already_changing", "clearance_in_progress":
             return "A safe signal transition is already underway."
+        "not_next_approach":
+            return "That approach is not next in rotation. N, E, S, W each get a turn."
         _:
             return "Request unavailable. Check the signal status and try again."
