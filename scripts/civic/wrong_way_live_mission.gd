@@ -233,6 +233,7 @@ func _physics_process(delta: float) -> void:
 
 func _exit_tree() -> void:
     if traffic_system != null and is_instance_valid(traffic_system):
+        traffic_system.clear_central_recovery()
         traffic_system.clear_central_service_priority()
         traffic_system.clear_incident_route_closure(MISSION_ID)
         for follower in followers:
@@ -768,6 +769,10 @@ func _finish_tow_convoy() -> void:
     if traffic_system != null:
         traffic_system.clear_central_service_priority(tow_vehicle)
         traffic_system.clear_incident_route_closure(MISSION_ID)
+        # Reserve a bounded ordinary-traffic admission window so the
+        # REAL queued followers can leave the former obstruction.
+        # They still must earn their green and clear pedestrians/cars.
+        traffic_system.start_central_recovery(followers)
     service_recovery_active = false
     if is_instance_valid(tow_vehicle):
         tow_vehicle.queue_free()
@@ -811,6 +816,8 @@ func _measure_recovery() -> void:
             {"safety": 20, "efficiency": 30, "cooperation": 10}, "measured_congestion_recovery")
         var reward: int = session.missions.claim_reward(MISSION_ID)
         finished = true
+        if traffic_system != null:
+            traffic_system.clear_central_recovery()
         if is_instance_valid(marker):
             marker.queue_free()
         _announce("Wrong-way mission complete! %d cars resumed; civic reward +%d." % [released_ids.size(), reward])
@@ -1244,11 +1251,14 @@ func restore(raw: Variant) -> bool:
             # Finished worlds cannot be rewound into an unsafe active phase
             # without a new scene; this is the only rejected rewind case.
             return false
-    # The route closure is ephemeral but must reproduce the authoritative
-    # restored incident state, not the state before the checkpoint.
+    # Temporary traffic priorities are derived from actual restored
+    # mission actors. Never persist a stale reference from the old scene.
     if traffic_system != null:
+        traffic_system.clear_central_recovery()
         if blocker_removed:
             traffic_system.clear_incident_route_closure(MISSION_ID)
+            if not bool(data["finished"]):
+                traffic_system.start_central_recovery(followers)
         else:
             traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
     finished = bool(data["finished"])
