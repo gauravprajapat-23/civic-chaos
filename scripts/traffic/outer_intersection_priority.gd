@@ -10,6 +10,9 @@ const CLEARANCE_TICKS: int = 40
 const PERIOD_TICKS: int = 2 * (GREEN_TICKS + CLEARANCE_TICKS)
 const STOP_LINE_M: float = 5.0
 const EXIT_CLEARANCE_M: float = 7.0
+## Extra space after the conflict zone so incoming cars do not get trapped
+## behind a departing car whose rear is still near the junction.
+const OUTBOUND_QUEUE_CLEARANCE_M: float = EXIT_CLEARANCE_M + 2.0
 const COMMITTED_EPSILON_M: float = 0.05
 
 ## Position of the controlled node; a central (0,0) intersection is
@@ -92,7 +95,7 @@ static func exit_available(vehicle: CivicVehicleAgent, cars: Array[CivicVehicleA
             continue
         if other.current_route_index < 0 or other.current_route_index >= other.route.size():
             continue
-        if other.route[other.current_route_index] == outgoing_id and other.lane_distance_m < EXIT_CLEARANCE_M:
+        if other.route[other.current_route_index] == outgoing_id and other.lane_distance_m < OUTBOUND_QUEUE_CLEARANCE_M:
             return false
     return true
 
