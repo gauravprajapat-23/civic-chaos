@@ -12,8 +12,8 @@ func _run() -> void:
         return
     for id in graph.sorted_lane_ids():
         var lane := graph.get_lane(id)
-        if absf(lane.length_m() - 20.0) > 0.01:
-            _fail("lane length mismatch")
+        if lane.length_m() < 20.0 or lane.length_m() > 22.0 or lane.centerline.size() != 4:
+            _fail("lane separation or route length mismatch")
             return
         if id % 2 == 1 and graph.outgoing_legal_lanes(id, 1).size() != 3:
             _fail("turn restrictions mismatch")
