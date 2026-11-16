@@ -35,7 +35,7 @@ Source inspected: `scenes/traffic/vehicle_agent.tscn`, `scripts/traffic/vehicle_
 | **CAR-ART-05C** | P2 | Refine low-poly wheel faces, door lines/handles, grille surround and rear tail silhouette | 3D screenshots with intact 1.6×1.2×3 m collision and no decorative colliders | SOURCE IMPLEMENTED — GODOT/ANDROID VISUAL QA PENDING |
 | **CAR-ART-05D** | P2 | Deterministic driver clothing, hair/skin tones, upholstery and rim finish from saved first route lane | Same saved route restores same visual driver, no state-schema changes | SOURCE IMPLEMENTED — GODOT/ANDROID QA PENDING |
 | **CAR-ART-05E** | P2 | Batch 20 wheel spokes into one MultiMesh group per car, keep six glass panes, implement near/mid/far camera LOD with hysteresis | Godot regression, visual reversibility and measured FPS/draw calls at 8/12/20 cars on Android | SOURCE IMPLEMENTED — GODOT/ANDROID QA PENDING |
-| **CAR-ART-05F** | P2 | Steering/wheel visual response and lights consistency | Steering cosmetic-only, existing brake signals never misreport state, no traffic physics changes | OPEN |
+| **CAR-ART-05F** | P1 | Recess cage-like roof bars, enlarge readable side mirrors, animate visible tire/steering wheel and tow-convoy wheels | No new physics, frozen cars have stationary wheels, tow obeys signals, image/gameplay acceptance | SOURCE IMPLEMENTED — GAMEPLAY & ANDROID VERIFICATION PENDING |
 | **CAR-ART-05G** | P1 | Full QA/regression + debug APK | Godot import/test pass, Android renders true occupants, collisions/traffic/checkpoints unchanged | OPEN |
 
 ## Required PowerShell verification
@@ -154,3 +154,38 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path "build/civic-chaos-car-art-05c-test.
 **Physical verification:** The code changes *intend* to reduce rendering work but **do not establish measured performance**. On a real Android phone inspect nearby drivers, moving cars at 30 m and far traffic at 65 m, including oscillation around 24/54 m. Profile 8/12/20 visible cars, record p50/p95 frame times, FPS, GPU and draw calls for the same fixed scene before/after. If static hidden spoke nodes remain too expensive in object count, a later phase can move them behind a test-only compatibility fixture and keep the MultiMesh in production. Measure occlusion and glass sorting on Android Compatibility and Mobile renderers.
 
 **Status:** SOURCE IMPLEMENTED, focused Godot and Android verification pending. No APK built by GitHub coding; no GitHub Actions manually triggered.
+
+
+## CAR-ART-05F — Player Screenshot Audit, Tow Gridlock and Motion Feedback (2026-11-16)
+
+**Grounded user screenshot:** Debug gameplay shows four stopped Wrong Way mission cars after several minutes, municipal service reporting `Tow delayed: traffic signal or pedestrian crossing`, exposed dark bars rising above the sedan windows, and side mirrors not visibly projecting. The upper-right mission panel and left debug HUD also cover large parts of the road view. These are actual observed symptoms; the exact vehicle/mission runtime blockage is not independently verified by a new Godot run.
+
+### TOW-FIX-05F-01 — Wrong Way sustained waiting (P0 gameplay)
+
+**Confirmed source hazard:** `CivicWrongWayLiveMission._advance_tow_convoy` called `traffic_system.apply_stop_line_observation` with the tow vehicle, although that truck is not a member of `traffic_spawner.active_vehicles`. The standard central arbiter compares fleet slots/nearest contenders and can repeatedly yield to stopped background vehicles, even when the truck needs to clear the incident. This generic stopped observation was misleadingly labeled `traffic signal or pedestrian crossing` and could persist across green phases.
+
+**Implemented:** `CivicTrafficSpawner.municipal_service_observation` and `municipal_service_hold_reason` are independent of ordinary background fleet-slot priority. They still **block on red/amber/all-red, reserved pedestrian crossings, and physical central-zone occupants**, and do not stop a truck that is already past the stop line. Actual mission sweeps in `_advance_tow_convoy` still check both tow-truck and offender collision footprints at 0.30 m intervals. A physical route obstruction still invokes the existing grounded roadside collection; no forced red-light crossing or collision bypass. Hold messaging now reports `red_signal`, `pedestrian_crossing` or `central_zone_occupied` instead of falsely conflating them.
+
+**Regression added:** `tests/wrong_way_tow_service_priority_test.gd` verifies ordinary waiting fleet cars don't starve a legal green service move; red blocks; pedestrian reservation blocks and releases on verified departure; genuinely occupied central zone blocks; cleared zone releases; already-committed truck isn't frozen inside the junction. Also run `aud3_wrong_way_signal_recovery_test.gd`, `aud3_wrong_way_tow_gridlock_recovery_test.gd`, `authorized_tow_obstacle_test.gd` and all relevant checkpoint tests. **The user’s five-minute stall must be reproduced and timed from start to real mission completion before closure.**
+
+### CAR-ART-05F — Better mirrors, fewer window bars and motion
+
+- Recess painted `RoofFrontLip` / `RoofRearLip` into solid roof material rather than exposed black cage-like bars. Slim both windshield/rear pillars with body-colored finish. Retain existing node names for backward compatibility.
+- Bring `Mirror_L/R` and reflective `MirrorGlass_L/R` visibly outside the doors, still as cosmetic-only nodes, without expanding authoritative collision footprint.
+- `CivicVehicleVisuals.update_motion_visuals(actual_travel_m, yaw_delta_rad)` rotates four physical-appearance wheel meshes, hub and wheel-face visuals, and nearby batched 20 spoke instances by accepted travel distance; modest front-wheel yaw and steering-wheel angle follow actual route heading changes. This does **not** steer physics or modify route distance.
+- Regular `CivicVehicleAgent.advance_fixed` invokes visual motion after its accepted movement. The scripted municipal truck and towed offender also receive visual wheel motion from real accepted tow progress (no spinning tires while held at a signal).
+- `tests/car_art_05f_motion_mirrors_test.gd` checks both mirrors, roof bar finish, wheel spin, turn sign, spoke movement, stopped wheel hold, unchanged physics and normal vehicle motion.
+
+### Known remaining issue: HUD readability (P1 UI backlog)
+
+The screenshot includes overlapping mission/debug/waypoint text boxes obscuring scenery. **Not fixed by car-art milestone.** Track separately as `HUD-READ-01`: one compact mission summary + expandable telemetry, mobile safe-area anchors, no overlapping map/calls controls, readable objective state. Do not mark user-facing screen polished until screenshot comparison on the requested Android resolution.
+
+### Verification and release gate
+
+1. Run Godot 4.7.2 import with zero `SCRIPT ERROR:`, then `wrong_way_tow_service_priority_test.gd`, `aud3_wrong_way_tow_gridlock_recovery_test.gd`, `authorized_tow_obstacle_test.gd`, `car_art_05f_motion_mirrors_test.gd`, `car_art_05e_mobile_lod_test.gd`, `car_art_04bc_visual_test.gd`, `car_art_05b_cabin_polish_test.gd`, `car_art_05d_driver_variants_test.gd`, `vehicle_world_obstacle_test.gd`, `traffic_spawner_test.gd`, and checkpoint safety tests.
+2. **Real Wrong Way gameplay:** leave the officer and convoy at each signal and see movement on the next safe green; physically obstruct the street with a solid prop to ensure no clipping; after authorized grounded recovery measure actual follower clearance and mission reward exactly once. No five-minute wait.
+3. **PC/Android visuals:** front, side, elevated, rear screenshots with visible side mirrors/driver, no cage bars, spinning tires on moving cars, zero tire spin at stopped signals, and preserved red brake light cue.
+4. **Android performance:** measure frame time and draw-call cost for 8, 12, 20 cars; note that batched wheel spokes now update their transforms when near the camera and must be profiled. No FPS improvement is claimed until measured.
+5. **APK:** existing preset is named `Android Debug`; build after test gate with `--headless --path . --export-debug "Android Debug" "build/civic-chaos-car-art-05f-debug.apk"` and verify output exists.
+
+**Status:** Changes and source tests committed on existing branch using `[skip ci]`. Godot runtime tests/real screenshot replay/Android export have not been executed here. Do not mark TOW-FIX-05F-01 or CAR-ART-05F verified until acceptance evidence is recorded.
