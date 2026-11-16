@@ -26,3 +26,27 @@ static func road_span_m(width: float = ROAD_WIDTH_M) -> float:
 
 static func valid_district_dimensions(extent: float, width: float) -> bool:
     return is_equal_approx(extent, EXTENT_M) and is_equal_approx(width, ROAD_WIDTH_M)
+
+## ROAD-FIX-01: non-overlapping walking/curb runs between cross streets.
+## A full road opening plus turning clearance is removed at every node.
+## The result is deterministic and shared by geometry and regression tests.
+static func sidewalk_intervals(half_extent: float = EXTENT_M,
+        crossing_half_width: float = ROAD_WIDTH_M * 0.5,
+        turn_clearance: float = 1.5) -> Array[Vector2]:
+    var spans: Array[Vector2] = []
+    if not is_finite(half_extent) or not is_finite(crossing_half_width) or not is_finite(turn_clearance):
+        return spans
+    if half_extent <= 0.0 or crossing_half_width <= 0.0 or turn_clearance < 0.0:
+        return spans
+    var gap: float = crossing_half_width + turn_clearance
+    var cursor: float = -half_extent
+    for coordinate in coordinates():
+        if coordinate < -half_extent or coordinate > half_extent:
+            continue
+        var start: float = maxf(-half_extent, coordinate - gap)
+        if start - cursor > 0.02:
+            spans.append(Vector2(cursor, start))
+        cursor = maxf(cursor, minf(half_extent, coordinate + gap))
+    if half_extent - cursor > 0.02:
+        spans.append(Vector2(cursor, half_extent))
+    return spans
