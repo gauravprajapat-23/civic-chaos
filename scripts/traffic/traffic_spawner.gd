@@ -91,6 +91,18 @@ func stop_diagnostics() -> Array[Dictionary]:
 			"signal_phase": traffic_signals.phase_name() if traffic_signals != null else "no_central_signal"})
 	return result
 
+## CAR-ART-05E: render-only fleet adjustment from the active camera.
+## Never called during collision probing or checkpoint transactions.
+func update_fleet_visual_lod(camera_position: Vector3) -> void:
+    if restore_prepared():
+        return
+    for car in active_vehicles:
+        if not is_instance_valid(car) or not car.active:
+            continue
+        var visuals: CivicVehicleVisuals = car.get_node_or_null("DetailVisuals") as CivicVehicleVisuals
+        if visuals != null:
+            visuals.update_lod_distance(car.global_position.distance_to(camera_position))
+
 func queue_pressure() -> Dictionary:
 	var stopped: int = 0
 	for car in active_vehicles:
