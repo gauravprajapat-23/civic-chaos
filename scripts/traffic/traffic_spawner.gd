@@ -58,6 +58,42 @@ var _incident_route_closures: Dictionary = {}
 ## Authorized municipal service can meter NEW central entries until its
 ## convoy clears. This is not a green override, vehicle despawn or teleport.
 var _central_service_vehicle: CivicVehicleAgent
+## Post-tow discharge window for genuine stopped mission followers.
+## Never exempts these actors from traffic signals, physical leads,
+## pedestrian checks or central conflict ownership.
+const RECOVERY_MAX_TICKS: int = 2800
+var _central_recovery_followers: Array[CivicVehicleAgent] = []
+var _central_recovery_until_tick: int = 0
+
+func start_central_recovery(followers: Array[CivicVehicleAgent], duration_ticks: int = RECOVERY_MAX_TICKS) -> bool:
+	if road_graph == null or duration_ticks < 1 or duration_ticks > RECOVERY_MAX_TICKS:
+		return false
+	var eligible: Array[CivicVehicleAgent] = []
+	for car in followers:
+		if is_instance_valid(car) and car.active and not eligible.has(car):
+			eligible.append(car)
+	if eligible.is_empty():
+		return false
+	_central_recovery_followers = eligible
+	_central_recovery_until_tick = current_tick + duration_ticks
+	return true
+
+func clear_central_recovery() -> void:
+	_central_recovery_followers.clear()
+	_central_recovery_until_tick = 0
+
+func central_recovery_active() -> bool:
+	if current_tick >= _central_recovery_until_tick:
+		return false
+	for car in _central_recovery_followers:
+		if is_instance_valid(car) and car.active and not car.route.is_empty() and (
+			car.current_route_index == 0):
+			return true
+	return false
+
+func central_recovery_allows(car: CivicVehicleAgent) -> bool:
+	return _central_recovery_followers.has(car) and is_instance_valid(car) and car.active
+
 
 func set_central_service_priority(service: CivicVehicleAgent) -> void:
 	_central_service_vehicle = service if is_instance_valid(service) and service.active else null
@@ -228,6 +264,7 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	_external_road_users.clear()
 	_incident_route_closures.clear()
 	_central_service_vehicle = null
+	clear_central_recovery()
 	_spawn_backpressure_ticks = 0
 	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
@@ -335,10 +372,11 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 	# During a reported municipal tow, hold only NEW entrances to the
 	# central node. Vehicles already past the stopline must leave safely.
 	# All traffic, including mission followers, obeys this stop-line hold.
-	if central_service_priority_active() and vehicle != _central_service_vehicle and (
+	if ((central_service_priority_active() and vehicle != _central_service_vehicle) or
+			(central_recovery_active() and not central_recovery_allows(vehicle))) and (
 			CentralPriority.is_inbound(lane) and gap >= 0.0):
 		if diagnostics_enabled and id >= 0:
-			_observation_hold_reason[id] = "municipal_service_priority"
+			_observation_hold_reason[id] = "municipal_service_priority" if central_service_priority_active() else "mission_recovery_priority"
 		return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
 	if city_mode and OuterPriority.is_controlled(lane):
 		var decision: Dictionary = OuterPriority.disposition(vehicle, road_graph, traffic_road_users(), current_tick)
