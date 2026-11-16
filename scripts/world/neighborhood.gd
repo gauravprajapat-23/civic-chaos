@@ -136,6 +136,14 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     var body := StaticBody3D.new()
     body.name = block_name
     body.position = center
+    # The primary sidewalk ribbons run across every secondary/perimeter
+    # street. Their raised physics slabs used to span the driveable lanes and
+    # could permanently trap a green-light car. Keep the visible sidewalk
+    # but rely on the continuous terrain below for pedestrian support.
+    # Traffic signals, people, cars and real building colliders remain solid.
+    if block_name.begins_with("Sidewalk"):
+        body.collision_layer = 0
+        body.collision_mask = 0
     add_child(body)
     var shape := CollisionShape3D.new()
     shape.name = "CollisionShape3D"
