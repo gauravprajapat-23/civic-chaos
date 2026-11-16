@@ -41,7 +41,7 @@ func _run() -> void:
     rival.current_route_index = 0
     rival.lane_distance_m = lane.length_m() - 5.3
     spawner.active_vehicles.append(rival)
-    if not bool(spawner.municipal_service_observation(service).get("detected", true)):
+    if not bool(spawner.municipal_service_observation(service).get("detected", true)) or spawner.municipal_service_hold_reason(service) != "red_signal":
         # The approach is west to east and starts as NS-green, so red.
         _fail("red signal was bypassed by service convoy")
         return
@@ -55,7 +55,7 @@ func _run() -> void:
     if not bool(granted.get("granted", false)) or not reservations.occupy(pedestrian_id, zone):
         _fail("pedestrian fixture failed")
         return
-    if not bool(spawner.municipal_service_observation(service).get("detected", false)):
+    if not bool(spawner.municipal_service_observation(service).get("detected", false)) or spawner.municipal_service_hold_reason(service) != "pedestrian_crossing":
         _fail("crossing reservation was ignored")
         return
     reservations.release(pedestrian_id, zone)
@@ -64,7 +64,7 @@ func _run() -> void:
         _fail("departed pedestrian remains a phantom blocker")
         return
     rival.lane_distance_m = lane.length_m() - 2.0
-    if not bool(spawner.municipal_service_observation(service).get("detected", false)):
+    if not bool(spawner.municipal_service_observation(service).get("detected", false)) or spawner.municipal_service_hold_reason(service) != "central_zone_occupied":
         _fail("real occupied intersection was ignored")
         return
     rival.lane_distance_m = lane.length_m() - 8.0
