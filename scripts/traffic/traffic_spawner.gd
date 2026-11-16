@@ -285,6 +285,35 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 			return merged
 	return observation
 
+## MISSION-TOW-01: scripted municipal service is NOT a background
+## fleet member, so the fleet-slot tie-break in apply_stop_line_observation
+## cannot arbitrate its entry. A service convoy must obey the real central
+## signal, pedestrian reservation and occupied vehicle conflict zone.
+## Physical sweeps in the mission separately protect its full route.
+func municipal_service_observation(vehicle: CivicVehicleAgent) -> Dictionary:
+    var clear: Dictionary = {"detected": false}
+    if road_graph == null or vehicle == null or vehicle.route.is_empty():
+        return clear
+    if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
+        return clear
+    var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
+    if lane == null or not CentralPriority.is_inbound(lane):
+        return clear
+    var gap: float = maxf(0.0, lane.length_m() - CentralPriority.STOP_LINE_M) - vehicle.lane_distance_m
+    if gap < 0.0:
+        return clear
+    var hold: bool = false
+    if traffic_signals != null:
+        hold = traffic_signals.aspect_for_approach(signal_approach_for_lane(lane, city_mode)) != "green"
+    if crossing_reservations != null:
+        hold = hold or crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
+    if not hold:
+        for car in active_vehicles:
+            if CentralPriority.occupies(car, road_graph):
+                hold = true
+                break
+    return _merge_stop_line(clear, gap, vehicle.minimum_gap_m) if hold else clear
+
 static func _merge_stop_line(observation: Dictionary, gap: float, minimum_gap: float) -> Dictionary:
 	var safe_gap: float = maxf(0.0, gap + minimum_gap)
 	if not observation.get("detected", false) or safe_gap < float(observation.get("gap_m", INF)):
