@@ -219,7 +219,7 @@ func _on_traffic_marshal_activated(actor: Node) -> void:
     var signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
     if signals == null:
         return
-    _marshal_panel.show_panel("LIVE SIGNAL | %s. Choose the next safe axis, or meter arrivals during an actual physical jam." % signals.phase_name())
+    _marshal_panel.show_panel("LIVE SIGNAL | %s. Only one approach green: N -> E -> S -> W. Request the NEXT turn after minimum green, or meter arrivals." % signals.phase_name())
     _cancel_mobile_input()
     player.set_physics_process(false)
     player.set_process_unhandled_input(false)
