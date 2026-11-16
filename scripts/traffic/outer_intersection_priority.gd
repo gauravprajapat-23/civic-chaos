@@ -75,6 +75,27 @@ static func occupies(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, junction
     var origin: Vector3 = lane.centerline[0]
     return _same_node(origin, junction) and vehicle.lane_distance_m < EXIT_CLEARANCE_M
 
+## JUNCTION-FIX-03: Do not admit a car into a junction whose intended
+## outgoing lane is still occupied by another vehicle's departure queue.
+## This tests only actual lane/route positions, preserving deterministic
+## checkpoint replay and the original 7 m conflict-zone clearance rule.
+## A route ending at this intersection may leave the city normally.
+static func exit_available(vehicle: CivicVehicleAgent, cars: Array[CivicVehicleAgent]) -> bool:
+    if vehicle == null or not vehicle.active or vehicle.route.is_empty():
+        return false
+    var next_index: int = vehicle.current_route_index + 1
+    if next_index >= vehicle.route.size():
+        return true
+    var outgoing_id: int = vehicle.route[next_index]
+    for other in cars:
+        if other == null or other == vehicle or not other.active or other.route.is_empty():
+            continue
+        if other.current_route_index < 0 or other.current_route_index >= other.route.size():
+            continue
+        if other.route[other.current_route_index] == outgoing_id and other.lane_distance_m < EXIT_CLEARANCE_M:
+            return false
+    return true
+
 ## The winner for a free approach is the car nearest its stop line;
 ## ties break by stable lane ID then saved fleet array order. The array is
 ## already the checkpoint's deterministic car-slot order.
@@ -100,6 +121,12 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
         if occupies(other, graph, junction):
             return {"controlled": true, "yield": true, "reason": "zone_occupied"}
 
+    # Downstream queue spillback: keep the car outside the conflict zone
+    # until its exit clears. Other green approaches with different, open
+    # exits may proceed instead of repeatedly losing to this queued car.
+    if not exit_available(vehicle, cars):
+        return {"controlled": true, "yield": true, "reason": "outbound_blocked"}
+
     var own_gap: float = stop_line - vehicle.lane_distance_m
     var own_index: int = cars.find(vehicle)
     for other in cars:
@@ -114,6 +141,8 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
         if not is_controlled(other_lane) or not _same_node(junction_for_lane(other_lane), junction):
             continue
         if aspect(axis_for_lane(other_lane), tick) != "green":
+            continue
+        if not exit_available(other, cars):
             continue
         var other_stop: float = maxf(0.0, other_lane.length_m() - STOP_LINE_M)
         var other_gap: float = other_stop - other.lane_distance_m
