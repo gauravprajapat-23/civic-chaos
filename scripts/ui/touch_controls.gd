@@ -24,6 +24,18 @@ func cancel_active_touches() -> void:
         if InputMap.has_action(action):
             Input.action_release(action)
 
+## The existing four touch hitboxes stay fixed during riding, while
+## captions match vehicle actions (no second joystick or overlap).
+func set_riding(active: bool) -> void:
+    var riding_captions: Dictionary = {
+        "jump": "BRAKE" if active else "JUMP",
+        "sprint": "BOOST" if active else "RUN",
+        "interact": "EXIT" if active else "USE"
+    }
+    for action in riding_captions.keys():
+        if labels.has(action):
+            (labels[action] as Label).text = str(riding_captions[action])
+
 func set_controls_active(active: bool) -> void:
     if not active:
         cancel_active_touches()
