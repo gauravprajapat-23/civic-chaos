@@ -180,7 +180,8 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     _mount_camera_height = camera_pivot.position.y
     spring_arm.spring_length = 5.7
     camera_pivot.position.y = 2.0
-    visual.position.y = 1.15
+    visual.position.y = 1.33
+    _set_bike_pose(true)
     velocity = Vector3.ZERO
     riding_changed.emit(true)
     interaction_message.emit("BIKE | W accelerate, S/jump brake, A/D steer, Shift boost, E dismount. Android: joystick + BRAKE/BOOST/EXIT.")
@@ -202,10 +203,20 @@ func dismount_bike() -> bool:
     spring_arm.spring_length = _mount_camera_length
     camera_pivot.position.y = _mount_camera_height
     visual.position.y = 0.9
+    _set_bike_pose(false)
     velocity = Vector3.ZERO
     riding_changed.emit(false)
     interaction_message.emit("Bike parked | E / USE near bike to ride again.")
     return true
+
+## Art-only seated pose. Do not change CharacterBody collider or
+## player vertical position; saved on-foot physics stays unmodified.
+func _set_bike_pose(mounted: bool) -> void:
+    for limb_name in ["LeftArm", "RightArm", "LeftLeg", "RightLeg"]:
+        var limb := visual.get_node_or_null(limb_name) as Node3D
+        if limb == null:
+            continue
+        limb.rotation.x = (0.95 if limb_name.ends_with("Leg") else 0.85) if mounted else 0.0
 
 func _bike_worksite_clear() -> bool:
     if not is_inside_tree():
@@ -295,7 +306,9 @@ func request_safe_restore(requested: Vector3, yaw: float) -> bool:
 ## On failure do not teleport to the fallback spawn: the caller must roll
 ## back the civic/world transaction and leave the player in place.
 func restore_now_safe(requested: Vector3, yaw: float) -> bool:
-    if is_instance_valid(ridden_bike) and not dismount_bike():
+    # A prepared world restore must not change bike ownership before
+    # the checkpoint transaction commits; reject mounted restores.
+    if is_instance_valid(ridden_bike):
         return false
     _restore_pending = false
     if not requested.is_finite() or not is_finite(yaw) or not is_inside_tree():
