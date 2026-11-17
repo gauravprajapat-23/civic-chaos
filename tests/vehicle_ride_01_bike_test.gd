@@ -8,7 +8,15 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
-    for action in ["move_forward", "move_back", "move_left", "move_right"]:
+    # The main gameplay scene registers these in Main._enter_tree().
+    # This standalone SceneTree fixture never instantiates Main, so it
+    # must register the same input actions before PlayerRoot enters tree.
+    # Otherwise Godot emits repeated missing-action errors on every tick
+    # even when the bike assertions eventually print PASS.
+    for action in [
+            "move_forward", "move_back", "move_left", "move_right",
+            "look_left", "look_right", "look_up", "look_down",
+            "jump", "sprint", "interact"]:
         if not InputMap.has_action(action):
             InputMap.add_action(action)
     var world := Node3D.new()
@@ -77,7 +85,9 @@ func _run() -> void:
     var obstacle := StaticBody3D.new()
     obstacle.collision_layer = 4
     obstacle.collision_mask = 0
-    obstacle.global_position = player.global_position + Vector3.UP * 0.8
+    # Assign local coordinates before parenting. global_position on a
+    # detached Node3D calls get_global_transform outside SceneTree.
+    obstacle.position = player.global_position + Vector3.UP * 0.8
     var blocked_shape := CollisionShape3D.new()
     var collision := BoxShape3D.new()
     collision.size = Vector3(0.7, 1.4, 0.7)
@@ -100,6 +110,9 @@ func _run() -> void:
     if player.collision_mask != 1 or not is_equal_approx(player.spring_arm.spring_length, 4.0):
         _fail("bike changed default player collision or permanently altered camera")
         return
+    # Stop running player physics before removing the fixture and
+    # quitting; avoid any last-frame callbacks touching freed children.
+    player.set_physics_process(false)
     world.queue_free()
     print("CIVIC_CHAOS_VEHICLE_RIDE_01_BIKE_PASS")
     quit(0)
