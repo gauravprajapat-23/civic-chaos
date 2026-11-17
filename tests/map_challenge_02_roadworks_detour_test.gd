@@ -47,8 +47,9 @@ func _run() -> void:
         _fail("roadworks could not activate on a truly empty legal segment")
         return
     var blocked_id: int = works.lane_id
+    var blocked_choices: Array[int] = [blocked_id]
     if not spawner.route_lane_closed(blocked_id) or (
-            spawner._open_route_options([blocked_id]).size() != 0):
+            spawner._open_route_options(blocked_choices).size() != 0):
         _fail("new traffic routes still use closed road")
         return
     for car in spawner.active_vehicles:
