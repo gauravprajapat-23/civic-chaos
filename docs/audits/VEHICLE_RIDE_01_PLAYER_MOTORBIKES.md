@@ -100,3 +100,10 @@ Get-Item $apk | Select-Object FullName, Length
 - [ ] Long play with 12 background cars and campaign mission cars has no significant FPS regression.
 
 **No Godot or Android runtime was available through the GitHub editing tools. Do not treat committed source as verified gameplay.**
+
+
+## 2026-11-17 focused QA follow-up — standalone input fixture
+
+User's first `vehicle_ride_01_bike_test.gd` run printed `CIVIC_CHAOS_VEHICLE_RIDE_01_BIKE_PASS` but emitted hundreds of real engine errors for missing InputMap actions `look_left/right/up/down`, `jump`, and `sprint`. The test only registered the four walking directions. These other actions normally come from `Main._enter_tree()`, which a standalone `SceneTree --script` test does **not** load. Consequently the user's deliberately strict ERROR-check gate correctly failed. The test also accessed `obstacle.global_position` while that StaticBody3D was not in SceneTree, triggering `!is_inside_tree()` and a default transform.
+
+**Fixed in `tests/vehicle_ride_01_bike_test.gd`:** the headless test now registers every action the player's walking, look and bike physics polls **before** adding PlayerRoot; sets the obstruction's local position prior to parenting; and suspends the player's physics before fixture teardown. `Main._enter_tree()` bindings and gameplay input behavior stay unchanged. This is a correction of the test harness, **not** a claim of new bike gameplay physics behavior. Earlier PASS marker was not clean because errors accompanied it. The full clean gate still requires user-local rerun.
