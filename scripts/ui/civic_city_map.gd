@@ -223,7 +223,16 @@ static func clamp_map_center(center: Vector2, zoom: float) -> Vector2:
     return Vector2(clampf(center.x, -bound, bound), clampf(center.y, -bound, bound))
 
 func _large_map_rect() -> Rect2:
-    var available := Rect2(Vector2(16, 10), _map_area.size - Vector2(32, 20))
+    # Headless tests and the first frame after opening may run before
+    # Godot's container layout gives FullMapDrawing a nonzero size.
+    # Use a stable positive viewport-relative rectangle until layout
+    # settles, instead of silently ignoring zoom and drag input.
+    var drawing_size: Vector2 = _map_area.size if _map_area != null else Vector2.ZERO
+    if drawing_size.x <= 32.0 or drawing_size.y <= 20.0:
+        var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+        drawing_size = Vector2(maxf(280.0, viewport_size.x * 0.84 - 32.0),
+            maxf(220.0, viewport_size.y * 0.65))
+    var available := Rect2(Vector2(16, 10), drawing_size - Vector2(32, 20))
     var square: float = minf(available.size.x, available.size.y)
     return Rect2(available.position + (available.size - Vector2.ONE * square) * 0.5,
         Vector2.ONE * square)
