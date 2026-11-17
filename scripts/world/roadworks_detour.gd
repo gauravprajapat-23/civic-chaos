@@ -168,3 +168,19 @@ func _show_worksite() -> void:
         notice.pixel_size = 0.005
         notice.position = post.position + Vector3.UP * 1.25
         _signs.add_child(notice)
+    # Cones mark a visually narrowed shoulder approach. They have no
+    # physics collision; only the authoritative lane closure affects NPC
+    # route choice, preventing another invisible-barrier/gridlock defect.
+    for index in range(5):
+        var cone := MeshInstance3D.new()
+        cone.name = "WorkCone_%d" % index
+        var cone_mesh := CylinderMesh.new()
+        cone_mesh.top_radius = 0.08
+        cone_mesh.bottom_radius = 0.28
+        cone_mesh.height = 0.65
+        cone.mesh = cone_mesh
+        cone.position = where + forward * (float(index - 2) * 2.0) + right * 4.4 + Vector3.UP * 0.33
+        var orange := StandardMaterial3D.new()
+        orange.albedo_color = Color(1.0, 0.44, 0.07)
+        cone.material_override = orange
+        _signs.add_child(cone)
