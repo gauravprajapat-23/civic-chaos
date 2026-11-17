@@ -262,6 +262,7 @@ func _draw_small() -> void:
         map_surface.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, road_width + 2.0)
         map_surface.draw_line(vertical_a, vertical_b, ROAD, road_width)
         map_surface.draw_line(horizontal_a, horizontal_b, ROAD, road_width)
+    _draw_challenge_indicators(map_surface, area, true)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
         for i in range(1, path.size()):
@@ -277,6 +278,18 @@ func _draw_small() -> void:
     map_surface.draw_colored_polygon(PackedVector2Array([
         center + Vector2(0, -8), center + Vector2(-5, 6), center + Vector2(5, 6)]), PLAYER)
     map_surface.draw_arc(center, 10.0, 0, TAU, 24, Color.WHITE, 1.2)
+
+## Show the player which otherwise-simple grid segments have real S-bends.
+## The warning pins are deterministic and do not change navigation state.
+func _draw_challenge_indicators(canvas: Control, area: Rect2, small: bool) -> void:
+    for section in RoadLayout.challenge_segments():
+        var position: Vector3 = (section["start"] + section["end"]) * 0.5
+        var spot: Vector2 = minimap_project(position, player_position, player_forward, area) if small else world_to_map(position, area)
+        if not area.has_point(spot):
+            continue
+        var radius: float = 2.8 if small else 4.8
+        canvas.draw_circle(spot, radius + 1.0, Color(0.11, 0.12, 0.14))
+        canvas.draw_circle(spot, radius, Color(1.0, 0.75, 0.13))
 
 func _draw_large() -> void:
     _draw_map(_map_area, Rect2(Vector2(16, 10), _map_area.size - Vector2(32, 20)), true)
@@ -298,6 +311,7 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
         canvas.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, width + 2.0)
         canvas.draw_line(vertical_a, vertical_b, ROAD, width)
         canvas.draw_line(horizontal_a, horizontal_b, ROAD, width)
+    _draw_challenge_indicators(canvas, area, false)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
         for index in range(1, path.size()):
