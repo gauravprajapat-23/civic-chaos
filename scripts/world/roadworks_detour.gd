@@ -50,6 +50,10 @@ func advance_to(tick: int) -> void:
             _finish("Roadworks reset after checkpoint restore.")
         next_event_tick = tick + 200
     last_seen_tick = tick
+    if lane_id >= 0 and not active():
+        # Restore/reconfigure may clear transient closures independently.
+        _finish("Roadworks closure reset; road available.")
+        return
     if active():
         if tick >= finish_tick:
             _finish("Roadworks completed; street reopened.")
@@ -95,7 +99,7 @@ func _finish(message: String) -> void:
     if is_instance_valid(_signs):
         _signs.queue_free()
     _signs = null
-    next_event_tick = maxi(next_event_tick, traffic.current_tick + REPEAT_TICKS) if traffic != null else REPEAT_TICKS
+    next_event_tick = maxi(next_event_tick, maxi(last_seen_tick, traffic.current_tick) + REPEAT_TICKS) if traffic != null else REPEAT_TICKS
     changed.emit(message)
 
 func _find_lane(start: Vector3, finish: Vector3) -> int:
