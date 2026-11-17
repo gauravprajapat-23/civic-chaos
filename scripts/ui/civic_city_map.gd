@@ -81,12 +81,14 @@ func _ready() -> void:
     var stack := VBoxContainer.new()
     stack.add_theme_constant_override("separation", 8)
     large_frame.add_child(stack)
-    var header := HBoxContainer.new()
+    var header := HFlowContainer.new()
+    header.add_theme_constant_override("h_separation", 5)
+    header.add_theme_constant_override("v_separation", 5)
     stack.add_child(header)
     var heading := Label.new()
-    heading.text = "CIVIC CHAOS  |  CITY MAP"
+    heading.text = "CITY MAP"
     heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    heading.add_theme_font_size_override("font_size", 22)
+    heading.add_theme_font_size_override("font_size", 18)
     header.add_child(heading)
     zoom_out_button = Button.new()
     zoom_out_button.name = "ZoomOut"
