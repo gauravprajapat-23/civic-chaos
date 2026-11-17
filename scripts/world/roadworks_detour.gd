@@ -9,11 +9,11 @@ const OWNER: String = "map_challenge_02_roadworks"
 const FIRST_TICK: int = 1200
 const REPEAT_TICKS: int = 3600
 const DURATION_TICKS: int = 1200
-const CANDIDATE_STARTS: Array[Vector3] = [
+const CANDIDATE_STARTS = [
     Vector3(120, 0, 46), Vector3(-120, 0, -46),
     Vector3(46, 0, 120), Vector3(-46, 0, -120)
 ]
-const CANDIDATE_ENDS: Array[Vector3] = [
+const CANDIDATE_ENDS = [
     Vector3(120, 0, 120), Vector3(-120, 0, -120),
     Vector3(120, 0, 120), Vector3(-120, 0, -120)
 ]
@@ -26,6 +26,7 @@ var finish_tick: int = -1
 var completed_before: int = 0
 var next_event_tick: int = FIRST_TICK
 var event_number: int = 0
+var last_seen_tick: int = -1
 var _signs: Node3D
 
 func configure(spawner: CivicTrafficSpawner) -> bool:
@@ -33,6 +34,7 @@ func configure(spawner: CivicTrafficSpawner) -> bool:
         return false
     traffic = spawner
     graph = spawner.road_graph
+    last_seen_tick = -1
     return true
 
 func active() -> bool:
@@ -41,6 +43,13 @@ func active() -> bool:
 func advance_to(tick: int) -> void:
     if traffic == null or graph == null:
         return
+    if last_seen_tick >= 0 and tick < last_seen_tick:
+        # F9 rollback: a roadworks event is transient, not part of the
+        # atomic traffic save. Retire stale closure and wait to reschedule.
+        if active():
+            _finish("Roadworks reset after checkpoint restore.")
+        next_event_tick = tick + 200
+    last_seen_tick = tick
     if active():
         if tick >= finish_tick:
             _finish("Roadworks completed; street reopened.")
