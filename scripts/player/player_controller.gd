@@ -37,6 +37,20 @@ var _walk_animation_time: float = 0.0
 var _airborne_vehicle_guard: BoxShape3D
 const VEHICLE_GUARD_HEIGHT_M: float = 2.7
 const VEHICLE_GUARD_WIDTH_M: float = 0.70
+## VEHICLE-RIDE-01: player-owned bike control keeps camera and joystick
+## bindings intact, with extra physical footprint protection.
+const BIKE_MAX_SPEED_MPS: float = 12.0
+const BIKE_REVERSE_MPS: float = 2.0
+const BIKE_ACCEL_MPS2: float = 5.5
+const BIKE_BRAKE_MPS2: float = 12.0
+const BIKE_COAST_MPS2: float = 2.5
+const BIKE_TURN_RATE: float = 1.55
+var ridden_bike: CivicRideableBike
+var _bike_speed: float = 0.0
+var _bike_heading: float = 0.0
+var _bike_guard: BoxShape3D
+var _mount_camera_length: float = 4.0
+var _mount_camera_height: float = 1.5
 
 func _ready() -> void:
     CharacterArt.build(visual, Color(0.15, 0.39, 0.74), Color(0.72, 0.48, 0.33),
@@ -96,6 +110,8 @@ func _touch_can_look(point: Vector2) -> bool:
 func _physics_process(delta: float) -> void:
     # Physics-space queries execute on the physics tick, not from input events.
     if _restore_pending:
+        if is_instance_valid(ridden_bike):
+            dismount_bike()
         _restore_pending = false
         if _try_place_on_ground(_restore_position):
             rotation.y = _restore_yaw
@@ -114,6 +130,9 @@ func _physics_process(delta: float) -> void:
     var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
     if look.length_squared() > 0.001:
         rotate_camera(-look.x * gamepad_look_speed * delta, -look.y * gamepad_look_speed * delta)
+    if is_instance_valid(ridden_bike):
+        _advance_bike(delta)
+        return
     var input_vector := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var forward := -camera.global_transform.basis.z
     var right := camera.global_transform.basis.x
@@ -143,6 +162,114 @@ func _physics_process(delta: float) -> void:
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
 
+func mount_bike(bike: CivicRideableBike) -> bool:
+    if not is_instance_valid(bike) or is_instance_valid(ridden_bike):
+        return false
+    if global_position.distance_to(bike.global_position) > CivicRideableBike.MOUNT_DISTANCE_M:
+        return false
+    if not bike.mount_to(self):
+        return false
+    ridden_bike = bike
+    _bike_speed = 0.0
+    _bike_heading = visual.rotation.y
+    _mount_camera_length = spring_arm.spring_length
+    _mount_camera_height = camera_pivot.position.y
+    spring_arm.spring_length = 5.7
+    camera_pivot.position.y = 2.0
+    visual.position.y = 1.15
+    velocity = Vector3.ZERO
+    interaction_message.emit("BIKE | W accelerate, S brake/reverse, A/D steer, E dismount. Android: joystick + USE.")
+    return true
+
+func dismount_bike() -> bool:
+    if not is_instance_valid(ridden_bike):
+        return false
+    # Do not unmount into a moving car or a pedestrian. Remaining in the
+    # bike is safer than resolving the overlap by teleporting the rider.
+    if not _bike_worksite_clear():
+        interaction_message.emit("Stop away from cars and pedestrians to dismount.")
+        return false
+    var bike: CivicRideableBike = ridden_bike
+    if not bike.park():
+        return false
+    ridden_bike = null
+    _bike_speed = 0.0
+    spring_arm.spring_length = _mount_camera_length
+    camera_pivot.position.y = _mount_camera_height
+    visual.position.y = 0.9
+    velocity = Vector3.ZERO
+    interaction_message.emit("Bike parked | E / USE near bike to ride again.")
+    return true
+
+func _bike_worksite_clear() -> bool:
+    if not is_inside_tree():
+        return false
+    var body := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if body == null or body.shape == null:
+        return false
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = body.shape
+    query.transform = body.global_transform
+    query.collision_mask = 4 | 8
+    query.exclude = [get_rid()]
+    return get_world_3d().direct_space_state.intersect_shape(query, 8).is_empty()
+
+func _advance_bike(delta: float) -> void:
+    var controls := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+    var throttle: float = -controls.y
+    if throttle > 0.05:
+        _bike_speed = move_toward(_bike_speed, BIKE_MAX_SPEED_MPS * throttle, BIKE_ACCEL_MPS2 * delta)
+    elif throttle < -0.05:
+        _bike_speed = move_toward(_bike_speed, BIKE_REVERSE_MPS * throttle, BIKE_BRAKE_MPS2 * delta)
+    else:
+        _bike_speed = move_toward(_bike_speed, 0.0, BIKE_COAST_MPS2 * delta)
+    if absf(controls.x) > 0.05 and absf(_bike_speed) > 0.2:
+        _bike_heading += controls.x * BIKE_TURN_RATE * delta * clampf(absf(_bike_speed) / 4.0, 0.30, 1.0) * signf(_bike_speed)
+    var direction := Vector3(-sinf(_bike_heading), 0, -cosf(_bike_heading))
+    velocity.x = direction.x * _bike_speed
+    velocity.z = direction.z * _bike_speed
+    velocity.y = -0.1 if is_on_floor() else velocity.y - _gravity * delta
+    _limit_bike_motion(delta)
+    _limit_horizontal_actor_motion(delta)
+    var previous: Vector3 = global_position
+    move_and_slide()
+    _recover_vehicle_descent_overlap()
+    var displacement: Vector3 = global_position - previous
+    displacement.y = 0.0
+    if is_instance_valid(ridden_bike):
+        ridden_bike.rotation.y = _bike_heading
+        ridden_bike.animate_wheels(displacement.length())
+    visual.rotation.y = _bike_heading
+    _animate_walk(0.0)
+
+func _limit_bike_motion(delta: float) -> void:
+    if _bike_guard == null:
+        _bike_guard = BoxShape3D.new()
+        _bike_guard.size = Vector3(1.0, 1.1, 1.8)
+    var motion := Vector3(velocity.x, 0, velocity.z) * delta
+    if motion.length_squared() < 0.000001:
+        return
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = _bike_guard
+    query.transform = Transform3D(Basis(Vector3.UP, _bike_heading),
+        global_position + Vector3.UP * 0.95)
+    query.motion = motion
+    query.collision_mask = 1 | 4 | 8
+    query.exclude = [get_rid()]
+    query.margin = 0.02
+    var space := get_world_3d().direct_space_state
+    if not space.intersect_shape(query, 8).is_empty():
+        _bike_speed = 0.0
+        velocity.x = 0.0
+        velocity.z = 0.0
+        return
+    var safe: PackedFloat32Array = space.cast_motion(query)
+    if safe.size() > 0 and safe[0] < 0.99:
+        var amount: float = maxf(0.0, float(safe[0]) - 0.02)
+        velocity.x *= amount
+        velocity.z *= amount
+        _bike_speed *= amount
+
 ## Queue save restoration for the next physics tick so the space is unlocked.
 ## A queued restore is not considered successful until placement passes checks.
 func request_safe_restore(requested: Vector3, yaw: float) -> bool:
@@ -159,6 +286,8 @@ func request_safe_restore(requested: Vector3, yaw: float) -> bool:
 ## On failure do not teleport to the fallback spawn: the caller must roll
 ## back the civic/world transaction and leave the player in place.
 func restore_now_safe(requested: Vector3, yaw: float) -> bool:
+    if is_instance_valid(ridden_bike) and not dismount_bike():
+        return false
     _restore_pending = false
     if not requested.is_finite() or not is_finite(yaw) or not is_inside_tree():
         return false
@@ -363,6 +492,9 @@ func _apply_camera_pitch() -> void:
     spring_arm.rotation.x = _pitch
 
 func try_interact() -> void:
+    if is_instance_valid(ridden_bike):
+        dismount_bike()
+        return
     var center := camera.get_viewport().get_visible_rect().size * 0.5
     var origin := camera.project_ray_origin(center)
     var destination := origin + camera.project_ray_normal(center) * (spring_arm.spring_length + interaction_distance + 1.0)
