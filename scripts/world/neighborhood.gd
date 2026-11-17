@@ -123,14 +123,14 @@ func _challenge_road_markings() -> void:
         warning.rotation.y = perpendicular
         warning.material_override = yellow
         board.add_child(warning)
-        var signal := Label3D.new()
-        signal.name = "SharpTurnLabel"
-        signal.text = "S BEND"
-        signal.font_size = 36
-        signal.pixel_size = 0.005
-        signal.position = Vector3(0, 2.1, 0.08)
-        signal.rotation.y = perpendicular
-        board.add_child(signal)
+        var turn_label := Label3D.new()
+        turn_label.name = "SharpTurnLabel"
+        turn_label.text = "S BEND"
+        turn_label.font_size = 36
+        turn_label.pixel_size = 0.005
+        turn_label.position = Vector3(0, 2.1, 0.08)
+        turn_label.rotation.y = perpendicular
+        board.add_child(turn_label)
         index += 1
 
 func _sidewalk_sections(half: float, road_half: float) -> void:
