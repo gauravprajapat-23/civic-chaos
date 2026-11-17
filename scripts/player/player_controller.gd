@@ -110,8 +110,10 @@ func _touch_can_look(point: Vector2) -> bool:
 func _physics_process(delta: float) -> void:
     # Physics-space queries execute on the physics tick, not from input events.
     if _restore_pending:
-        if is_instance_valid(ridden_bike):
-            dismount_bike()
+        if is_instance_valid(ridden_bike) and not dismount_bike():
+            # Avoid changing the saved player position while the vehicle
+            # footprint is occupied; retry the safe restore next tick.
+            return
         _restore_pending = false
         if _try_place_on_ground(_restore_position):
             rotation.y = _restore_yaw
@@ -512,6 +514,14 @@ func try_interact() -> void:
             cleanup.call("interact", self)
             interaction_attempted.emit(cleanup)
             return
+        # Aim-friendly mount assistance for touch screens. Unlike civic
+        # interactions, this may select only a genuine nearby bike and
+        # must never reach through world walls or a traffic car.
+        var bike := _nearby_rideable_bike()
+        if bike != null:
+            bike.interact(self)
+            interaction_attempted.emit(bike)
+            return
         interaction_message.emit("Nothing to interact with" if hit.is_empty() else "No interaction available")
         return
     var target: Object = hit["collider"]
@@ -528,6 +538,27 @@ func try_interact() -> void:
 
 ## Optional aim assistance applies ONLY to cleanup mission objects. It
 ## never reaches through walls or changes the general E ray interaction.
+func _nearby_rideable_bike() -> CivicRideableBike:
+    var nearest: CivicRideableBike
+    var best: float = CivicRideableBike.MOUNT_DISTANCE_M
+    for node in get_tree().get_nodes_in_group("civic_rideable_bikes"):
+        var bike := node as CivicRideableBike
+        if bike == null or bike.rider != null:
+            continue
+        var distance: float = global_position.distance_to(bike.global_position)
+        if distance > best:
+            continue
+        var eye: Vector3 = global_position + Vector3.UP * 1.35
+        var end: Vector3 = bike.global_position + Vector3.UP * 1.0
+        var ray := PhysicsRayQueryParameters3D.create(eye, end)
+        ray.collision_mask = 1 | 4
+        ray.exclude = [get_rid()]
+        if not get_world_3d().direct_space_state.intersect_ray(ray).is_empty():
+            continue
+        nearest = bike
+        best = distance
+    return nearest
+
 func _nearby_cleanup_target() -> Node3D:
     var forward: Vector3 = -camera.global_transform.basis.z
     forward.y = 0.0
