@@ -15,6 +15,7 @@ const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.
 const TrafficMarshalAssist = preload("res://scripts/civic/traffic_marshal_assist.gd")
 const MarshalControl = preload("res://scripts/civic/traffic_marshal_control.gd")
 const MarshalPanel = preload("res://scripts/ui/traffic_marshal_panel.gd")
+const Roadworks = preload("res://scripts/world/roadworks_detour.gd")
 const TrafficMarshalPost = preload("res://scripts/civic/wrong_way_report_marker.gd")
 const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
@@ -53,6 +54,7 @@ var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
 var _marshal_post: CivicWrongWayReportMarker
 var _marshal_panel: CivicTrafficMarshalPanel
+var _roadworks: CivicRoadworksDetour
 var _marshal_assist_pending: bool = false
 var _marshal_assist_start_tick: int = 0
 var _marshal_assist_completed: int = 0
@@ -163,7 +165,14 @@ func _ready() -> void:
     _marshal_panel.axis_requested.connect(_on_marshal_axis_requested)
     _marshal_panel.metering_requested.connect(_on_marshal_meter_requested)
     _marshal_panel.wrong_way_clearance_requested.connect(_on_marshal_wrong_way_clearance_requested)
+    _marshal_panel.roadworks_clearance_requested.connect(_on_marshal_roadworks_requested)
     _marshal_panel.closed.connect(_on_marshal_panel_closed)
+    if junction != null:
+        _roadworks = Roadworks.new() as CivicRoadworksDetour
+        _roadworks.name = "DynamicRoadworks"
+        add_child(_roadworks)
+        if _roadworks.configure(junction.get("traffic_spawner") as CivicTrafficSpawner):
+            _roadworks.changed.connect(_on_interaction_message)
     mission_guide = MissionGuide.new() as CivicMissionGuide
     mission_guide.name = "CivicMissionGuide"
     add_child(mission_guide)
@@ -255,6 +264,29 @@ func _on_marshal_axis_requested(axis: String) -> void:
 
 ## Player-directed civic enforcement, not signal manipulation. Report and
 ## marshal arrival are compulsory; worksite collision remains authoritative.
+## Roadworks are a civic management challenge, not a teleport or a
+## signal override. Player verifies two REAL completed road journeys.
+func _on_marshal_roadworks_requested() -> void:
+    if not is_instance_valid(_roadworks):
+        _marshal_panel.set_status("Roadworks controller unavailable.")
+        return
+    var result: Dictionary = _roadworks.request_player_reopen()
+    var message: String = ""
+    if bool(result.get("accepted", false)):
+        message = "Detour verified. Roadworks street reopened."
+        if gameplay_session != null:
+            gameplay_session.metrics.apply_outcome(
+                "map_challenge_02:roadworks_verified",
+                maxi(gameplay_session.tick, gameplay_session.metrics.last_tick),
+                {"safety": 5, "efficiency": 10, "cooperation": 5},
+                "two_real_city_vehicles_finished_during_detour")
+    elif str(result.get("reason", "")) == "need_two_real_arrivals":
+        message = "Wait for two real traffic journeys to finish before signing off roadworks."
+    else:
+        message = "No active roadworks closure to reopen."
+    _marshal_panel.set_status(message)
+    _on_interaction_message(message)
+
 func _on_marshal_wrong_way_clearance_requested() -> void:
     if not is_instance_valid(wrong_way_world):
         _marshal_panel.set_status("No active Wrong Way incident to clear.")
@@ -378,6 +410,8 @@ func _queue_gameplay_checkpoint_load() -> bool:
     return true
 
 func _physics_process(_delta: float) -> void:
+    if is_instance_valid(_roadworks) and is_instance_valid(_roadworks.traffic):
+        _roadworks.advance_to(_roadworks.traffic.current_tick)
     if not _checkpoint_load_queue.has_pending():
         return
     var chosen: Dictionary = _checkpoint_load_queue.consume()
