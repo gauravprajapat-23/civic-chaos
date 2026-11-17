@@ -5,6 +5,7 @@ extends CanvasLayer
 signal axis_requested(axis: String)
 signal metering_requested
 signal wrong_way_clearance_requested
+signal roadworks_clearance_requested
 signal closed
 
 var frame: PanelContainer
@@ -15,6 +16,7 @@ var ew_button: Button
 var south_button: Button
 var west_button: Button
 var clear_wrong_way_button: Button
+var roadworks_button: Button
 var meter_button: Button
 var close_button: Button
 var _opened: bool = false
@@ -56,6 +58,7 @@ func _ready() -> void:
     south_button = _make_button(bottom_row, "SOUTH", "S")
     west_button = _make_button(bottom_row, "WEST", "W")
     clear_wrong_way_button = _make_button(content, "Clear Wrong-Way Vehicle (Marshal)", "ClearWrongWay")
+    roadworks_button = _make_button(content, "Verify Roadworks Detour / Reopen", "Roadworks")
     meter_button = _make_button(content, "Meter new arrivals (20 s)", "Meter")
     close_button = _make_button(content, "Close", "Close")
     ns_button.pressed.connect(func() -> void: axis_requested.emit("N"))
@@ -63,6 +66,7 @@ func _ready() -> void:
     south_button.pressed.connect(func() -> void: axis_requested.emit("S"))
     west_button.pressed.connect(func() -> void: axis_requested.emit("W"))
     clear_wrong_way_button.pressed.connect(func() -> void: wrong_way_clearance_requested.emit())
+    roadworks_button.pressed.connect(func() -> void: roadworks_clearance_requested.emit())
     meter_button.pressed.connect(func() -> void: metering_requested.emit())
     close_button.pressed.connect(close_panel)
     get_viewport().size_changed.connect(_fit)
@@ -86,8 +90,8 @@ func _fit() -> void:
     var available_width: float = minf(370.0, maxf(280.0, viewport.x - 28.0))
     margin.offset_left = -available_width * 0.5
     margin.offset_right = available_width * 0.5
-    margin.offset_top = -184.0
-    margin.offset_bottom = 184.0
+    margin.offset_top = -210.0
+    margin.offset_bottom = 210.0
     if frame != null:
         frame.custom_minimum_size.x = available_width
 
