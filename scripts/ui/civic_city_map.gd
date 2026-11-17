@@ -39,6 +39,19 @@ var selected_location: int = -1 # -1 means live mission waypoint
 var route_state: Dictionary = {}
 var navigation_label: Label
 var location_buttons: Array[Button] = []
+## Full-map camera is UI-only. Minimap and the original overview
+## world_to_map() remain unchanged for old navigation contracts.
+const MAP_MIN_ZOOM: float = 1.0
+const MAP_MAX_ZOOM: float = 5.0
+const MAP_ZOOM_STEP: float = 1.25
+var map_zoom: float = 1.0
+var map_center: Vector2 = Vector2.ZERO # X/Z in world metres
+var _touch_points: Dictionary = {}
+var _pinch_distance: float = 0.0
+var _dragging_mouse: bool = false
+var zoom_in_button: Button
+var zoom_out_button: Button
+var recenter_button: Button
 
 func _ready() -> void:
     layer = 19
@@ -74,6 +87,27 @@ func _ready() -> void:
     heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     heading.add_theme_font_size_override("font_size", 22)
     header.add_child(heading)
+    zoom_out_button = Button.new()
+    zoom_out_button.name = "ZoomOut"
+    zoom_out_button.text = "−"
+    zoom_out_button.tooltip_text = "Zoom out"
+    zoom_out_button.custom_minimum_size = Vector2(44, 44)
+    zoom_out_button.pressed.connect(func() -> void: zoom_at(MAP_ZOOM_STEP ** -1.0))
+    header.add_child(zoom_out_button)
+    zoom_in_button = Button.new()
+    zoom_in_button.name = "ZoomIn"
+    zoom_in_button.text = "+"
+    zoom_in_button.tooltip_text = "Zoom in"
+    zoom_in_button.custom_minimum_size = Vector2(44, 44)
+    zoom_in_button.pressed.connect(func() -> void: zoom_at(MAP_ZOOM_STEP))
+    header.add_child(zoom_in_button)
+    recenter_button = Button.new()
+    recenter_button.name = "RecenterMap"
+    recenter_button.text = "CENTER"
+    recenter_button.tooltip_text = "Center map on your live position"
+    recenter_button.custom_minimum_size = Vector2(82, 44)
+    recenter_button.pressed.connect(recenter_on_player)
+    header.add_child(recenter_button)
     close_button = Button.new()
     close_button.name = "CloseCityMap"
     close_button.text = "CLOSE  (M)"
@@ -84,6 +118,8 @@ func _ready() -> void:
     _map_area.name = "FullMapDrawing"
     _map_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
     _map_area.mouse_filter = Control.MOUSE_FILTER_STOP
+    _map_area.clip_contents = true
+    _map_area.gui_input.connect(_on_large_map_input)
     _map_area.draw.connect(_draw_large)
     stack.add_child(_map_area)
     var selector := HBoxContainer.new()
@@ -118,7 +154,7 @@ func _ready() -> void:
     stack.add_child(navigation_label)
     mission_text = Label.new()
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    mission_text.text = "Blue: You   |   Gold: Active objective   |   M: Close map"
+    mission_text.text = "Drag to move map  |  Wheel / +/- to zoom  |  Pinch on phone  |  CENTER: follow player"
     stack.add_child(mission_text)
     get_viewport().size_changed.connect(_fit)
     _fit()
@@ -133,6 +169,9 @@ func _input(event: InputEvent) -> void:
 
 func set_expanded(value: bool) -> void:
     expanded = value
+    _dragging_mouse = false
+    _touch_points.clear()
+    _pinch_distance = 0.0
     if small_frame != null:
         small_frame.visible = not value
     if map_button != null:
@@ -142,6 +181,117 @@ func set_expanded(value: bool) -> void:
     if value and close_button != null:
         close_button.grab_focus()
     _redraw()
+
+## Camera conversion for the panning/zooming full map.
+## Unclamped projection is intentional: clipping, not clamping, avoids
+## drawing off-screen distant roads and pins on the viewport border.
+static func full_view_project(world: Vector3, area: Rect2,
+        center: Vector2, zoom: float) -> Vector2:
+    var square: float = minf(area.size.x, area.size.y)
+    return area.get_center() + (
+        Vector2(world.x, world.z) - center
+    ) * (square / (EXTENT * 2.0)) * clampf(zoom, MAP_MIN_ZOOM, MAP_MAX_ZOOM)
+
+static func full_view_unproject(pixel: Vector2, area: Rect2,
+        center: Vector2, zoom: float) -> Vector2:
+    var square: float = minf(area.size.x, area.size.y)
+    if square <= 0.0:
+        return center
+    return center + (pixel - area.get_center()) * (
+        EXTENT * 2.0 / (square * clampf(zoom, MAP_MIN_ZOOM, MAP_MAX_ZOOM)))
+
+static func clamp_map_center(center: Vector2, zoom: float) -> Vector2:
+    var bound: float = EXTENT * (1.0 - 1.0 / clampf(zoom, MAP_MIN_ZOOM, MAP_MAX_ZOOM))
+    return Vector2(clampf(center.x, -bound, bound), clampf(center.y, -bound, bound))
+
+func _large_map_rect() -> Rect2:
+    var available := Rect2(Vector2(16, 10), _map_area.size - Vector2(32, 20))
+    var square: float = minf(available.size.x, available.size.y)
+    return Rect2(available.position + (available.size - Vector2.ONE * square) * 0.5,
+        Vector2.ONE * square)
+
+func pan_pixels(delta: Vector2) -> void:
+    if _map_area == null:
+        return
+    var area: Rect2 = _large_map_rect()
+    if area.size.x <= 0.0:
+        return
+    # Dragging the map right moves the viewed geographic center left.
+    map_center = clamp_map_center(
+        map_center - delta * (EXTENT * 2.0 / (area.size.x * map_zoom)),
+        map_zoom)
+    _redraw()
+
+func zoom_at(multiplier: float, anchor: Vector2 = Vector2.INF) -> void:
+    if not is_finite(multiplier) or multiplier <= 0.0 or _map_area == null:
+        return
+    var area: Rect2 = _large_map_rect()
+    if area.size.x <= 0.0:
+        return
+    var pivot: Vector2 = anchor if anchor.is_finite() else area.get_center()
+    var before: Vector2 = full_view_unproject(pivot, area, map_center, map_zoom)
+    var new_zoom: float = clampf(map_zoom * multiplier, MAP_MIN_ZOOM, MAP_MAX_ZOOM)
+    var afterward: Vector2 = full_view_unproject(pivot, area, map_center, new_zoom)
+    map_zoom = new_zoom
+    map_center = clamp_map_center(map_center + before - afterward, map_zoom)
+    _redraw()
+
+func recenter_on_player() -> void:
+    # One button returns to the complete city view, or follows player
+    # at the existing zoom after pressing CENTER again.
+    map_center = clamp_map_center(Vector2(player_position.x, player_position.z), map_zoom)
+    _redraw()
+
+func reset_full_view() -> void:
+    map_zoom = MAP_MIN_ZOOM
+    map_center = Vector2.ZERO
+    _redraw()
+
+func _on_large_map_input(event: InputEvent) -> void:
+    if not expanded:
+        return
+    if event is InputEventMouseButton:
+        var mouse := event as InputEventMouseButton
+        if mouse.button_index == MOUSE_BUTTON_WHEEL_UP and mouse.pressed:
+            zoom_at(MAP_ZOOM_STEP, mouse.position)
+            _map_area.accept_event()
+        elif mouse.button_index == MOUSE_BUTTON_WHEEL_DOWN and mouse.pressed:
+            zoom_at(1.0 / MAP_ZOOM_STEP, mouse.position)
+            _map_area.accept_event()
+        elif mouse.button_index == MOUSE_BUTTON_LEFT:
+            _dragging_mouse = mouse.pressed
+            _map_area.accept_event()
+    elif event is InputEventMouseMotion and _dragging_mouse:
+        pan_pixels((event as InputEventMouseMotion).relative)
+        _map_area.accept_event()
+    elif event is InputEventScreenTouch:
+        var touch := event as InputEventScreenTouch
+        if touch.pressed:
+            _touch_points[touch.index] = touch.position
+        else:
+            _touch_points.erase(touch.index)
+        _pinch_distance = _touch_separation()
+        _map_area.accept_event()
+    elif event is InputEventScreenDrag:
+        var drag := event as InputEventScreenDrag
+        if not _touch_points.has(drag.index):
+            return
+        _touch_points[drag.index] = drag.position
+        if _touch_points.size() == 1:
+            pan_pixels(drag.relative)
+        elif _touch_points.size() == 2:
+            var distance: float = _touch_separation()
+            if _pinch_distance > 1.0 and distance > 1.0:
+                var anchor: Vector2 = (_touch_points.values()[0] + _touch_points.values()[1]) * 0.5
+                zoom_at(distance / _pinch_distance, anchor)
+            _pinch_distance = distance
+        _map_area.accept_event()
+
+func _touch_separation() -> float:
+    if _touch_points.size() != 2:
+        return 0.0
+    var positions: Array = _touch_points.values()
+    return (positions[0] as Vector2).distance_to(positions[1] as Vector2)
 
 func update_position(at: Vector3, facing: Vector3, objective: Dictionary) -> void:
     player_position = at
@@ -292,7 +442,14 @@ func _draw_challenge_indicators(canvas: Control, area: Rect2, small: bool) -> vo
         canvas.draw_circle(spot, radius, Color(1.0, 0.75, 0.13))
 
 func _draw_large() -> void:
-    _draw_map(_map_area, Rect2(Vector2(16, 10), _map_area.size - Vector2(32, 20)), true)
+    _draw_map(_map_area, _large_map_rect(), true)
+
+func _draw_full_challenge_indicators(canvas: Control, area: Rect2) -> void:
+    for section in RoadLayout.challenge_segments():
+        var position: Vector3 = (section["start"] + section["end"]) * 0.5
+        var point: Vector2 = full_view_project(position, area, map_center, map_zoom)
+        if area.has_point(point):
+            canvas.draw_circle(point, 4.8, TARGET)
 
 func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     if requested.size.x <= 0 or requested.size.y <= 0:
@@ -301,40 +458,40 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     var area := Rect2(requested.position + (requested.size - Vector2.ONE * size) * 0.5,
         Vector2.ONE * size)
     canvas.draw_rect(area, MAP_BACKGROUND, true)
-    var width: float = maxf(2.0, size * RoadLayout.ROAD_WIDTH_M / (EXTENT * 2.0))
+    var width: float = maxf(2.0, size * RoadLayout.ROAD_WIDTH_M / (EXTENT * 2.0) * map_zoom)
     for coordinate in RoadLayout.coordinates():
-        var vertical_a := world_to_map(Vector3(coordinate, 0, -EXTENT), area)
-        var vertical_b := world_to_map(Vector3(coordinate, 0, EXTENT), area)
-        var horizontal_a := world_to_map(Vector3(-EXTENT, 0, coordinate), area)
-        var horizontal_b := world_to_map(Vector3(EXTENT, 0, coordinate), area)
+        var vertical_a := full_view_project(Vector3(coordinate, 0, -EXTENT), area, map_center, map_zoom)
+        var vertical_b := full_view_project(Vector3(coordinate, 0, EXTENT), area, map_center, map_zoom)
+        var horizontal_a := full_view_project(Vector3(-EXTENT, 0, coordinate), area, map_center, map_zoom)
+        var horizontal_b := full_view_project(Vector3(EXTENT, 0, coordinate), area, map_center, map_zoom)
         canvas.draw_line(vertical_a, vertical_b, ROAD_EDGE, width + 2.0)
         canvas.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, width + 2.0)
         canvas.draw_line(vertical_a, vertical_b, ROAD, width)
         canvas.draw_line(horizontal_a, horizontal_b, ROAD, width)
-    _draw_challenge_indicators(canvas, area, false)
+    _draw_full_challenge_indicators(canvas, area)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
         for index in range(1, path.size()):
-            canvas.draw_line(world_to_map(path[index - 1], area),
-                world_to_map(path[index], area), ROUTE_COLOR, 4.0 if detailed else 2.0, true)
+            canvas.draw_line(full_view_project(path[index - 1], area, map_center, map_zoom),
+                full_view_project(path[index], area, map_center, map_zoom), ROUTE_COLOR, 4.0 if detailed else 2.0, true)
     if detailed:
         var font: Font = ThemeDB.fallback_font
         for landmark in LANDMARKS:
-            var center: Vector2 = world_to_map(landmark["position"], area)
+            var center: Vector2 = full_view_project(landmark["position"], area, map_center, map_zoom)
             canvas.draw_circle(center, 4.5, Color(0.93, 0.93, 0.95))
             canvas.draw_string(font, center + Vector2(7, -7), str(landmark["name"]),
                 HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0.96, 0.97, 0.99))
         for zone in LivingZones.LOCATIONS:
-            var mark: Vector2 = world_to_map(zone["position"], area)
+            var mark: Vector2 = full_view_project(zone["position"], area, map_center, map_zoom)
             canvas.draw_circle(mark, 5.5, zone["color"])
             canvas.draw_string(font, mark + Vector2(8, 15), str(zone["title"]),
                 HORIZONTAL_ALIGNMENT_LEFT, -1, 11, zone["color"])
     var marker: Variant = mission_state.get("target", null)
     if bool(mission_state.get("has_target", false)) and marker is Vector3:
-        var point := world_to_map(marker, area)
+        var point := full_view_project(marker, area, map_center, map_zoom)
         canvas.draw_circle(point, 9.0 if detailed else 5.5, TARGET)
         canvas.draw_arc(point, 13.0 if detailed else 8.0, 0, TAU, 32, TARGET, 2.0)
-    var position: Vector2 = world_to_map(player_position, area)
+    var position: Vector2 = full_view_project(player_position, area, map_center, map_zoom)
     var facing := Vector2(player_forward.x, player_forward.z)
     if facing.length_squared() < 0.0001:
         facing = Vector2(0, -1)
