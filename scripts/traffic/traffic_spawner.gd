@@ -584,6 +584,31 @@ static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -
 		return "N" if heading.z > 0.0 else "S"
 	return "W" if heading.x > 0.0 else "E"
 
+## MAP-CHALLENGE-01: prefer legitimate right/left turns so travel has
+## route decisions rather than repeating straight drives. This does not
+## invent shortcuts, ignore closed lanes or affect mission-owned routes.
+## A fixed seeded RNG maintains deterministic spawn/replay behavior.
+func _choose_city_turn(incoming_id: int, choices: Array[int]) -> int:
+	if choices.is_empty():
+		return -1
+	if road_graph == null:
+		return choices[0]
+	var source: CivicLaneData = road_graph.get_lane(incoming_id)
+	if source == null:
+		return choices[rng.randi_range(0, choices.size() - 1)]
+	var origin_direction: Vector3 = (source.centerline[-1] - source.centerline[0]).normalized()
+	var turns: Array[int] = []
+	for next_id in choices:
+		var next_lane: CivicLaneData = road_graph.get_lane(next_id)
+		if next_lane == null:
+			continue
+		var exit_direction: Vector3 = (next_lane.centerline[-1] - next_lane.centerline[0]).normalized()
+		if absf(origin_direction.dot(exit_direction)) < 0.35:
+			turns.append(next_id)
+	if not turns.is_empty() and rng.randi_range(0, 99) < 70:
+		return turns[rng.randi_range(0, turns.size() - 1)]
+	return choices[rng.randi_range(0, choices.size() - 1)]
+
 func try_spawn() -> bool:
 	# Callers outside advance_fixed() must obey the same congestion rule.
 	# No RNG draws or rejection counters change for deferred arrivals.
@@ -609,14 +634,14 @@ func try_spawn() -> bool:
 		if vehicle.active and vehicle.route[vehicle.current_route_index] == entry and vehicle.lane_distance_m < spawn_clearance_m:
 			rejected_total += 1
 			return false
-	var destination: int = exits[rng.randi_range(0, exits.size() - 1)]
+	var destination: int = _choose_city_turn(entry, exits) if city_mode else exits[rng.randi_range(0, exits.size() - 1)]
 	var path := PackedInt32Array([entry, destination])
 	if city_mode:
 		for step in range(rng.randi_range(2, 5)):
 			var choices: Array[int] = _open_route_options(road_graph.outgoing_legal_lanes(path[path.size() - 1], 1))
 			if choices.is_empty():
 				break
-			path.append(choices[rng.randi_range(0, choices.size() - 1)])
+			path.append(_choose_city_turn(path[path.size() - 1], choices))
 	var vehicle := VehicleScene.instantiate() as CivicVehicleAgent
 	if vehicle == null:
 		push_error("Vehicle scene did not instantiate as CivicVehicleAgent")
