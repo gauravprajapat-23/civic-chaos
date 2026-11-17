@@ -75,7 +75,12 @@ static func make_city_graph() -> CivicRoadGraph:
                     var origin: Vector3 = here if direction == 0 else there
                     var destination: Vector3 = there if direction == 0 else here
                     lane.centerline = _city_left_side_centerline(origin, destination)
-                    lane.speed_limit_mps = 8.0
+                    if CivicCityRoadLayout.is_challenge_segment(origin, destination):
+                        lane.centerline = _city_chicane_centerline(origin, destination)
+                        # A gentle physical S-bend must be negotiated slowly.
+                        lane.speed_limit_mps = 5.5
+                    else:
+                        lane.speed_limit_mps = 8.0
                     graph.add_lane(lane)
                     var source_key: String = key if direction == 0 else target_key
                     var destination_key: String = target_key if direction == 0 else key
@@ -109,5 +114,30 @@ static func _city_left_side_centerline(start: Vector3, finish: Vector3, shoulder
         start,
         start + forward * ramp_length + left * shoulder,
         finish - forward * ramp_length + left * shoulder,
+        finish
+    ])
+
+## MAP-CHALLENGE-01: a real but bounded change of heading on outer
+## streets. 4m junction ramps and endpoints remain EXACTLY unchanged,
+## preserving central/outer priority logic and graph connectivity.
+## Both directions bend to their own LEFT; the opposing lane remains
+## separated by >= 2.5m throughout (no head-on centerline overlap).
+static func _city_chicane_centerline(start: Vector3, finish: Vector3) -> PackedVector3Array:
+    var direction: Vector3 = finish - start
+    var length: float = direction.length()
+    if length < 50.0:
+        return _city_left_side_centerline(start, finish)
+    var forward: Vector3 = direction / length
+    var left: Vector3 = Vector3(forward.z, 0.0, -forward.x)
+    var shoulder: float = 1.25
+    var bump: float = 0.75
+    return PackedVector3Array([
+        start,
+        start + forward * 4.0 + left * shoulder,
+        start + forward * length * 0.30 + left * shoulder,
+        start + forward * length * 0.45 + left * (shoulder + bump),
+        start + forward * length * 0.55 + left * (shoulder + bump),
+        start + forward * length * 0.70 + left * shoulder,
+        finish - forward * 4.0 + left * shoulder,
         finish
     ])
