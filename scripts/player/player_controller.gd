@@ -4,6 +4,7 @@ extends CharacterBody3D
 
 signal interaction_attempted(target: Node)
 signal interaction_message(message: String)
+signal riding_changed(active: bool)
 
 @export var walk_speed: float = 5.0
 @export var sprint_multiplier: float = 1.65
@@ -40,6 +41,7 @@ const VEHICLE_GUARD_WIDTH_M: float = 0.70
 ## VEHICLE-RIDE-01: player-owned bike control keeps camera and joystick
 ## bindings intact, with extra physical footprint protection.
 const BIKE_MAX_SPEED_MPS: float = 12.0
+const BIKE_BOOST_SPEED_MPS: float = 14.0
 const BIKE_REVERSE_MPS: float = 2.0
 const BIKE_ACCEL_MPS2: float = 5.5
 const BIKE_BRAKE_MPS2: float = 12.0
@@ -180,7 +182,8 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     camera_pivot.position.y = 2.0
     visual.position.y = 1.15
     velocity = Vector3.ZERO
-    interaction_message.emit("BIKE | W accelerate, S brake/reverse, A/D steer, E dismount. Android: joystick + USE.")
+    riding_changed.emit(true)
+    interaction_message.emit("BIKE | W accelerate, S/jump brake, A/D steer, Shift boost, E dismount. Android: joystick + BRAKE/BOOST/EXIT.")
     return true
 
 func dismount_bike() -> bool:
@@ -200,6 +203,7 @@ func dismount_bike() -> bool:
     camera_pivot.position.y = _mount_camera_height
     visual.position.y = 0.9
     velocity = Vector3.ZERO
+    riding_changed.emit(false)
     interaction_message.emit("Bike parked | E / USE near bike to ride again.")
     return true
 
@@ -219,8 +223,11 @@ func _bike_worksite_clear() -> bool:
 func _advance_bike(delta: float) -> void:
     var controls := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var throttle: float = -controls.y
-    if throttle > 0.05:
-        _bike_speed = move_toward(_bike_speed, BIKE_MAX_SPEED_MPS * throttle, BIKE_ACCEL_MPS2 * delta)
+    if Input.is_action_pressed("jump"):
+        _bike_speed = move_toward(_bike_speed, 0.0, BIKE_BRAKE_MPS2 * delta)
+    elif throttle > 0.05:
+        var top_speed: float = BIKE_BOOST_SPEED_MPS if Input.is_action_pressed("sprint") else BIKE_MAX_SPEED_MPS
+        _bike_speed = move_toward(_bike_speed, top_speed * throttle, BIKE_ACCEL_MPS2 * delta)
     elif throttle < -0.05:
         _bike_speed = move_toward(_bike_speed, BIKE_REVERSE_MPS * throttle, BIKE_BRAKE_MPS2 * delta)
     else:
