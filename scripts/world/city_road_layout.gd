@@ -50,3 +50,30 @@ static func sidewalk_intervals(half_extent: float = EXTENT_M,
     if half_extent - cursor > 0.02:
         spans.append(Vector2(cursor, half_extent))
     return spans
+
+## MAP-CHALLENGE-01: matching visual and drivable lane geometry.
+## Select only long outer edges, well away from the central junction
+## and any civic incident/mission staging lanes.
+static func is_challenge_segment(start: Vector3, finish: Vector3) -> bool:
+    var displacement: Vector3 = finish - start
+    if absf(displacement.length() - (EXTENT_M - SECONDARY_M)) > 0.2:
+        return false
+    if is_equal_approx(start.x, finish.x):
+        return is_equal_approx(absf(start.x), SECONDARY_M) and (
+            minf(absf(start.z), absf(finish.z)) >= SECONDARY_M - 0.1) and (
+            start.z * finish.z >= 0.0)
+    if is_equal_approx(start.z, finish.z):
+        return is_equal_approx(absf(start.z), SECONDARY_M) and (
+            minf(absf(start.x), absf(finish.x)) >= SECONDARY_M - 0.1) and (
+            start.x * finish.x >= 0.0)
+    return false
+
+static func challenge_segments() -> Array[Dictionary]:
+    var spans: Array[Dictionary] = []
+    for side in [-1.0, 1.0]:
+        for cross in [-SECONDARY_M, SECONDARY_M]:
+            var inner: float = side * SECONDARY_M
+            var outer: float = side * EXTENT_M
+            spans.append({"start": Vector3(cross, 0, inner), "end": Vector3(cross, 0, outer)})
+            spans.append({"start": Vector3(inner, 0, cross), "end": Vector3(outer, 0, cross)})
+    return spans
