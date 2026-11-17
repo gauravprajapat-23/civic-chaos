@@ -94,6 +94,7 @@ func _bind_key(action: StringName, keycode: Key) -> void:
 
 func _ready() -> void:
     player.interaction_message.connect(_on_interaction_message)
+    player.riding_changed.connect(_on_player_riding_changed)
     lifecycle.lifecycle_message.connect(_on_interaction_message)
     status_label.text = "F1 pause | F5 save | F9 load | F10 restart | F12 menu"
     # Old scene debug banner contained permanent title, keyboard commands
@@ -203,6 +204,10 @@ func _ready() -> void:
 ## Does not change signals, pedestrian ownership or physical road agents.
 ## VEHICLE-RIDE-01: street-side motorcycles, outside 8m traffic
 ## lanes and the existing central civic worksite. Interact with E/USE.
+func _on_player_riding_changed(active: bool) -> void:
+    if is_instance_valid(touch_layer) and touch_layer is CivicTouchControls:
+        (touch_layer as CivicTouchControls).set_riding(active)
+
 func _spawn_rideable_bikes() -> void:
     for index in range(2):
         var bike := RideableBike.new() as CivicRideableBike
