@@ -4,7 +4,7 @@ extends StaticBody3D
 ## Only the rider's collision-aware CharacterBody moves in ride mode;
 ## the interactable body is disabled while attached to that rider.
 const MOUNT_DISTANCE_M: float = 2.8
-var rider: CivicPlayerController
+var rider: Node3D
 var home_parent: Node
 var _wheel_front: MeshInstance3D
 var _wheel_rear: MeshInstance3D
@@ -81,15 +81,16 @@ func _make_visuals() -> void:
     add_child(_ride_label)
 
 func interact(actor: Node) -> void:
-    if rider != null or not (actor is CivicPlayerController):
+    if rider != null or not (actor is Node3D) or not actor.has_method("mount_bike"):
         return
-    var player := actor as CivicPlayerController
+    var player := actor as Node3D
     if player.global_position.distance_to(global_position) > MOUNT_DISTANCE_M:
-        player.interaction_message.emit("Move closer to the bike.")
+        if player.has_signal("interaction_message"):
+            player.emit_signal("interaction_message", "Move closer to the bike.")
         return
-    player.mount_bike(self)
+    player.call("mount_bike", self)
 
-func mount_to(player: CivicPlayerController) -> bool:
+func mount_to(player: Node3D) -> bool:
     if rider != null or player == null or not is_inside_tree():
         return false
     home_parent = get_parent()
