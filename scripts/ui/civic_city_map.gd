@@ -52,6 +52,7 @@ var _dragging_mouse: bool = false
 var zoom_in_button: Button
 var zoom_out_button: Button
 var recenter_button: Button
+var overview_button: Button
 
 func _ready() -> void:
     layer = 19
@@ -101,6 +102,13 @@ func _ready() -> void:
     zoom_in_button.custom_minimum_size = Vector2(44, 44)
     zoom_in_button.pressed.connect(func() -> void: zoom_at(MAP_ZOOM_STEP))
     header.add_child(zoom_in_button)
+    overview_button = Button.new()
+    overview_button.name = "ShowEntireCity"
+    overview_button.text = "ALL"
+    overview_button.tooltip_text = "Fit entire city in map view"
+    overview_button.custom_minimum_size = Vector2(52, 44)
+    overview_button.pressed.connect(reset_full_view)
+    header.add_child(overview_button)
     recenter_button = Button.new()
     recenter_button.name = "RecenterMap"
     recenter_button.text = "CENTER"
@@ -154,7 +162,7 @@ func _ready() -> void:
     stack.add_child(navigation_label)
     mission_text = Label.new()
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    mission_text.text = "Drag to move map  |  Wheel / +/- to zoom  |  Pinch on phone  |  CENTER: follow player"
+    mission_text.text = "Drag: pan  |  Wheel / +/- / pinch: zoom  |  CENTER: player  |  ALL: entire city"
     stack.add_child(mission_text)
     get_viewport().size_changed.connect(_fit)
     _fit()
@@ -163,8 +171,16 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
     if event is InputEventKey:
         var key := event as InputEventKey
-        if key.pressed and not key.echo and key.physical_keycode == KEY_M:
+        if not key.pressed or key.echo:
+            return
+        if key.physical_keycode == KEY_M:
             toggle_requested.emit()
+            get_viewport().set_input_as_handled()
+        elif expanded and key.physical_keycode in [KEY_EQUAL, KEY_KP_ADD]:
+            zoom_at(MAP_ZOOM_STEP)
+            get_viewport().set_input_as_handled()
+        elif expanded and key.physical_keycode in [KEY_MINUS, KEY_KP_SUBTRACT]:
+            zoom_at(1.0 / MAP_ZOOM_STEP)
             get_viewport().set_input_as_handled()
 
 func set_expanded(value: bool) -> void:
@@ -311,6 +327,12 @@ func set_road_graph(graph: CivicRoadGraph) -> void:
 func _select_location(index: int) -> void:
     selected_location = index
     _update_route()
+    if expanded and selected_location >= 0:
+        var goal: Dictionary = _navigation_goal()
+        if bool(goal.get("has_target", false)):
+            map_zoom = maxf(map_zoom, 2.0)
+            var target: Vector3 = goal["target"]
+            map_center = clamp_map_center(Vector2(target.x, target.z), map_zoom)
     _redraw()
 
 func _navigation_goal() -> Dictionary:
