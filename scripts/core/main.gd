@@ -438,6 +438,12 @@ func _physics_process(_delta: float) -> void:
 ## GAME-014: F5/F9 saves one coherent player+civic+wrong-way document.
 ## Restore is preflighted before the live game world is changed.
 func _save_gameplay_checkpoint() -> bool:
+    # VEHICLE-RIDE-01 does not alter the existing atomic save schema.
+    # A rider must park before saving until vehicle ownership has a
+    # dedicated serialized checkpoint, rather than writing a phantom bike.
+    if is_instance_valid(player.ridden_bike):
+        _on_interaction_message("Park the bike with E / EXIT before saving.")
+        return false
     if gameplay_session == null:
         return false
     var civic: Dictionary = gameplay_session.snapshot()
@@ -556,6 +562,9 @@ static func checkpoint_selected_document(selected: Variant = null) -> Dictionary
     return {}
 
 func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
+    if is_instance_valid(player.ridden_bike):
+        _on_interaction_message("Park the bike with E / EXIT before loading a checkpoint.")
+        return false
     # F9 and mission-guide callers supply the already-read document. Never
     # select a newer file based on whether that document happens to be empty.
     var checkpoint: Dictionary = checkpoint_selected_document(selected)
