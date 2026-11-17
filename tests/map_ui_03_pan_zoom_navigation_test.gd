@@ -33,7 +33,16 @@ func _run() -> void:
     if ui.zoom_in_button == null or ui.zoom_out_button == null or ui.overview_button == null or ui.recenter_button == null:
         _fail("zoom, whole city and player controls missing")
         return
+    # UI layout can be deferred on the first opening frame or headless
+    # renderer. Zoom must still update camera state, never silently no-op.
+    var actual_drawing_size: Vector2 = ui._map_area.size
+    ui._map_area.size = Vector2.ZERO
+    var first_rect: Rect2 = ui._large_map_rect()
+    if first_rect.size.x <= 0.0 or first_rect.size.y <= 0.0:
+        _fail("full-map camera has no positive fallback bounds before layout")
+        return
     ui.zoom_in_button.pressed.emit()
+    ui._map_area.size = actual_drawing_size
     if not is_equal_approx(ui.map_zoom, Map.MAP_ZOOM_STEP):
         _fail("zoom in button did not change full-map camera")
         return
