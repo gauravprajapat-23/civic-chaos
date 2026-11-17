@@ -44,6 +44,7 @@ func rebuild() -> void:
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
+    _challenge_road_markings()
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
@@ -75,6 +76,62 @@ func rebuild() -> void:
         info.name = "DistrictInfoPoint"
         info.position = Vector3(road_half + sidewalk_width + 1.0, 0.2, -12)
         add_child(info)
+
+## MAP-CHALLENGE-01: warning stripes, chevrons and roadside S-bend
+## boards match the lane graph. These are visual-only: no collider or
+## traversable road obstruction, so the past gridlock bugs stay fixed.
+func _challenge_road_markings() -> void:
+    var yellow := _material(Color(1.0, 0.73, 0.16))
+    var white := _material(Color(0.96, 0.93, 0.82))
+    var dark := _material(Color(0.15, 0.17, 0.18))
+    var index: int = 0
+    for section in CityRoadLayout.challenge_segments():
+        var start: Vector3 = section["start"]
+        var finish: Vector3 = section["end"]
+        var axis: Vector3 = (finish - start).normalized()
+        var right: Vector3 = Vector3(-axis.z, 0, axis.x)
+        var perpendicular: float = atan2(-axis.x, -axis.z)
+        var mid: Vector3 = (start + finish) * 0.5
+        # The visual arrows sit on the asphalt and indicate the REAL bend
+        # ahead. They must not create a static physical blocker.
+        for step in range(3):
+            var along: float = 0.30 + 0.20 * float(step)
+            var position: Vector3 = start.lerp(finish, along)
+            var marker: MeshInstance3D = MeshInstance3D.new()
+            marker.name = "ChicaneChevron_%d_%d" % [index, step]
+            marker.mesh = BoxMesh.new()
+            (marker.mesh as BoxMesh).size = Vector3(0.15, 0.012, 1.2)
+            marker.position = position + Vector3.UP * 0.061
+            marker.rotation.y = perpendicular + PI * 0.25 * (1.0 if step != 1 else -1.0)
+            marker.material_override = yellow
+            marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            add_child(marker)
+        # Keep the board beyond the road's 4m half-width, with no
+        # collider: it is environmental guidance rather than a trap.
+        var board := Node3D.new()
+        board.name = "ChicaneWarning_%d" % index
+        board.position = mid + right * 6.2
+        add_child(board)
+        _facade_panel(board, "WarningPole", Vector3(0, 1.0, 0),
+            Vector3(0.12, 2.0, 0.12), dark)
+        var warning := MeshInstance3D.new()
+        warning.name = "S_Bend_Sign"
+        var sign_mesh := BoxMesh.new()
+        sign_mesh.size = Vector3(1.5, 0.95, 0.10)
+        warning.mesh = sign_mesh
+        warning.position = Vector3(0, 2.1, 0)
+        warning.rotation.y = perpendicular
+        warning.material_override = yellow
+        board.add_child(warning)
+        var signal := Label3D.new()
+        signal.name = "SharpTurnLabel"
+        signal.text = "S BEND"
+        signal.font_size = 36
+        signal.pixel_size = 0.005
+        signal.position = Vector3(0, 2.1, 0.08)
+        signal.rotation.y = perpendicular
+        board.add_child(signal)
+        index += 1
 
 func _sidewalk_sections(half: float, road_half: float) -> void:
     var spans: Array[Vector2] = CityRoadLayout.sidewalk_intervals(half, road_half)
