@@ -83,3 +83,10 @@ Write-Host "MAP-UI-03 FOCUSED TESTS PASSED!" -ForegroundColor Green
 - [ ] M or Close returns to unchanged bottom-left minimap and traffic simulation continues appropriately.
 
 **Source committed; runtime acceptance not yet verified.** No manual GitHub Actions invocation.
+
+
+## 2026-11-17 Godot gate follow-up — MAP-UI-03 zoom initialization (MAP-UI-03A)
+
+The first user-local `map_ui_03_pan_zoom_navigation_test.gd` failed on `zoom in button did not change full-map camera`, with a successful headless editor import immediately before it. Code inspection found that `zoom_at()` returned early if `_large_map_rect()` reported a zero or negative area; this can happen when the full-map container has not yet assigned `FullMapDrawing.size` during headless/first-frame layout. The button signal was wired but its camera operation could be silently discarded. `_large_map_rect()` now calculates a strictly positive viewport-based fallback rectangle until drawing layout settles; regular sized drawing controls still use their actual dimensions. The regression explicitly sets `_map_area.size = Vector2.ZERO`, verifies a positive fallback rect, then presses Zoom In. No changes to traffic or map destination data.
+
+**Status:** corrective source and test committed, **user-local rerun pending**. Verify `map_ui_03_pan_zoom_navigation_test.gd` first, followed by the existing overview, HUD and route regressions. If it fails again, capture the next actual test error instead of assuming the map interaction is fully resolved.
