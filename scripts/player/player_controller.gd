@@ -245,7 +245,7 @@ func _advance_bike(delta: float) -> void:
         _bike_speed = move_toward(_bike_speed, 0.0, BIKE_COAST_MPS2 * delta)
     if absf(controls.x) > 0.05 and absf(_bike_speed) > 0.2:
         _bike_heading += controls.x * BIKE_TURN_RATE * delta * clampf(absf(_bike_speed) / 4.0, 0.30, 1.0) * signf(_bike_speed)
-    var direction := Vector3(-sinf(_bike_heading), 0, -cosf(_bike_heading))
+    var direction := Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
     velocity.x = direction.x * _bike_speed
     velocity.z = direction.z * _bike_speed
     velocity.y = -0.1 if is_on_floor() else velocity.y - _gravity * delta
