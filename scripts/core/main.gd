@@ -16,6 +16,7 @@ const TrafficMarshalAssist = preload("res://scripts/civic/traffic_marshal_assist
 const MarshalControl = preload("res://scripts/civic/traffic_marshal_control.gd")
 const MarshalPanel = preload("res://scripts/ui/traffic_marshal_panel.gd")
 const Roadworks = preload("res://scripts/world/roadworks_detour.gd")
+const RideableBike = preload("res://scripts/world/rideable_bike.gd")
 const TrafficMarshalPost = preload("res://scripts/civic/wrong_way_report_marker.gd")
 const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
@@ -159,6 +160,7 @@ func _ready() -> void:
     incident_card.action_selected.connect(_on_incident_card_action)
     incident_card.dismissed.connect(_on_incident_card_dismissed)
     _create_traffic_marshal_station()
+    _spawn_rideable_bikes()
     _marshal_panel = MarshalPanel.new() as CivicTrafficMarshalPanel
     _marshal_panel.name = "TrafficMarshalPanel"
     add_child(_marshal_panel)
@@ -199,6 +201,17 @@ func _ready() -> void:
 
 ## Roadside player action, independent of campaign mission progression.
 ## Does not change signals, pedestrian ownership or physical road agents.
+## VEHICLE-RIDE-01: street-side motorcycles, outside 8m traffic
+## lanes and the existing central civic worksite. Interact with E/USE.
+func _spawn_rideable_bikes() -> void:
+    for index in range(2):
+        var bike := RideableBike.new() as CivicRideableBike
+        bike.name = "PlayerBike_%d" % index
+        bike.position = Vector3(6.6, 0.16, -24.0) if index == 0 else Vector3(-6.6, 0.16, 33.0)
+        bike.rotation.y = -PI * 0.5
+        bike.add_to_group("civic_rideable_bikes")
+        add_child(bike)
+
 func _create_traffic_marshal_station() -> void:
     _marshal_post = TrafficMarshalPost.new() as CivicWrongWayReportMarker
     _marshal_post.name = "CivicTrafficMarshalPost"
