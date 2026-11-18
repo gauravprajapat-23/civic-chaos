@@ -212,6 +212,9 @@ func update_ride_visuals(steer: float, signed_speed: float,
     _visual_rig.position.y = lerpf(_visual_rig.position.y,
         bounce, minf(1.0, delta * 7.0))
 
+func get_visual_lean() -> float:
+    return _visual_rig.rotation.z if is_instance_valid(_visual_rig) else 0.0
+
 func reset_ride_visuals() -> void:
     if is_instance_valid(_visual_rig):
         _visual_rig.rotation = Vector3.ZERO
