@@ -460,6 +460,24 @@ func interact(actor: Node) -> void:
         return
     player.call("mount_bike", self)
 
+## Never identify physical ground by a fragile node name. Godot may
+## auto-name a CollisionShape3D in a script-built road. Only a body with
+## exactly one directly attached, enabled shape is eligible for the flat
+## support exemption. Compound obstacles remain blocking.
+static func single_collision_shape(body: CollisionObject3D) -> CollisionShape3D:
+    if body == null:
+        return null
+    var found: CollisionShape3D = null
+    for child in body.get_children():
+        if child is CollisionShape3D:
+            var candidate := child as CollisionShape3D
+            if candidate.disabled:
+                continue
+            if found != null:
+                return null
+            found = candidate
+    return found
+
 ## Checks the complete vehicle envelope at a prospective world pose.
 ## The level is built from wide floor boxes on collision layer 1; those
 ## support the bike rather than obstruct it. Everything else is a hard
@@ -501,7 +519,7 @@ func _make_footprint_query(world_origin: Vector3, yaw: float,
         if not road_hit.is_empty() and (road_hit["normal"] as Vector3).y > 0.98:
             var road_body := road_hit.get("collider") as CollisionObject3D
             if road_body != null:
-                var support := road_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+                var support := single_collision_shape(road_body)
                 if support != null and support.shape is BoxShape3D:
                     var slab := support.shape as BoxShape3D
                     var top: float = support.global_position.y + slab.size.y * 0.5
@@ -519,7 +537,7 @@ func _footprint_hits_blocker(query: PhysicsShapeQueryParameters3D) -> bool:
         if (body.collision_layer & 1) == 0:
             return true
         # Ignore a wide flat road/ground support plane, but never a wall.
-        var support := body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        var support := single_collision_shape(body)
         if support == null or not (support.shape is BoxShape3D):
             return true
         var support_box := support.shape as BoxShape3D
