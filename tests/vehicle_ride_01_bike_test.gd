@@ -43,12 +43,14 @@ func _run() -> void:
     if bike.collision_layer != 16 or bike.get_node_or_null("FrontWheel") == null or bike.get_node_or_null("RearWheel") == null:
         _fail("parked bike missing usable interaction collider or low-poly wheels")
         return
+    player.rotation.y = 0.7 # A restored character may face another direction.
     bike.rotation.y = 0.35
     var parked_heading: float = bike.global_rotation.y
     if not player.mount_bike(bike):
         _fail("nearby bike failed to mount")
         return
-    if absf(angle_difference(player._bike_heading, parked_heading)) > 0.001:
+    if absf(angle_difference(player._bike_heading, parked_heading)) > 0.001 or (
+            absf(angle_difference(bike.global_rotation.y, parked_heading)) > 0.001):
         _fail("mount snapped the bike away from its previous heading")
         return
     if player.ridden_bike != bike or bike.rider != player or bike.get_parent() != player or bike.collision_layer != 0:
