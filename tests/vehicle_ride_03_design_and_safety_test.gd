@@ -17,7 +17,7 @@ func _run() -> void:
         "SidePanelLeft", "SidePanelRight"
     ]
     for name in required:
-        var visual := bike.get_node_or_null(name)
+        var visual := bike.find_child(name, true, false)
         if visual == null or not (visual is MeshInstance3D):
             _fail("Missing recognizable motorcycle part: " + name)
             return
@@ -31,8 +31,8 @@ func _run() -> void:
     if collider == null or collider.shape == null:
         _fail("parked motorcycle lost its USE interaction shape")
         return
-    var rear := bike.get_node_or_null("RearWheel") as MeshInstance3D
-    var front := bike.get_node_or_null("FrontWheel") as MeshInstance3D
+    var rear := bike.find_child("RearWheel", true, false) as MeshInstance3D
+    var front := bike.find_child("FrontWheel", true, false) as MeshInstance3D
     var front_at_rest: Basis = front.transform.basis
     bike.animate_wheels(0.43)
     var after_forward: float = bike._wheel_roll_total
@@ -46,7 +46,7 @@ func _run() -> void:
     if not rear.transform.basis.is_equal_approx(front.transform.basis):
         _fail("front and rear wheels spin at different rates")
         return
-    var brake := bike.get_node_or_null("TailLight") as MeshInstance3D
+    var brake := bike.find_child("TailLight", true, false) as MeshInstance3D
     bike.set_braking(true)
     var mat := brake.material_override as StandardMaterial3D
     if mat == null or not mat.emission_enabled:
