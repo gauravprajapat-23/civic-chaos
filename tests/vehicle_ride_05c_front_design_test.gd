@@ -51,7 +51,7 @@ func _run() -> void:
     if fork.rotation.y >= -0.05 or interaction.transform != original:
         _fail("front details did not steer or visual steering moved collider")
         return
-    if bike.FOOTPRINT_SIZE != Vector3(1.15, 1.55, 3.05):
+    if Bike.FOOTPRINT_SIZE != Vector3(1.15, 1.55, 3.05):
         _fail("redesign changed full motorcycle clearance dimensions")
         return
     var anchor := Node3D.new()
