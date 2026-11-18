@@ -161,4 +161,4 @@ func _fit() -> void:
     button.size = Vector2(92, 44)
     panel.position = Vector2(maxf(8.0, (viewport.x - minf(530.0, viewport.x - 16.0)) * 0.5),
         maxf(12.0, viewport.y * 0.12))
-    panel.size = Vector2(minf(530.0, viewport.x - 16.0), minf(430.0, viewport.y * 0.75))
+    panel.size = Vector2(minf(530.0, viewport.x - 16.0), minf(520.0, viewport.y * 0.84))
