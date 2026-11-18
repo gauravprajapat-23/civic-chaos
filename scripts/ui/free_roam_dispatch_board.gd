@@ -3,6 +3,7 @@ extends CanvasLayer
 ## GAME-025-02: non-authoritative dispatch board for existing Free Roam.
 ## This UI never spawns/finishes activities or edits the incident scheduler.
 signal toggle_requested
+signal accept_requested
 signal route_requested
 
 var enabled: bool = false
@@ -13,9 +14,11 @@ var heading: Label
 var status: Label
 var details: Label
 var history: Label
+var accept_button: Button
 var route_button: Button
 var close_button: Button
 var _feed: Dictionary = {}
+var accepted_call_id: int = -1
 
 func _ready() -> void:
     layer = 23
@@ -61,6 +64,12 @@ func _ready() -> void:
     details.name = "DispatchDetails"
     details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     stack.add_child(details)
+    accept_button = Button.new()
+    accept_button.name = "AcceptCall"
+    accept_button.text = "ACCEPT CALL"
+    accept_button.custom_minimum_size = Vector2(210, 50)
+    accept_button.pressed.connect(func() -> void: accept_requested.emit())
+    stack.add_child(accept_button)
     route_button = Button.new()
     route_button.name = "ShowRoute"
     route_button.text = "SHOW ON CITY MAP"
@@ -88,6 +97,7 @@ func set_available(value: bool) -> void:
     enabled = value
     if not value:
         expanded = false
+        accepted_call_id = -1
     _sync_visibility()
 
 func set_expanded(value: bool) -> void:
@@ -107,6 +117,9 @@ func update_feed(value: Dictionary) -> void:
     if status == null:
         return
     var active: bool = bool(_feed.get("has_event", false))
+    var current_id: int = int(_feed.get("call_id", -1))
+    if not active or current_id <= 0 or accepted_call_id != current_id:
+        accepted_call_id = -1
     if active:
         status.text = "%s  |  %s" % [
             "PRIORITY CALL" if bool(_feed.get("priority", false)) else "ROUTINE CALL",
@@ -117,9 +130,28 @@ func update_feed(value: Dictionary) -> void:
     else:
         status.text = "ALL CLEAR | NO ACTIVE CALL"
         details.text = "Municipal dispatch is monitoring the city.\nNext scheduled opportunity: in %ds.\nExplore streets and neighborhood improvements meanwhile." % int(_feed.get("seconds_until_next", 0))
-    route_button.disabled = not active or not bool(_feed.get("has_target", false))
+    var accepted: bool = active and accepted_call_id == current_id
+    accept_button.disabled = not active or current_id <= 0 or accepted
+    accept_button.text = "CALL ACCEPTED - TRACKING" if accepted else "ACCEPT CALL"
+    route_button.disabled = not accepted or not bool(_feed.get("has_target", false))
     history.text = "VERIFIED ACTIVITIES | %d completed  •  %d expired\nComplete real activities to grow your volunteer record." % [
         int(_feed.get("resolved", 0)), int(_feed.get("expired", 0))]
+
+## Selection is local UI state only. The Free Roam event director
+## remains authoritative; accepting cannot start, resolve or reward calls.
+func accept_live_call(call_id: int) -> bool:
+    if not enabled or call_id <= 0 or not bool(_feed.get("has_event", false)) or (
+            int(_feed.get("call_id", -1)) != call_id) or (
+            not bool(_feed.get("has_target", false))):
+        return false
+    accepted_call_id = call_id
+    update_feed(_feed)
+    return true
+
+func accepted_live_call() -> bool:
+    return enabled and accepted_call_id > 0 and (
+        accepted_call_id == int(_feed.get("call_id", -1))) and (
+        bool(_feed.get("has_event", false))) and bool(_feed.get("has_target", false))
 
 func _fit() -> void:
     if panel == null:
