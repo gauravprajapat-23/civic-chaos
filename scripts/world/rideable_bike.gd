@@ -273,9 +273,10 @@ func _make_footprint_query(world_origin: Vector3, yaw: float,
     query.motion = motion
     query.collision_mask = 1 | 2 | 4 | 8
     query.margin = FOOTPRINT_MARGIN
-    query.exclude = excluding.duplicate()
+    var omit: Array[RID] = excluding.duplicate()
     if is_instance_valid(_rider_sensing_body):
-        query.exclude.append(_rider_sensing_body.get_rid())
+        omit.append(_rider_sensing_body.get_rid())
+    query.exclude = omit
     return query
 
 func _footprint_hits_blocker(query: PhysicsShapeQueryParameters3D) -> bool:
