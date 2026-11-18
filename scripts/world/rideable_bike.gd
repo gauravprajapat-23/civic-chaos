@@ -376,6 +376,28 @@ func _make_footprint_query(world_origin: Vector3, yaw: float,
     omit.append(get_rid())
     if is_instance_valid(_rider_sensing_body):
         omit.append(_rider_sensing_body.get_rid())
+    # The road beneath the tires is support, not a horizontal obstacle.
+    # Exclude ONLY a verified broad horizontal support from the swept
+    # physics query; otherwise cast_motion may report zero travel while
+    # reversing with a small settled-ground penetration. Walls, cars,
+    # pedestrians and raised structures remain collision blockers.
+    if motion.length_squared() > 0.0000001:
+        var road_ray := PhysicsRayQueryParameters3D.create(
+            world_origin + Vector3.UP * 1.0,
+            world_origin + Vector3.DOWN * 1.8)
+        road_ray.collision_mask = 1
+        road_ray.exclude = omit
+        var road_hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(road_ray)
+        if not road_hit.is_empty() and (road_hit["normal"] as Vector3).y > 0.98:
+            var road_body := road_hit.get("collider") as CollisionObject3D
+            if road_body != null:
+                var support := road_body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+                if support != null and support.shape is BoxShape3D:
+                    var slab := support.shape as BoxShape3D
+                    var top: float = support.global_position.y + slab.size.y * 0.5
+                    if slab.size.x >= 2.0 and slab.size.z >= 2.0 and slab.size.y <= 1.0 and (
+                            top <= world_origin.y + 0.20):
+                        omit.append(road_body.get_rid())
     query.exclude = omit
     return query
 
