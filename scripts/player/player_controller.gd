@@ -416,7 +416,9 @@ func _advance_bike(delta: float) -> void:
     velocity.z = direction.z * _bike_speed
     velocity.y = -0.1 if is_on_floor() else velocity.y - _gravity * delta
     _limit_bike_motion(delta)
-    _limit_horizontal_actor_motion(delta)
+    # Mounted movement is guarded by the full 05A motorcycle envelope.
+    # The walking-only extra vehicle sweep would zero outward reverse
+    # velocity after a crash (cast_motion starts inside the car).
     var previous: Vector3 = global_position
     move_and_slide()
     # WALKER-ONLY roof recovery would teleport an occupied bike sideways
