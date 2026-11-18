@@ -168,7 +168,14 @@ func _run() -> void:
         _fail("dismount animation did not return the rider to standing")
         return
     if not player.mount_bike(bike):
-        _fail("bike cannot be remounted after safe exit animation")
+        _fail("bike cannot be remounted after safe exit animation; player=%s bike=%s range=%.3f cooldown=%.3f footprint=%s rider_clear=%s transfer=%s" % [
+            str(player.global_position), str(bike.global_position),
+            player.global_position.distance_to(bike.global_position),
+            player._bike_exit_cooldown,
+            str(bike.footprint_clear_at(bike.global_position, bike.global_rotation.y, [player.get_rid()])),
+            str(player._rider_place_clear(bike.global_position)),
+            str(player._rider_transfer_clear(player.global_position, bike.global_position))
+        ])
         return
     if player._bike_pose_blend >= 1.0:
         _fail("mount animation jumped instantly to its finished seated pose")
