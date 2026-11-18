@@ -12,7 +12,7 @@
 
 `scripts/world/rideable_bike.gd` introduces a **single** 1.15m wide × 1.55m tall × 3.05m long `BoxShape3D`, centered at local (0, 1.12, -0.05) relative to bike root, with modest 0.035m margin. The actual low-poly motorcycle's front wheel and rear assembly require a significantly longer clearance than the old 1.0×1.1×1.8m player-side probe.
 
-`footprint_clear_at(world_origin,yaw,excluded)` queries world, player, vehicles and pedestrians (mask 1|2|4|8) and ignores only known flat under-wheel road support on world layer 1. Walls, poles, buildings, other vehicles and people remain blockers. A shared `_make_footprint_query` feeds both stationary and moving probes, so future modifications cannot accidentally use different dimensions.
+`footprint_clear_at(world_origin,yaw,excluded)` queries world, player, vehicles and pedestrians (mask 1|2|4|8|16) and ignores only known flat under-wheel road support on world layer 1. Walls, poles, buildings, other vehicles, parked bikes (but not the bike's own interaction RID), and people remain blockers. A shared `_make_footprint_query` feeds both stationary and moving probes, so future modifications cannot accidentally use different dimensions.
 
 ### 2. Safe mount at the parked vehicle
 
