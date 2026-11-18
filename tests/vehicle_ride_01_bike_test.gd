@@ -43,8 +43,13 @@ func _run() -> void:
     if bike.collision_layer != 16 or bike.get_node_or_null("FrontWheel") == null or bike.get_node_or_null("RearWheel") == null:
         _fail("parked bike missing usable interaction collider or low-poly wheels")
         return
+    bike.rotation.y = 0.35
+    var parked_heading: float = bike.global_rotation.y
     if not player.mount_bike(bike):
         _fail("nearby bike failed to mount")
+        return
+    if absf(angle_difference(player._bike_heading, parked_heading)) > 0.001:
+        _fail("mount snapped the bike away from its previous heading")
         return
     if player.ridden_bike != bike or bike.rider != player or bike.get_parent() != player or bike.collision_layer != 0:
         _fail("mounted bike has wrong rider, ownership or collider state")
@@ -63,6 +68,9 @@ func _run() -> void:
     if player._bike_speed < 0.1:
         _fail("bike speed was never applied from the movement input")
         return
+    if player.dismount_bike():
+        _fail("dismount accepted while bike was still moving")
+        return
     var heading_before: float = player._bike_heading
     Input.action_press("move_forward")
     Input.action_press("move_right")
@@ -79,6 +87,21 @@ func _run() -> void:
     Input.action_release("move_back")
     if player._bike_speed > 0.2:
         _fail("bike brakes did not slow/stop it")
+        return
+    # Reverse now rolls rear and front wheels backwards, rather than
+    # applying the same positive angular displacement in both directions.
+    if player._bike_speed >= -0.2:
+        _fail("bike never entered reverse from backward input")
+        return
+    if player.dismount_bike():
+        _fail("reverse-motion dismount was not rejected")
+        return
+    Input.action_press("jump")
+    for frame in range(25):
+        await physics_frame
+    Input.action_release("jump")
+    if absf(player._bike_speed) > 0.25:
+        _fail("dedicated brake did not stop reverse motion")
         return
     # Contact at the player's own location blocks dangerous dismount,
     # rather than placing the character through a stopped car.
