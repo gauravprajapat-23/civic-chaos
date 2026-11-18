@@ -9,8 +9,8 @@ func _initialize() -> void:
 func _run() -> void:
     var bike := Bike.new() as CivicRideableBike
     root.add_child(bike)
-    var front := bike.get_node_or_null("FrontWheel") as MeshInstance3D
-    var rear := bike.get_node_or_null("RearWheel") as MeshInstance3D
+    var front := bike.find_child("FrontWheel", true, false) as MeshInstance3D
+    var rear := bike.find_child("RearWheel", true, false) as MeshInstance3D
     if front == null or rear == null:
         _fail("both physical wheel visuals are required")
         return
