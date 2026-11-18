@@ -322,7 +322,14 @@ func _rider_place_clear(at: Vector3) -> bool:
         if cs == null or not (cs.shape is BoxShape3D):
             return false
         var box := cs.shape as BoxShape3D
-        if cs.global_position.y + box.size.y * 0.5 > at.y + 0.035:
+        # Ride/stand clearance must tolerate the small amount by which a
+        # CharacterBody settles into a floor after many physics frames.
+        # Do not exempt vertical walls, vehicle bodies or tall obstacles.
+        var floor_like: bool = box.size.x >= 2.0 and box.size.z >= 2.0 and (
+            box.size.y <= 1.0) and cs.global_transform.basis.y.normalized().dot(
+            Vector3.UP) > 0.98
+        var top: float = cs.global_position.y + box.size.y * 0.5
+        if not floor_like or top > at.y + 0.16:
             return false
     return true
 
