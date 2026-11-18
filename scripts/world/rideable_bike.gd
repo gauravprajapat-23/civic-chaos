@@ -182,6 +182,106 @@ func _design_05c_geometry() -> void:
     _tube("RearSubframe", Vector3(-0.23, 1.10, 0.92),
         Vector3(0.23, 1.10, 0.92), 0.05, steel)
 
+## VEHICLE-RIDE-05C-FRONT: symmetric street-bike front end.
+## Every detail is visual only and follows the existing SteeringFork.
+func _front_round_part(part_name: String, radius: float, depth: float,
+        at: Vector3, color: Color, emission: float = 0.0) -> MeshInstance3D:
+    var part := MeshInstance3D.new()
+    part.name = part_name
+    var cylinder := CylinderMesh.new()
+    cylinder.top_radius = radius
+    cylinder.bottom_radius = radius
+    cylinder.height = depth
+    cylinder.radial_segments = 16
+    part.mesh = cylinder
+    part.position = at
+    # Cylinder symmetry axis is Y; motorcycle faces -Z.
+    part.rotation.x = PI * 0.5
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.metallic = 0.35
+    material.roughness = 0.34
+    if emission > 0.0:
+        material.emission_enabled = true
+        material.emission = color
+        material.emission_energy_multiplier = emission
+    part.material_override = material
+    _visual_rig.add_child(part)
+    return part
+
+func _front_orb(part_name: String, at: Vector3, dimensions: Vector3,
+        color: Color) -> MeshInstance3D:
+    var part := MeshInstance3D.new()
+    part.name = part_name
+    var sphere := SphereMesh.new()
+    sphere.radius = 0.5
+    sphere.height = 1.0
+    sphere.radial_segments = 12
+    sphere.rings = 8
+    part.mesh = sphere
+    part.position = at
+    part.scale = dimensions
+    var mat := StandardMaterial3D.new()
+    mat.albedo_color = color
+    mat.metallic = 0.25
+    mat.roughness = 0.42
+    part.material_override = mat
+    _visual_rig.add_child(part)
+    return part
+
+func _design_front_assembly() -> void:
+    var dark := Color(0.08, 0.11, 0.14)
+    var steel := Color(0.65, 0.70, 0.74)
+    var body_red := Color(0.77, 0.14, 0.10)
+    var amber := Color(1.0, 0.55, 0.10)
+    # Legacy square lamp and floating rectangular number plate retained
+    # by name for compatibility, but replaced by round functional geometry.
+    for legacy_name in ["Headlight", "FrontNumberPlate", "FrontMudguard"]:
+        var old := _visual_rig.get_node_or_null(legacy_name) as MeshInstance3D
+        if old != null:
+            old.visible = false
+    _front_round_part("HeadlampBucket", 0.245, 0.20,
+        Vector3(0.0, 1.22, -1.11), dark)
+    _front_round_part("HeadlampBezel", 0.225, 0.042,
+        Vector3(0.0, 1.22, -1.235), steel)
+    _front_round_part("HeadlampLens", 0.194, 0.028,
+        Vector3(0.0, 1.22, -1.266), Color(1.0, 0.95, 0.74), 0.45)
+    _front_orb("FrontCowl", Vector3(0.0, 1.43, -1.07),
+        Vector3(0.51, 0.23, 0.27), body_red)
+    _front_round_part("Speedometer", 0.13, 0.07,
+        Vector3(0.0, 1.59, -0.78), dark)
+    # Twin turn signals, not rigid rectangles floating in front of tire.
+    for side in [-1.0, 1.0]:
+        var n: int = int(side)
+        _tube("IndicatorStalk_%d" % n,
+            Vector3(side * 0.22, 1.22, -1.05),
+            Vector3(side * 0.43, 1.22, -1.13), 0.028, dark)
+        _front_orb("FrontIndicator_%d" % n,
+            Vector3(side * 0.45, 1.22, -1.15),
+            Vector3(0.16, 0.13, 0.12), amber)
+        _tube("ForkDustSeal_%d" % n,
+            Vector3(side * 0.18, 0.85, -0.905),
+            Vector3(side * 0.18, 0.78, -0.913), 0.09, dark)
+        _tube("AxleEnd_%d" % n,
+            Vector3(side * 0.13, 0.43, -0.95),
+            Vector3(side * 0.235, 0.43, -0.95), 0.065, steel)
+        # A rounded fender follows the upper circumference of the tire
+        # and stays inside the previously validated bike footprint.
+        var last_point := Vector3.ZERO
+        for index in range(9):
+            var angle: float = -0.98 + float(index) * 1.96 / 8.0
+            var point := Vector3(side * 0.17,
+                0.43 + 0.485 * cos(angle),
+                -0.95 + 0.485 * sin(angle))
+            if index > 0:
+                _tube("FrontFenderRib_%d_%d" % [n, index],
+                    last_point, point, 0.048, body_red)
+            last_point = point
+    _tube("FrontFenderBridge", Vector3(-0.17, 0.915, -0.95),
+        Vector3(0.17, 0.915, -0.95), 0.065, body_red)
+    _tube("FrontBrakeHose", Vector3(-0.27, 1.48, -0.93),
+        Vector3(-0.24, 0.64, -0.96), 0.017, dark)
+
 func _make_visuals() -> void:
     var shape := CollisionShape3D.new()
     shape.name = "InteractionShape"
@@ -210,6 +310,7 @@ func _make_visuals() -> void:
     _headlamp = _visual_rig.get_node_or_null("Headlight") as MeshInstance3D
     _enhance_motorcycle_body()
     _design_05c_geometry()
+    _design_front_assembly()
     _assemble_steering_fork()
     _ride_label = Label3D.new()
     _ride_label.name = "BikeHint"
@@ -279,8 +380,17 @@ func _assemble_steering_fork() -> void:
         "FrontForkLower_-1", "FrontForkLower_1",
         "HandlebarRise_-1", "HandlebarRise_1",
         "HandlebarGrip_-1", "HandlebarGrip_1",
-        "BrakeLever_-1", "BrakeLever_1"
+        "BrakeLever_-1", "BrakeLever_1",
+        "HeadlampBucket", "HeadlampBezel", "HeadlampLens",
+        "FrontCowl", "Speedometer", "FrontFenderBridge",
+        "FrontBrakeHose", "IndicatorStalk_-1", "IndicatorStalk_1",
+        "FrontIndicator_-1", "FrontIndicator_1",
+        "ForkDustSeal_-1", "ForkDustSeal_1",
+        "AxleEnd_-1", "AxleEnd_1"
     ]
+    for side in [-1, 1]:
+        for index in range(1, 9):
+            front_names.append("FrontFenderRib_%d_%d" % [side, index])
     for part_name in front_names:
         var part := _visual_rig.get_node_or_null(part_name) as Node3D
         if part != null:
