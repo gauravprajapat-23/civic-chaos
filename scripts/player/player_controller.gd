@@ -171,11 +171,16 @@ func mount_bike(bike: CivicRideableBike) -> bool:
         return false
     if global_position.distance_to(bike.global_position) > CivicRideableBike.MOUNT_DISTANCE_M:
         return false
+    # Preserve the parked bike's facing. Previously mounting snapped its
+    # direction to the on-foot character and could turn it into a wall.
+    var parked_heading: float = bike.global_rotation.y
     if not bike.mount_to(self):
         return false
     ridden_bike = bike
     _bike_speed = 0.0
-    _bike_heading = visual.rotation.y
+    _bike_heading = parked_heading
+    ridden_bike.rotation.y = _bike_heading
+    visual.rotation.y = _bike_heading
     _mount_camera_length = spring_arm.spring_length
     _mount_camera_height = camera_pivot.position.y
     spring_arm.spring_length = 5.7
@@ -189,6 +194,11 @@ func mount_bike(bike: CivicRideableBike) -> bool:
 
 func dismount_bike() -> bool:
     if not is_instance_valid(ridden_bike):
+        return false
+    # No dismount at speed: stopping here prevents an instantly parked
+    # ghost motorbike in moving traffic, and preserves rider ownership.
+    if absf(_bike_speed) > 0.25 or Vector2(velocity.x, velocity.z).length() > 0.35:
+        interaction_message.emit("Brake and stop fully before leaving the bike.")
         return false
     # Do not unmount into a moving car or a pedestrian. Remaining in the
     # bike is safer than resolving the overlap by teleporting the rider.
@@ -258,9 +268,15 @@ func _advance_bike(delta: float) -> void:
     displacement.y = 0.0
     if is_instance_valid(ridden_bike):
         ridden_bike.rotation.y = _bike_heading
-        ridden_bike.animate_wheels(displacement.length())
+        # Travel direction matters. Reversing rolls the tire backwards;
+        # an ordinary positive displacement always rolled forward before.
+        var forward: Vector3 = Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
+        var signed_travel: float = displacement.dot(forward)
+        ridden_bike.animate_wheels(signed_travel)
+        ridden_bike.set_braking(Input.is_action_pressed("jump") or throttle < -0.05)
     visual.rotation.y = _bike_heading
-    _animate_walk(0.0)
+    # Seated pose stays stable rather than swinging the walking limbs.
+    _set_bike_pose(true)
 
 func _limit_bike_motion(delta: float) -> void:
     if _bike_guard == null:
