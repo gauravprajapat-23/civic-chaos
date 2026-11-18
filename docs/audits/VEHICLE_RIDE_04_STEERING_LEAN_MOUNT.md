@@ -90,3 +90,8 @@ Get-Item $apk | Select-Object FullName, Length
 Arcade steering and visual-only suspension, not true two-wheel multi-body suspension, tire traction, grounded ray-wheel physics or crash/ragdoll. Mount still reattaches the bike model to the existing rider transform for compatibility; this milestone improves the character animation without a physically interpolated vehicle-seat transfer. The rider's collision footprint and NPC-traffic priority rules are not replaced.
 
 **No user-local Godot/Android verification has yet been run on these changes; treat source-complete as pending QA. No GitHub Actions manually triggered.**
+
+
+## 2026-11-18 local gate follow-up — wheel test advanced both wheels twice
+
+User-local Godot import passed, then `vehicle_ride_04_steering_lean_mount_test.gd` passed and `vehicle_ride_03_design_and_safety_test.gd` passed. `vehicle_ride_02_wheel_roll_axis_test.gd` failed with `rolling motion is horizontal rather than vertical`. The test erroneously invoked `bike.animate_wheels(quarter_turn)` **inside a loop over front and rear wheels**. That production function correctly advances both at once; by the time the second wheel was examined it had undergone a half turn instead of a quarter turn. Corrected the test to snapshot both wheel transforms, invoke `animate_wheels` exactly once, then check each wheel's vertical quarter-turn rotation and horizontal axle. No production animation was changed. The subsequent regression tests did not run yet because the gate stops on failure. **Clean local rerun pending.**
