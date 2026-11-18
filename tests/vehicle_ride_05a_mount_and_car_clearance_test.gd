@@ -78,6 +78,24 @@ func _run() -> void:
             Bike.FOOTPRINT_SIZE.z):
         _fail("NPC awareness proxy does not use full bike geometry")
         return
+    # Probe the FRONT WHEEL location, safely outside the small on-foot
+    # capsule. An NPC using its usual layer-2 safety sensing must see
+    # the mounted motorcycle here, not just its standing rider.
+    var detector := SphereShape3D.new()
+    detector.radius = 0.13
+    var sensing_query := PhysicsShapeQueryParameters3D.new()
+    sensing_query.shape = detector
+    sensing_query.transform = Transform3D(Basis.IDENTITY,
+        bike.global_position + (bike.global_transform.basis * Vector3(0, 1.05, -1.3)))
+    sensing_query.collision_mask = 2
+    sensing_query.exclude = [player.get_rid()]
+    var recognized: bool = false
+    for hit in player.get_world_3d().direct_space_state.intersect_shape(sensing_query, 12):
+        if hit.get("collider") == sensed:
+            recognized = true
+    if not recognized:
+        _fail("NPC player-safety query cannot see the motorcycle's front wheel")
+        return
     player.set_physics_process(false)
     stage.queue_free()
     print("CIVIC_CHAOS_VEHICLE_RIDE_05A_MOUNT_CAR_CLEARANCE_PASS")
