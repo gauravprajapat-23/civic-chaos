@@ -102,6 +102,86 @@ func _wheel(part_name: String, at: Vector3) -> MeshInstance3D:
         wheel.add_child(disc)
     return wheel
 
+
+## VEHICLE-RIDE-05C: round structural members; visual-only (no physics).
+func _tube(part_name: String, start: Vector3, finish: Vector3,
+        radius: float, color: Color) -> MeshInstance3D:
+    var member := MeshInstance3D.new()
+    member.name = part_name
+    var cylinder := CylinderMesh.new()
+    cylinder.top_radius = radius
+    cylinder.bottom_radius = radius
+    cylinder.height = start.distance_to(finish)
+    cylinder.radial_segments = 10
+    member.mesh = cylinder
+    member.position = (start + finish) * 0.5
+    member.basis = Basis(Quaternion(Vector3.UP, (finish - start).normalized()))
+    var paint := StandardMaterial3D.new()
+    paint.albedo_color = color
+    paint.metallic = 0.5
+    paint.roughness = 0.43
+    member.material_override = paint
+    _visual_rig.add_child(member)
+    return member
+
+func _design_05c_geometry() -> void:
+    var steel := Color(0.57, 0.62, 0.69)
+    var frame_color := Color(0.11, 0.15, 0.19)
+    var rubber := Color(0.08, 0.09, 0.10)
+    var paint := Color(0.77, 0.14, 0.10)
+    # Hide the old blocky placeholders, preserving node identity for
+    # legacy tests; structural parts below supply the visible silhouette.
+    for part_name in ["Fork", "Handlebar", "Chassis", "EngineBlock",
+            "ExhaustPipe", "ExhaustTip"]:
+        var old := _visual_rig.get_node_or_null(part_name) as MeshInstance3D
+        if old != null:
+            old.visible = false
+    for side in [-1.0, 1.0]:
+        var sign_side: int = int(side)
+        var x: float = side * 0.23
+        _tube("FrameSpine_%d" % sign_side, Vector3(x, 0.75, 0.73),
+            Vector3(x, 1.15, -0.38), 0.052, frame_color)
+        _tube("FrameCradle_%d" % sign_side, Vector3(x, 0.75, 0.73),
+            Vector3(x, 0.64, -0.27), 0.044, steel)
+        _tube("RearSwingarm_%d" % sign_side, Vector3(x, 0.65, 0.30),
+            Vector3(x, 0.43, 0.85), 0.063, frame_color)
+        _tube("FrontForkStanchion_%d" % sign_side,
+            Vector3(side * 0.18, 1.43, -0.83),
+            Vector3(side * 0.18, 0.43, -0.95), 0.055, steel)
+        _tube("FrontForkLower_%d" % sign_side,
+            Vector3(side * 0.18, 0.78, -0.91),
+            Vector3(side * 0.18, 0.43, -0.95), 0.078, frame_color)
+        _tube("HandlebarRise_%d" % sign_side,
+            Vector3(side * 0.18, 1.42, -0.90),
+            Vector3(side * 0.30, 1.53, -0.92), 0.038, steel)
+        _tube("HandlebarGrip_%d" % sign_side,
+            Vector3(side * 0.30, 1.53, -0.92),
+            Vector3(side * 0.50, 1.53, -0.92), 0.055, rubber)
+        _tube("BrakeLever_%d" % sign_side,
+            Vector3(side * 0.37, 1.51, -1.00),
+            Vector3(side * 0.55, 1.49, -1.04), 0.014, steel)
+        _tube("ExhaustHeader_%d" % sign_side,
+            Vector3(side * 0.29, 0.69, -0.20),
+            Vector3(side * 0.37, 0.52, 0.55), 0.055, steel)
+        _tube("ExhaustCan_%d" % sign_side,
+            Vector3(side * 0.37, 0.53, 0.53),
+            Vector3(side * 0.37, 0.54, 1.12), 0.105, frame_color)
+    _tube("HandlebarCrossbar", Vector3(-0.30, 1.53, -0.92),
+        Vector3(0.30, 1.53, -0.92), 0.04, steel)
+    _tube("TripleClamp", Vector3(-0.23, 1.39, -0.87),
+        Vector3(0.23, 1.39, -0.87), 0.07, steel)
+    _tube("EngineCylinder", Vector3(0, 0.61, -0.10),
+        Vector3(0, 1.04, -0.10), 0.23, steel)
+    for fin in range(5):
+        _tube("EngineFin_%d" % fin,
+            Vector3(-0.29, 0.72 + float(fin) * 0.065, -0.10),
+            Vector3(0.29, 0.72 + float(fin) * 0.065, -0.10),
+            0.026, frame_color)
+    _tube("TankCenterRidge", Vector3(0, 1.32, -0.50),
+        Vector3(0, 1.32, 0.05), 0.038, paint)
+    _tube("RearSubframe", Vector3(-0.23, 1.10, 0.92),
+        Vector3(0.23, 1.10, 0.92), 0.05, steel)
+
 func _make_visuals() -> void:
     var shape := CollisionShape3D.new()
     shape.name = "InteractionShape"
@@ -129,6 +209,7 @@ func _make_visuals() -> void:
         Color(1.0, 0.12, 0.07))
     _headlamp = _visual_rig.get_node_or_null("Headlight") as MeshInstance3D
     _enhance_motorcycle_body()
+    _design_05c_geometry()
     _assemble_steering_fork()
     _ride_label = Label3D.new()
     _ride_label.name = "BikeHint"
@@ -192,7 +273,13 @@ func _assemble_steering_fork() -> void:
         "FrontWheel", "Fork", "Handlebar", "Headlight",
         "FrontMudguard", "FrontNumberPlate",
         "MirrorStem_-1", "MirrorStem_1",
-        "MirrorGlass_-1", "MirrorGlass_1"
+        "MirrorGlass_-1", "MirrorGlass_1",
+        "HandlebarCrossbar", "TripleClamp",
+        "FrontForkStanchion_-1", "FrontForkStanchion_1",
+        "FrontForkLower_-1", "FrontForkLower_1",
+        "HandlebarRise_-1", "HandlebarRise_1",
+        "HandlebarGrip_-1", "HandlebarGrip_1",
+        "BrakeLever_-1", "BrakeLever_1"
     ]
     for part_name in front_names:
         var part := _visual_rig.get_node_or_null(part_name) as Node3D
