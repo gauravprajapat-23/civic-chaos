@@ -80,8 +80,19 @@ func _run() -> void:
         await physics_frame
     Input.action_release("move_forward")
     Input.action_release("move_right")
-    if absf(angle_difference(heading_before, player._bike_heading)) < 0.06:
-        _fail("bike handlebar steering did not change physical heading")
+    var right_delta: float = angle_difference(heading_before, player._bike_heading)
+    if right_delta >= -0.06:
+        _fail("D steered the bike LEFT, not right")
+        return
+    var right_heading: float = player._bike_heading
+    Input.action_press("move_forward")
+    Input.action_press("move_left")
+    for frame in range(15):
+        await physics_frame
+    Input.action_release("move_forward")
+    Input.action_release("move_left")
+    if angle_difference(right_heading, player._bike_heading) <= 0.06:
+        _fail("A steered the bike RIGHT, not left")
         return
     Input.action_press("move_back")
     for frame in range(40):
@@ -134,6 +145,20 @@ func _run() -> void:
         return
     if player.collision_mask != 1 or not is_equal_approx(player.spring_arm.spring_length, 4.0):
         _fail("bike changed default player collision or permanently altered camera")
+        return
+    if player.mount_bike(bike):
+        _fail("rapid repeated USE remounted bike during dismount transition")
+        return
+    for frame in range(30):
+        await physics_frame
+    if player._bike_pose_blend > 0.001 or not is_equal_approx(player.visual.position.y, 0.9):
+        _fail("dismount animation did not return the rider to standing")
+        return
+    if not player.mount_bike(bike):
+        _fail("bike cannot be remounted after safe exit animation")
+        return
+    if player._bike_pose_blend >= 1.0:
+        _fail("mount animation jumped instantly to its finished seated pose")
         return
     # Stop running player physics before removing the fixture and
     # quitting; avoid any last-frame callbacks touching freed children.
