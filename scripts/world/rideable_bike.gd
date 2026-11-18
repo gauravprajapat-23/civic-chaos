@@ -414,8 +414,14 @@ func _footprint_hits_blocker(query: PhysicsShapeQueryParameters3D) -> bool:
             return true
         var support_box := support.shape as BoxShape3D
         var top: float = support.global_position.y + support_box.size.y * 0.5
-        var bike_bottom: float = query.transform.origin.y - FOOTPRINT_SIZE.y * 0.5
-        if top > bike_bottom + 0.035:
+        var bike_root_y: float = query.transform.origin.y - FOOTPRINT_CENTER.y
+        var support_is_road: bool = support_box.size.x >= 2.0 and (
+            support_box.size.z >= 2.0) and support_box.size.y <= 1.0 and (
+            support.global_transform.basis.y.normalized().dot(Vector3.UP) > 0.98)
+        # Long riding can settle the root a few centimetres into a wide
+        # road slab. It is still road support, not a vehicle/wall overlap.
+        # Cap tolerance; tall or rotated world geometry remains blocking.
+        if not support_is_road or top > bike_root_y + 0.20:
             return true
     return false
 
