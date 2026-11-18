@@ -572,7 +572,8 @@ func mount_to(player: Node3D) -> bool:
     _mounted_rider_visual = CivicMotorcycleRiderRig.new()
     _mounted_rider_visual.name = "MountedRiderRig"
     _visual_rig.add_child(_mounted_rider_visual)
-    _mounted_rider_visual.configure(_front_assembly)
+    var appearance: Node3D = player.get_node_or_null("Visual") as Node3D
+    _mounted_rider_visual.configure(_front_assembly, appearance)
     if is_instance_valid(_ride_label):
         _ride_label.visible = false
     return true
