@@ -577,10 +577,13 @@ func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
     for next_body in next_hits:
         if not current_hits.has(next_body):
             return false
+    # A near-touching margin may report an overlap with zero measured
+    # penetration. A completely clear next step is always a safe retreat.
+    if next_hits.is_empty():
+        return true
     var before_depth: float = _footprint_contact_depth(current_query)
     var after_depth: float = _footprint_contact_depth(next_query)
-    return before_depth > 0.00001 and (
-        next_hits.is_empty() or after_depth < before_depth - 0.00001)
+    return before_depth > 0.00001 and after_depth < before_depth - 0.00001
 
 func _exclude_support_from_recovery(query: PhysicsShapeQueryParameters3D,
         origin: Vector3) -> void:
