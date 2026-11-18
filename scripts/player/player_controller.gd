@@ -398,20 +398,18 @@ func _advance_bike(delta: float) -> void:
     else:
         _bike_speed = move_toward(_bike_speed, 0.0, BIKE_COAST_MPS2 * delta)
     var proposed_heading: float = _bike_heading + bike_steering_delta(controls.x, _bike_speed, delta)
-    # Swept linear travel alone cannot detect the front wheel swinging
-    # sideways into a stopped car while the handlebars turn. Check a
-    # short angular sweep, not only the final yaw, before turning.
+    # An occupied front wheel must not cancel straight reverse.
+    # Unsafe steering is rejected independently of reverse torque.
     var turning_blocked: bool = false
-    for step in range(1, 4):
-        var checked_heading: float = lerpf(
-            _bike_heading, proposed_heading, float(step) / 3.0)
-        if not ridden_bike.footprint_clear_at(
-                global_position, checked_heading, [get_rid()]):
-            turning_blocked = true
-            break
-    if turning_blocked:
-        _bike_speed = 0.0
-    else:
+    if absf(angle_difference(_bike_heading, proposed_heading)) > 0.00001:
+        for step in range(1, 4):
+            var checked_heading: float = lerpf(
+                _bike_heading, proposed_heading, float(step) / 3.0)
+            if not ridden_bike.footprint_clear_at(
+                    global_position, checked_heading, [get_rid()]):
+                turning_blocked = true
+                break
+    if not turning_blocked:
         _bike_heading = proposed_heading
     var direction := Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
     velocity.x = direction.x * _bike_speed
@@ -464,6 +462,12 @@ func _limit_bike_motion(delta: float) -> void:
     # A side-touching car must not be entered by moving the wheel nose
     # through its cabin, regardless of the smaller player capsule.
     if bike._footprint_hits_blocker(query):
+        # Reverse must reduce the existing full-footprint penetration,
+        # without contacting a new obstruction. Never allow forward
+        # movement or unsafe side-steering through a crash blocker.
+        if _bike_speed < -0.05 and bike.reverse_escapes_overlap(
+                global_position, _bike_heading, motion, [get_rid()]):
+            return
         _bike_speed = 0.0
         velocity.x = 0.0
         velocity.z = 0.0
