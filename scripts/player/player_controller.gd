@@ -47,6 +47,17 @@ const BIKE_ACCEL_MPS2: float = 5.5
 const BIKE_BRAKE_MPS2: float = 12.0
 const BIKE_COAST_MPS2: float = 2.5
 const BIKE_TURN_RATE: float = 1.55
+const BIKE_EXIT_COOLDOWN_S: float = 0.32
+var _bike_exit_cooldown: float = 0.0
+
+## Godot -Z is forward, +X is right. An increasing +Y yaw rotates
+## -Z toward -X (LEFT). A/D therefore need the OPPOSITE sign from
+## conventional heading math. Reverse steering is inverted again.
+static func bike_steering_delta(axis: float, signed_speed: float, delta: float) -> float:
+    if absf(axis) <= 0.05 or absf(signed_speed) <= 0.2 or delta <= 0.0:
+        return 0.0
+    return -axis * BIKE_TURN_RATE * delta * clampf(
+        absf(signed_speed) / 4.0, 0.30, 1.0) * signf(signed_speed)
 var ridden_bike: CivicRideableBike
 var _bike_speed: float = 0.0
 var _bike_heading: float = 0.0
@@ -110,6 +121,7 @@ func _touch_can_look(point: Vector2) -> bool:
     return true
 
 func _physics_process(delta: float) -> void:
+    _bike_exit_cooldown = maxf(0.0, _bike_exit_cooldown - delta)
     # Physics-space queries execute on the physics tick, not from input events.
     if _restore_pending:
         if is_instance_valid(ridden_bike) and not dismount_bike():
@@ -178,6 +190,7 @@ func mount_bike(bike: CivicRideableBike) -> bool:
         return false
     ridden_bike = bike
     _bike_speed = 0.0
+    _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
     _bike_heading = parked_heading
     ridden_bike.global_rotation.y = _bike_heading
     visual.rotation.y = _bike_heading
@@ -195,6 +208,9 @@ func mount_bike(bike: CivicRideableBike) -> bool:
 func dismount_bike() -> bool:
     if not is_instance_valid(ridden_bike):
         return false
+    if _bike_exit_cooldown > 0.0:
+        interaction_message.emit("Hold steady while mounting the bike.")
+        return false
     # No dismount at speed: stopping here prevents an instantly parked
     # ghost motorbike in moving traffic, and preserves rider ownership.
     if absf(_bike_speed) > 0.25 or Vector2(velocity.x, velocity.z).length() > 0.35:
@@ -210,6 +226,7 @@ func dismount_bike() -> bool:
         return false
     ridden_bike = null
     _bike_speed = 0.0
+    _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
     spring_arm.spring_length = _mount_camera_length
     camera_pivot.position.y = _mount_camera_height
     visual.position.y = 0.9
@@ -253,8 +270,7 @@ func _advance_bike(delta: float) -> void:
         _bike_speed = move_toward(_bike_speed, BIKE_REVERSE_MPS * throttle, BIKE_BRAKE_MPS2 * delta)
     else:
         _bike_speed = move_toward(_bike_speed, 0.0, BIKE_COAST_MPS2 * delta)
-    if absf(controls.x) > 0.05 and absf(_bike_speed) > 0.2:
-        _bike_heading += controls.x * BIKE_TURN_RATE * delta * clampf(absf(_bike_speed) / 4.0, 0.30, 1.0) * signf(_bike_speed)
+    _bike_heading += bike_steering_delta(controls.x, _bike_speed, delta)
     var direction := Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
     velocity.x = direction.x * _bike_speed
     velocity.z = direction.z * _bike_speed
@@ -273,6 +289,7 @@ func _advance_bike(delta: float) -> void:
         var forward: Vector3 = Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
         var signed_travel: float = displacement.dot(forward)
         ridden_bike.animate_wheels(signed_travel)
+        ridden_bike.update_ride_visuals(controls.x, _bike_speed, delta, signed_travel)
         ridden_bike.set_braking(Input.is_action_pressed("jump") or throttle < -0.05)
     visual.rotation.y = _bike_heading
     # Seated pose stays stable rather than swinging the walking limbs.
