@@ -141,12 +141,16 @@ func _run() -> void:
     for settle_frame in range(8):
         await physics_frame
     if not player.dismount_bike():
-        _fail("safe stationary bike cannot be parked; speed=%.3f horizontal=%.3f cooldown=%.3f worksite_clear=%s exit=%s" % [
+        _fail("safe stationary bike cannot be parked; speed=%.3f horizontal=%.3f cooldown=%.3f worksite_clear=%s exit=%s rider_at=%s support=%s right_clear=%s left_clear=%s" % [
             player._bike_speed,
             Vector2(player.velocity.x, player.velocity.z).length(),
             player._bike_exit_cooldown,
             str(player._bike_worksite_clear()),
-            str(player._find_bike_dismount_position(bike))
+            str(player._find_bike_dismount_position(bike)),
+            str(player.global_position),
+            str(player._bike_exit_support_origin()),
+            str(player._rider_place_clear(player.global_position + Basis(Vector3.UP, player._bike_heading) * Vector3.RIGHT * 1.15)),
+            str(player._rider_place_clear(player.global_position - Basis(Vector3.UP, player._bike_heading) * Vector3.RIGHT * 1.15))
         ])
         return
     if player.ridden_bike != null or bike.get_parent() != world or bike.collision_layer != 16 or bike.rider != null:
