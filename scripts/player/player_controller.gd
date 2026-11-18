@@ -231,7 +231,7 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     visual.visible = false
     velocity = Vector3.ZERO
     riding_changed.emit(true)
-    interaction_message.emit("BIKE | W accelerate, S/jump brake, A/D steer, Shift boost, E dismount. Android: joystick + BRAKE/BOOST/EXIT.")
+    interaction_message.emit("BIKE | W forward, S reverse, SPACE brake, A/D steer, Shift boost, E exit. Android: joystick down to reverse; BRAKE stops.")
     return true
 
 func dismount_bike() -> bool:
