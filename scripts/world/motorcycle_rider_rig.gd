@@ -138,3 +138,12 @@ func update_targets(blend: float = 1.0) -> void:
         _joints[n + 1].position = hand
         _joints[n + 2].position = knee
         _joints[n + 3].position = boot
+
+## Grip targets belong to the fork rather than to this rig; explicitly
+## release them on dismount so repeated mounts never reuse stale markers.
+func detach_targets() -> void:
+    for grip in _grips:
+        if is_instance_valid(grip):
+            grip.queue_free()
+    _grips.clear()
+    _fork = null
