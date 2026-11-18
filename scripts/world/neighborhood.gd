@@ -141,12 +141,20 @@ func _sidewalk_sections(half: float, road_half: float) -> void:
             var interval: Vector2 = spans[index]
             var length: float = interval.y - interval.x
             var middle: float = (interval.x + interval.y) * 0.5
-            # Raised sidewalk is real floor support; no special collision
-            # override is needed now that it does not cross the road.
+            # ROAD-FOOTPATH-01: make the walking/cycling transition
+            # continuous instead of an abrupt 20 cm collision lip.
+            # The adjoining central road has top Y = 0.035. Preserve
+            # real, solid footpath support at exactly the same elevation.
+            # Decorative curb strips below have NO physics collider.
+            const WALKWAY_TOP_Y: float = 0.035
+            const WALKWAY_THICKNESS: float = 0.04
+            var walkway_center_y: float = WALKWAY_TOP_Y - WALKWAY_THICKNESS * 0.5
             _block("SidewalkX%d_%d" % [side, index],
-                Vector3(offset, 0.1, middle), Vector3(sidewalk_width, 0.2, length))
+                Vector3(offset, walkway_center_y, middle),
+                Vector3(sidewalk_width, WALKWAY_THICKNESS, length))
             _block("SidewalkZ%d_%d" % [side, index],
-                Vector3(middle, 0.1, offset), Vector3(length, 0.2, sidewalk_width))
+                Vector3(middle, walkway_center_y, offset),
+                Vector3(length, WALKWAY_THICKNESS, sidewalk_width))
 
 func _outer_blocks(half: float) -> void:
     # The 5x5 city graph drives on x/z = 0, +/-46 and +/-120. Paint *every*
