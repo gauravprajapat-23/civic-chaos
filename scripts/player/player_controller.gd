@@ -49,6 +49,8 @@ const BIKE_COAST_MPS2: float = 2.5
 const BIKE_TURN_RATE: float = 1.55
 const BIKE_EXIT_COOLDOWN_S: float = 0.32
 var _bike_exit_cooldown: float = 0.0
+var _bike_pose_blend: float = 0.0
+const BIKE_MOUNT_ANIMATION_S: float = 0.35
 
 ## Godot -Z is forward, +X is right. An increasing +Y yaw rotates
 ## -Z toward -X (LEFT). A/D therefore need the OPPOSITE sign from
@@ -191,14 +193,15 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     ridden_bike = bike
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
+    _bike_pose_blend = 0.0
     _bike_heading = parked_heading
     ridden_bike.global_rotation.y = _bike_heading
-    visual.rotation.y = _bike_heading
+    visual.rotation.y = _bike_heading - global_rotation.y
     _mount_camera_length = spring_arm.spring_length
     _mount_camera_height = camera_pivot.position.y
     spring_arm.spring_length = 5.7
     camera_pivot.position.y = 2.0
-    visual.position.y = 1.33
+    visual.position.y = 0.9
     _set_bike_pose(true)
     velocity = Vector3.ZERO
     riding_changed.emit(true)
@@ -227,9 +230,11 @@ func dismount_bike() -> bool:
     ridden_bike = null
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
+    _bike_pose_blend = 0.0
     spring_arm.spring_length = _mount_camera_length
     camera_pivot.position.y = _mount_camera_height
     visual.position.y = 0.9
+    visual.rotation.z = 0.0
     _set_bike_pose(false)
     velocity = Vector3.ZERO
     riding_changed.emit(false)
@@ -243,7 +248,8 @@ func _set_bike_pose(mounted: bool) -> void:
         var limb := visual.get_node_or_null(limb_name) as Node3D
         if limb == null:
             continue
-        limb.rotation.x = (0.95 if limb_name.ends_with("Leg") else 0.85) if mounted else 0.0
+        var seated_angle: float = 0.95 if limb_name.ends_with("Leg") else 0.85
+        limb.rotation.x = seated_angle * _bike_pose_blend if mounted else 0.0
 
 func _bike_worksite_clear() -> bool:
     if not is_inside_tree():
@@ -291,8 +297,12 @@ func _advance_bike(delta: float) -> void:
         ridden_bike.animate_wheels(signed_travel)
         ridden_bike.update_ride_visuals(controls.x, _bike_speed, delta, signed_travel)
         ridden_bike.set_braking(Input.is_action_pressed("jump") or throttle < -0.05)
-    visual.rotation.y = _bike_heading
-    # Seated pose stays stable rather than swinging the walking limbs.
+    visual.rotation.y = _bike_heading - global_rotation.y
+    _bike_pose_blend = minf(1.0, _bike_pose_blend + delta / BIKE_MOUNT_ANIMATION_S)
+    visual.position.y = lerpf(0.9, 1.33, _bike_pose_blend)
+    # Lean rider modestly with the bike; this is cosmetic only.
+    if is_instance_valid(ridden_bike):
+        visual.rotation.z = ridden_bike.get_visual_lean() * 0.7
     _set_bike_pose(true)
 
 func _limit_bike_motion(delta: float) -> void:
