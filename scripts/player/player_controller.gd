@@ -176,11 +176,20 @@ func _physics_process(delta: float) -> void:
     # vehicle roofs are intentionally not CharacterBody3D floors. Recover
     # to the nearest tested perimeter point before the next physics tick.
     _recover_vehicle_descent_overlap()
-    _animate_walk(delta)
+    if _bike_pose_blend > 0.0:
+        # Art-only dismount: lower the seated sprite back to standing.
+        # CharacterBody stays at its real, physically checked position.
+        _bike_pose_blend = maxf(0.0, _bike_pose_blend - delta / BIKE_MOUNT_ANIMATION_S)
+        visual.position.y = lerpf(0.9, 1.33, _bike_pose_blend)
+        _set_bike_pose(true)
+    else:
+        _animate_walk(delta)
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
 
 func mount_bike(bike: CivicRideableBike) -> bool:
+    if _bike_exit_cooldown > 0.0:
+        return false
     if not is_instance_valid(bike) or is_instance_valid(ridden_bike):
         return false
     if global_position.distance_to(bike.global_position) > CivicRideableBike.MOUNT_DISTANCE_M:
@@ -230,12 +239,11 @@ func dismount_bike() -> bool:
     ridden_bike = null
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
-    _bike_pose_blend = 0.0
+    _bike_pose_blend = 1.0
     spring_arm.spring_length = _mount_camera_length
     camera_pivot.position.y = _mount_camera_height
-    visual.position.y = 0.9
     visual.rotation.z = 0.0
-    _set_bike_pose(false)
+    _set_bike_pose(true)
     velocity = Vector3.ZERO
     riding_changed.emit(false)
     interaction_message.emit("Bike parked | E / USE near bike to ride again.")
