@@ -1268,6 +1268,9 @@ func _on_dispatch_accept_requested() -> void:
             not is_instance_valid(free_roam_world)):
         return
     var report: Dictionary = free_roam_world.dispatch_state()
+    # Never accept from a cached panel snapshot: re-read the actual
+    # incident at click time, then ensure its ID still matches.
+    dispatch_board.update_feed(report)
     if not bool(report.get("has_event", false)) or (
             not bool(report.get("has_target", false))):
         return
