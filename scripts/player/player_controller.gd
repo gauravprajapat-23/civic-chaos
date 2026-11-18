@@ -341,13 +341,34 @@ func _rider_transfer_clear(start: Vector3, finish: Vector3) -> bool:
             return false
     return true
 
+## A long ride may settle the CharacterBody slightly below the supporting
+## road. A side-exit probe at that sub-floor origin incorrectly labels even
+## clear sidewalks as occupied. Recover a *validated* floor-supported exit
+## elevation before side-transfer queries, never ignoring solid blockers.
+func _bike_exit_support_origin() -> Vector3:
+    var current: Vector3 = global_position
+    var ray := PhysicsRayQueryParameters3D.create(
+        current + Vector3.UP * 1.3, current + Vector3.DOWN * 2.0)
+    ray.collision_mask = 1
+    ray.exclude = [get_rid()]
+    var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(ray)
+    if hit.is_empty() or (hit["normal"] as Vector3).y < 0.85:
+        return Vector3(INF, INF, INF)
+    var floor_y: float = (hit["position"] as Vector3).y
+    if absf(current.y - floor_y) > 0.50:
+        return Vector3(INF, INF, INF)
+    return Vector3(current.x, floor_y + 0.10, current.z)
+
 func _find_bike_dismount_position(bike: CivicRideableBike) -> Vector3:
     if not _bike_worksite_clear():
         return Vector3(INF, INF, INF)
+    var origin: Vector3 = _bike_exit_support_origin()
+    if not origin.is_finite() or not _rider_place_clear(origin):
+        return Vector3(INF, INF, INF)
     var right: Vector3 = Basis(Vector3.UP, _bike_heading) * Vector3.RIGHT
     for sign in [1.0, -1.0]:
-        var candidate: Vector3 = global_position + right * (sign * 1.15)
-        if _rider_place_clear(candidate) and _rider_transfer_clear(global_position, candidate):
+        var candidate: Vector3 = origin + right * (sign * 1.15)
+        if _rider_place_clear(candidate) and _rider_transfer_clear(origin, candidate):
             return candidate
     return Vector3(INF, INF, INF)
 
@@ -400,6 +421,14 @@ func _advance_bike(delta: float) -> void:
         var signed_travel: float = displacement.dot(forward)
         ridden_bike.animate_wheels(signed_travel)
         ridden_bike.update_ride_visuals(controls.x, _bike_speed, delta, signed_travel)
+        # VEHICLE-RIDE-05D: chase framing responds to speed and reverses
+        # smoothly, while the actual collision-aware spring arm stays active.
+        spring_arm.spring_length = lerpf(spring_arm.spring_length,
+            5.7 + clampf(absf(_bike_speed) / BIKE_MAX_SPEED_MPS, 0.0, 1.0) * 0.55,
+            minf(1.0, delta * 2.5))
+        camera_pivot.position.y = lerpf(camera_pivot.position.y,
+            2.0 + clampf(absf(_bike_speed) / BIKE_MAX_SPEED_MPS, 0.0, 1.0) * 0.14,
+            minf(1.0, delta * 3.0))
         ridden_bike.set_braking(Input.is_action_pressed("jump") or throttle < -0.05)
     visual.rotation.y = _bike_heading - global_rotation.y
     _bike_pose_blend = minf(1.0, _bike_pose_blend + delta / BIKE_MOUNT_ANIMATION_S)
