@@ -179,7 +179,7 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     ridden_bike = bike
     _bike_speed = 0.0
     _bike_heading = parked_heading
-    ridden_bike.rotation.y = _bike_heading
+    ridden_bike.global_rotation.y = _bike_heading
     visual.rotation.y = _bike_heading
     _mount_camera_length = spring_arm.spring_length
     _mount_camera_height = camera_pivot.position.y
@@ -267,7 +267,7 @@ func _advance_bike(delta: float) -> void:
     var displacement: Vector3 = global_position - previous
     displacement.y = 0.0
     if is_instance_valid(ridden_bike):
-        ridden_bike.rotation.y = _bike_heading
+        ridden_bike.global_rotation.y = _bike_heading
         # Travel direction matters. Reversing rolls the tire backwards;
         # an ordinary positive displacement always rolled forward before.
         var forward: Vector3 = Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
