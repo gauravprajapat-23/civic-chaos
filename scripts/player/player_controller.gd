@@ -227,6 +227,8 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     camera_pivot.position.y = 2.0
     visual.position.y = 0.9
     _set_bike_pose(true)
+    # The bike-owned rig now draws the rider. Never draw a second floating walker.
+    visual.visible = false
     velocity = Vector3.ZERO
     riding_changed.emit(true)
     interaction_message.emit("BIKE | W accelerate, S/jump brake, A/D steer, Shift boost, E dismount. Android: joystick + BRAKE/BOOST/EXIT.")
@@ -262,6 +264,7 @@ func dismount_bike() -> bool:
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
     _bike_pose_blend = 1.0
+    visual.visible = true
     spring_arm.spring_length = _mount_camera_length
     camera_pivot.position.y = _mount_camera_height
     visual.rotation.z = 0.0
