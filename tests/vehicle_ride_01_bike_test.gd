@@ -40,7 +40,7 @@ func _run() -> void:
     bike.position = Vector3(1.2, 0.15, 0)
     world.add_child(bike)
     await physics_frame
-    if bike.collision_layer != 16 or bike.get_node_or_null("FrontWheel") == null or bike.get_node_or_null("RearWheel") == null:
+    if bike.collision_layer != 16 or bike.find_child("FrontWheel", true, false) == null or bike.find_child("RearWheel", true, false) == null:
         _fail("parked bike missing usable interaction collider or low-poly wheels")
         return
     player.rotation.y = 0.7 # A restored character may face another direction.
