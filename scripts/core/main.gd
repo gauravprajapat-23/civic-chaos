@@ -188,6 +188,7 @@ func _ready() -> void:
     dispatch_board.name = "FreeRoamDispatchBoard"
     add_child(dispatch_board)
     dispatch_board.toggle_requested.connect(_on_dispatch_toggle)
+    dispatch_board.accept_requested.connect(_on_dispatch_accept_requested)
     dispatch_board.route_requested.connect(_on_dispatch_route_requested)
     if junction != null:
         city_map.set_road_graph(junction.get("road_graph") as CivicRoadGraph)
@@ -1186,6 +1187,18 @@ func _refresh_mission_guide() -> void:
             str(state.get("dialogue", "")), int(visits["count"]), int(visits["total"]),
             "Neighborhood Guide earned!" if bool(recognition.get("earned", false)) else
             "Guide goal: 4 visits and 3 verified civic activities. Open MAP to explore."]
+    # CALLS-01: only an explicitly accepted, still-live incident owns
+    # the GPS mission target. The event itself still advances normally.
+    if dispatch_board != null and is_instance_valid(free_roam_world):
+        var live_call: Dictionary = free_roam_world.dispatch_state()
+        dispatch_board.update_feed(live_call)
+        if dispatch_board.accepted_live_call() and (
+                bool(live_call.get("has_target", false))):
+            state["title"] = "DISPATCH | " + str(live_call.get("title", "Civic call"))
+            state["objective"] = str(live_call.get("objective", "Visit incident")) + (
+                " | %ds left" % int(live_call.get("seconds_left", 0)))
+            state["target"] = live_call["target"]
+            state["has_target"] = true
     var forward: Vector3 = -player.global_transform.basis.z
     if player.camera != null:
         forward = -player.camera.global_transform.basis.z
@@ -1248,13 +1261,30 @@ func _on_dispatch_toggle() -> void:
             mission_guide.visible = true
         Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
 
+## Accept only the existing live Free Roam incident. No synthetic
+## events, timer reset, score adjustment or extra scheduler.
+func _on_dispatch_accept_requested() -> void:
+    if not _dispatch_open or dispatch_board == null or (
+            not is_instance_valid(free_roam_world)):
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    if not bool(report.get("has_event", false)) or (
+            not bool(report.get("has_target", false))):
+        return
+    if dispatch_board.accept_live_call(int(report.get("call_id", -1))):
+        _refresh_mission_guide()
+        _on_interaction_message("CALL ACCEPTED | Follow the gold marker on MAP to " + (
+            str(report.get("location", "the incident"))))
+
 func _on_dispatch_route_requested() -> void:
     if not _dispatch_open or dispatch_board == null:
         return
     if not is_instance_valid(free_roam_world):
         return
     var report: Dictionary = free_roam_world.dispatch_state()
-    if not bool(report.get("has_target", false)):
+    dispatch_board.update_feed(report)
+    if not dispatch_board.accepted_live_call() or (
+            not bool(report.get("has_target", false))):
         return
     _on_dispatch_toggle()
     if city_map != null:
