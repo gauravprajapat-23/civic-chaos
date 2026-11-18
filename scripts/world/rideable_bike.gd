@@ -20,6 +20,7 @@ var _wheel_rear: MeshInstance3D
 var _ride_label: Label3D
 var _visual_rig: Node3D
 var _front_assembly: Node3D
+var _mounted_rider_visual: CivicMotorcycleRiderRig
 const MAX_VISUAL_LEAN_RAD: float = 0.19
 const MAX_FRONT_STEER_RAD: float = 0.38
 var _headlamp: MeshInstance3D
@@ -208,6 +209,8 @@ func update_ride_visuals(steer: float, signed_speed: float,
     if is_instance_valid(_front_assembly):
         _front_assembly.rotation.y = lerpf(_front_assembly.rotation.y,
             steering_angle, minf(1.0, delta * 9.0))
+    if is_instance_valid(_mounted_rider_visual):
+        _mounted_rider_visual.update_targets()
     # Right bank is negative Z roll on an upright Godot model.
     # Reverse banking follows the reversed turning direction.
     var bank: float = -clampf(steer, -1.0, 1.0) * (
@@ -334,6 +337,10 @@ func mount_to(player: Node3D) -> bool:
     reset_ride_visuals()
     collision_layer = 0
     enable_rider_sensing()
+    _mounted_rider_visual = CivicMotorcycleRiderRig.new()
+    _mounted_rider_visual.name = "MountedRiderRig"
+    _visual_rig.add_child(_mounted_rider_visual)
+    _mounted_rider_visual.configure(_front_assembly)
     if is_instance_valid(_ride_label):
         _ride_label.visible = false
     return true
@@ -343,6 +350,9 @@ func park() -> bool:
         return false
     # Keep real location, not an invented spawn or road junction.
     reset_ride_visuals()
+    if is_instance_valid(_mounted_rider_visual):
+        _mounted_rider_visual.queue_free()
+        _mounted_rider_visual = null
     reparent(home_parent)
     disable_rider_sensing()
     collision_layer = 16
