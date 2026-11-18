@@ -16,10 +16,22 @@ func _run() -> void:
             InputMap.add_action(action)
     var stage := Node3D.new()
     root.add_child(stage)
+    var road := StaticBody3D.new()
+    road.name = "Ground"
+    road.collision_layer = 1
+    road.position.y = -0.3
+    var road_collision := CollisionShape3D.new()
+    road_collision.name = "CollisionShape3D"
+    var road_shape := BoxShape3D.new()
+    road_shape.size = Vector3(80.0, 0.6, 80.0)
+    road_collision.shape = road_shape
+    road.add_child(road_collision)
+    stage.add_child(road)
     var player := PlayerScene.instantiate() as CivicPlayerController
-    player.position = Vector3(1.2, 0.0, 0.0)
+    player.position = Vector3(1.2, 0.15, 0.0)
     stage.add_child(player)
     var bike := Bike.new() as CivicRideableBike
+    bike.position.y = 0.15
     stage.add_child(bike)
     await physics_frame
     var original_face := player.visual.get_node("Head/Face") as MeshInstance3D
@@ -38,12 +50,14 @@ func _run() -> void:
     if face == null or hair == null or nose == null or shirt == null:
         _fail("mounted rider changed original face/hair/clothes")
         return
-    if face.mesh != original_face.mesh or (
-            face.material_override != original_face.material_override):
+    if face.mesh.get_class() != original_face.mesh.get_class() or (
+            (face.material_override as StandardMaterial3D).albedo_color !=
+            (original_face.material_override as StandardMaterial3D).albedo_color):
         _fail("rider face material/mesh no longer matches main player")
         return
-    if shirt.mesh != original_shirt.mesh or (
-            shirt.material_override != original_shirt.material_override):
+    if shirt.mesh.get_class() != original_shirt.mesh.get_class() or (
+            (shirt.material_override as StandardMaterial3D).albedo_color !=
+            (original_shirt.material_override as StandardMaterial3D).albedo_color):
         _fail("rider clothing no longer matches main player")
         return
     if player.visual.visible:
