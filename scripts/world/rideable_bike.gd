@@ -45,6 +45,19 @@ func _wheel(part_name: String, at: Vector3) -> MeshInstance3D:
     rubber.albedo_color = Color(0.09, 0.11, 0.12)
     wheel.material_override = rubber
     add_child(wheel)
+    # A visible radial spoke makes the rolling direction readable.
+    # The CylinderMesh axle is LOCAL Y (tilted onto the bike's X axis).
+    # Children follow the wheel's LOCAL axial spin automatically.
+    var spoke := MeshInstance3D.new()
+    spoke.name = "RollingSpoke"
+    var spoke_mesh := BoxMesh.new()
+    spoke_mesh.size = Vector3(0.055, 0.27, 0.32)
+    spoke.mesh = spoke_mesh
+    spoke.position = Vector3(0.0, 0.0, -0.19)
+    var spoke_paint := StandardMaterial3D.new()
+    spoke_paint.albedo_color = Color(0.78, 0.82, 0.84)
+    spoke.material_override = spoke_paint
+    wheel.add_child(spoke)
     return wheel
 
 func _make_visuals() -> void:
@@ -115,8 +128,14 @@ func park() -> bool:
     return true
 
 func animate_wheels(distance_m: float) -> void:
+    if not is_finite(distance_m) or absf(distance_m) <= 0.000001:
+        return
     var angular_distance: float = distance_m / 0.43
+    # Cylinders were tilted by PI/2 around Z in _wheel(), so their
+    # spin axle is the cylinder's LOCAL Y axis (world/bike X).
+    # rotate_y() applies a parent-space yaw and makes them swivel flat.
+    # rotate_object_local() spins around the actual wheel axle instead.
     if is_instance_valid(_wheel_front):
-        _wheel_front.rotate_y(angular_distance)
+        _wheel_front.rotate_object_local(Vector3.UP, angular_distance)
     if is_instance_valid(_wheel_rear):
-        _wheel_rear.rotate_y(angular_distance)
+        _wheel_rear.rotate_object_local(Vector3.UP, angular_distance)
