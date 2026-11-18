@@ -553,6 +553,61 @@ func _footprint_hits_blocker(query: PhysicsShapeQueryParameters3D) -> bool:
             return true
     return false
 
+## Escape an already-overlapping front wheel without ghosting through
+## buildings, traffic or pedestrians. PhysicsServer contact pairs expose
+## penetration depths for the full 05A footprint. Reversing is accepted
+## only if it REDUCES penetration and does not touch a new obstruction.
+## This is intentionally a short physics-step recovery, not teleportation.
+func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
+        backward_motion: Vector3, excluding: Array[RID] = []) -> bool:
+    if backward_motion.length_squared() < 0.0000001:
+        return false
+    var current_query := _make_footprint_query(
+        world_origin, yaw, Vector3.ZERO, excluding)
+    if not _footprint_hits_blocker(current_query):
+        return false
+    var next_query := _make_footprint_query(
+        world_origin + backward_motion, yaw, Vector3.ZERO, excluding)
+    var current_hits := _blocking_colliders(current_query)
+    var next_hits := _blocking_colliders(next_query)
+    if current_hits.is_empty():
+        return false
+    for next_body in next_hits:
+        if not current_hits.has(next_body):
+            return false
+    var before_depth: float = _footprint_contact_depth(current_query)
+    var after_depth: float = _footprint_contact_depth(next_query)
+    return before_depth > 0.00001 and (
+        next_hits.is_empty() or after_depth < before_depth - 0.00001)
+
+func _blocking_colliders(query: PhysicsShapeQueryParameters3D) -> Array[CollisionObject3D]:
+    var result: Array[CollisionObject3D] = []
+    for hit in get_world_3d().direct_space_state.intersect_shape(query, 32):
+        var body := hit.get("collider") as CollisionObject3D
+        if body == null:
+            continue
+        # Road support never counts as a lateral crash blocker.
+        if (body.collision_layer & 1) != 0:
+            var support := single_collision_shape(body)
+            if support != null and support.shape is BoxShape3D:
+                var slab := support.shape as BoxShape3D
+                var top: float = support.global_position.y + slab.size.y * 0.5
+                var root_y: float = query.transform.origin.y - FOOTPRINT_CENTER.y
+                if slab.size.x >= 2.0 and slab.size.z >= 2.0 and slab.size.y <= 1.0 and (
+                        support.global_transform.basis.y.normalized().dot(Vector3.UP) > 0.98) and (
+                        top <= root_y + 0.20):
+                    continue
+        if not result.has(body):
+            result.append(body)
+    return result
+
+func _footprint_contact_depth(query: PhysicsShapeQueryParameters3D) -> float:
+    var contacts: PackedVector3Array = get_world_3d().direct_space_state.collide_shape(query, 64)
+    var deepest: float = 0.0
+    for i in range(0, contacts.size() - 1, 2):
+        deepest = maxf(deepest, contacts[i].distance_to(contacts[i + 1]))
+    return deepest
+
 ## NPC cars already sense layer 2 as vulnerable human road users. This
 ## query-only larger layer-2 body makes them see the entire mounted bike
 ## (including its front wheel) instead of only a narrow player capsule.
