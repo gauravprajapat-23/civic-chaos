@@ -568,6 +568,8 @@ func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
         return false
     var next_query := _make_footprint_query(
         world_origin + backward_motion, yaw, Vector3.ZERO, excluding)
+    _exclude_support_from_recovery(current_query, world_origin)
+    _exclude_support_from_recovery(next_query, world_origin + backward_motion)
     var current_hits := _blocking_colliders(current_query)
     var next_hits := _blocking_colliders(next_query)
     if current_hits.is_empty():
@@ -579,6 +581,27 @@ func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
     var after_depth: float = _footprint_contact_depth(next_query)
     return before_depth > 0.00001 and (
         next_hits.is_empty() or after_depth < before_depth - 0.00001)
+
+func _exclude_support_from_recovery(query: PhysicsShapeQueryParameters3D,
+        origin: Vector3) -> void:
+    var ray := PhysicsRayQueryParameters3D.create(
+        origin + Vector3.UP * 1.0, origin + Vector3.DOWN * 1.8)
+    ray.collision_mask = 1
+    ray.exclude = query.exclude
+    var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(ray)
+    if hit.is_empty() or (hit["normal"] as Vector3).y < 0.98:
+        return
+    var body := hit.get("collider") as CollisionObject3D
+    var support := single_collision_shape(body)
+    if support == null or not (support.shape is BoxShape3D):
+        return
+    var box := support.shape as BoxShape3D
+    var top: float = support.global_position.y + box.size.y * 0.5
+    if box.size.x >= 2.0 and box.size.z >= 2.0 and box.size.y <= 1.0 and (
+            top <= origin.y + 0.20):
+        var omitted: Array[RID] = query.exclude.duplicate()
+        omitted.append(body.get_rid())
+        query.exclude = omitted
 
 func _blocking_colliders(query: PhysicsShapeQueryParameters3D) -> Array[CollisionObject3D]:
     var result: Array[CollisionObject3D] = []
