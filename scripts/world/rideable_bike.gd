@@ -9,7 +9,10 @@ var home_parent: Node
 var _wheel_front: MeshInstance3D
 var _wheel_rear: MeshInstance3D
 var _ride_label: Label3D
+var _visual_rig: Node3D
 var _front_assembly: Node3D
+const MAX_VISUAL_LEAN_RAD: float = 0.19
+const MAX_FRONT_STEER_RAD: float = 0.38
 var _headlamp: MeshInstance3D
 var _brake_lamp: MeshInstance3D
 var _wheel_roll_total: float = 0.0
@@ -17,6 +20,9 @@ var _wheel_roll_total: float = 0.0
 func _ready() -> void:
     collision_layer = 16
     collision_mask = 0
+    _visual_rig = Node3D.new()
+    _visual_rig.name = "VisualRig"
+    add_child(_visual_rig)
     _make_visuals()
 
 func _part(part_name: String, dimensions: Vector3, at: Vector3,
@@ -32,7 +38,7 @@ func _part(part_name: String, dimensions: Vector3, at: Vector3,
     paint.metallic = 0.18
     paint.roughness = 0.65
     mesh.material_override = paint
-    add_child(mesh)
+    _visual_rig.add_child(mesh)
     return mesh
 
 func _wheel(part_name: String, at: Vector3) -> MeshInstance3D:
@@ -48,7 +54,7 @@ func _wheel(part_name: String, at: Vector3) -> MeshInstance3D:
     var rubber := StandardMaterial3D.new()
     rubber.albedo_color = Color(0.09, 0.11, 0.12)
     wheel.material_override = rubber
-    add_child(wheel)
+    _visual_rig.add_child(wheel)
     # A visible radial spoke makes the rolling direction readable.
     # The CylinderMesh axle is LOCAL Y (tilted onto the bike's X axis).
     # Children follow the wheel's LOCAL axial spin automatically.
@@ -109,8 +115,9 @@ func _make_visuals() -> void:
         Color(1.0, 0.94, 0.62))
     _brake_lamp = _part("TailLight", Vector3(0.40, 0.15, 0.12), Vector3(0, 0.98, 1.05),
         Color(1.0, 0.12, 0.07))
-    _headlamp = get_node_or_null("Headlight") as MeshInstance3D
+    _headlamp = _visual_rig.get_node_or_null("Headlight") as MeshInstance3D
     _enhance_motorcycle_body()
+    _assemble_steering_fork()
     _ride_label = Label3D.new()
     _ride_label.name = "BikeHint"
     _ride_label.text = "BIKE\nE / USE TO RIDE"
@@ -161,6 +168,57 @@ func _enhance_motorcycle_body() -> void:
     _part("SidePanelRight", Vector3(0.06, 0.25, 0.49),
         Vector3(0.31, 0.93, 0.36), dark_red)
 
+## The complete visual bike can lean and bob WITHOUT tilting its
+## static interaction collider or the player CharacterBody. The fork
+## rotates as one unit, including headlamp, bars and the rolling wheel.
+func _assemble_steering_fork() -> void:
+    _front_assembly = Node3D.new()
+    _front_assembly.name = "SteeringFork"
+    _front_assembly.position = Vector3(0, 0.90, -0.95)
+    _visual_rig.add_child(_front_assembly)
+    var front_names: Array[String] = [
+        "FrontWheel", "Fork", "Handlebar", "Headlight",
+        "FrontMudguard", "FrontNumberPlate",
+        "MirrorStem_-1", "MirrorStem_1",
+        "MirrorGlass_-1", "MirrorGlass_1"
+    ]
+    for part_name in front_names:
+        var part := _visual_rig.get_node_or_null(part_name) as Node3D
+        if part != null:
+            part.reparent(_front_assembly, true)
+
+func update_ride_visuals(steer: float, signed_speed: float,
+        delta: float, accepted_distance: float) -> void:
+    if not is_instance_valid(_visual_rig) or delta <= 0.0:
+        return
+    var speed_ratio: float = clampf(absf(signed_speed) / 9.0, 0.0, 1.0)
+    # A/D steer the visual fork toward the same side as the road heading.
+    var steering_angle: float = -clampf(steer, -1.0, 1.0) * MAX_FRONT_STEER_RAD
+    if is_instance_valid(_front_assembly):
+        _front_assembly.rotation.y = lerpf(_front_assembly.rotation.y,
+            steering_angle, minf(1.0, delta * 9.0))
+    # Right bank is negative Z roll on an upright Godot model.
+    # Reverse banking follows the reversed turning direction.
+    var bank: float = -clampf(steer, -1.0, 1.0) * (
+        signf(signed_speed) if absf(signed_speed) > 0.2 else 0.0
+    ) * MAX_VISUAL_LEAN_RAD * speed_ratio
+    _visual_rig.rotation.z = lerpf(_visual_rig.rotation.z,
+        bank, minf(1.0, delta * 5.5))
+    # Tiny arcade suspension bob driven ONLY by accepted road travel.
+    # Stops bobbing when motion is blocked; this is not ground suspension.
+    var bounce: float = 0.0
+    if absf(accepted_distance) > 0.00001:
+        bounce = sin(_wheel_roll_total * 0.45) * 0.025 * speed_ratio
+    _visual_rig.position.y = lerpf(_visual_rig.position.y,
+        bounce, minf(1.0, delta * 7.0))
+
+func reset_ride_visuals() -> void:
+    if is_instance_valid(_visual_rig):
+        _visual_rig.rotation = Vector3.ZERO
+        _visual_rig.position = Vector3.ZERO
+    if is_instance_valid(_front_assembly):
+        _front_assembly.rotation = Vector3.ZERO
+
 func set_braking(active: bool) -> void:
     if not is_instance_valid(_brake_lamp):
         return
@@ -190,6 +248,7 @@ func mount_to(player: Node3D) -> bool:
     position = Vector3.ZERO
     rotation = Vector3.ZERO
     _wheel_roll_total = 0.0
+    reset_ride_visuals()
     collision_layer = 0
     if is_instance_valid(_ride_label):
         _ride_label.visible = false
@@ -199,6 +258,7 @@ func park() -> bool:
     if rider == null or not is_instance_valid(home_parent):
         return false
     # Keep real location, not an invented spawn or road junction.
+    reset_ride_visuals()
     reparent(home_parent)
     collision_layer = 16
     set_braking(false)
