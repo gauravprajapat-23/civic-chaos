@@ -4,6 +4,15 @@ extends StaticBody3D
 ## Only the rider's collision-aware CharacterBody moves in ride mode;
 ## the interactable body is disabled while attached to that rider.
 const MOUNT_DISTANCE_M: float = 2.8
+## One authoritative collision envelope for full bike length, footpegs,
+## rider and front/rear wheels. Bottom is above roadway surface, so the
+## ground is not interpreted as a wall.
+const FOOTPRINT_SIZE: Vector3 = Vector3(1.15, 1.55, 3.05)
+const FOOTPRINT_CENTER: Vector3 = Vector3(0.0, 1.12, -0.05)
+const FOOTPRINT_MARGIN: float = 0.035
+var _footprint_shape: BoxShape3D
+var _rider_sensing_body: StaticBody3D
+var _rider_sensing_collision: CollisionShape3D
 var rider: Node3D
 var home_parent: Node
 var _wheel_front: MeshInstance3D
@@ -24,6 +33,8 @@ func _ready() -> void:
     _visual_rig.name = "VisualRig"
     add_child(_visual_rig)
     _make_visuals()
+    _footprint_shape = BoxShape3D.new()
+    _footprint_shape.size = FOOTPRINT_SIZE
 
 func _part(part_name: String, dimensions: Vector3, at: Vector3,
         color: Color) -> MeshInstance3D:
@@ -242,6 +253,71 @@ func interact(actor: Node) -> void:
         return
     player.call("mount_bike", self)
 
+## Checks the complete vehicle envelope at a prospective world pose.
+## The level is built from wide floor boxes on collision layer 1; those
+## support the bike rather than obstruct it. Everything else is a hard
+## blocker, including real vehicle bodies (4) and pedestrians (8).
+func footprint_clear_at(world_origin: Vector3, yaw: float,
+        excluding: Array[RID] = []) -> bool:
+    if not is_inside_tree() or not world_origin.is_finite() or not is_finite(yaw):
+        return false
+    var query := _make_footprint_query(world_origin, yaw, Vector3.ZERO, excluding)
+    return not _footprint_hits_blocker(query)
+
+func _make_footprint_query(world_origin: Vector3, yaw: float,
+        motion: Vector3, excluding: Array[RID]) -> PhysicsShapeQueryParameters3D:
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = _footprint_shape
+    var basis := Basis(Vector3.UP, yaw)
+    query.transform = Transform3D(basis, world_origin + basis * FOOTPRINT_CENTER)
+    query.motion = motion
+    query.collision_mask = 1 | 2 | 4 | 8
+    query.margin = FOOTPRINT_MARGIN
+    query.exclude = excluding.duplicate()
+    if is_instance_valid(_rider_sensing_body):
+        query.exclude.append(_rider_sensing_body.get_rid())
+    return query
+
+func _footprint_hits_blocker(query: PhysicsShapeQueryParameters3D) -> bool:
+    for hit in get_world_3d().direct_space_state.intersect_shape(query, 32):
+        var body := hit.get("collider") as CollisionObject3D
+        if body == null:
+            continue
+        if (body.collision_layer & 1) == 0:
+            return true
+        # Ignore a wide flat road/ground support plane, but never a wall.
+        var support := body.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if support == null or not (support.shape is BoxShape3D):
+            return true
+        var support_box := support.shape as BoxShape3D
+        var top: float = support.global_position.y + support_box.size.y * 0.5
+        var bike_bottom: float = query.transform.origin.y - FOOTPRINT_SIZE.y * 0.5
+        if top > bike_bottom + 0.035:
+            return true
+    return false
+
+## NPC cars already sense layer 2 as vulnerable human road users. This
+## query-only larger layer-2 body makes them see the entire mounted bike
+## (including its front wheel) instead of only a narrow player capsule.
+## It has mask 0: it never pushes or perturbs other physics bodies.
+func enable_rider_sensing() -> void:
+    if not is_instance_valid(_rider_sensing_body):
+        _rider_sensing_body = StaticBody3D.new()
+        _rider_sensing_body.name = "MountedBikeTrafficSensor"
+        _rider_sensing_body.collision_layer = 2
+        _rider_sensing_body.collision_mask = 0
+        add_child(_rider_sensing_body)
+        _rider_sensing_collision = CollisionShape3D.new()
+        _rider_sensing_collision.name = "CollisionShape3D"
+        _rider_sensing_collision.shape = _footprint_shape
+        _rider_sensing_collision.position = FOOTPRINT_CENTER
+        _rider_sensing_body.add_child(_rider_sensing_collision)
+    _rider_sensing_body.collision_layer = 2
+
+func disable_rider_sensing() -> void:
+    if is_instance_valid(_rider_sensing_body):
+        _rider_sensing_body.collision_layer = 0
+
 func mount_to(player: Node3D) -> bool:
     if rider != null or player == null or not is_inside_tree():
         return false
@@ -253,6 +329,7 @@ func mount_to(player: Node3D) -> bool:
     _wheel_roll_total = 0.0
     reset_ride_visuals()
     collision_layer = 0
+    enable_rider_sensing()
     if is_instance_valid(_ride_label):
         _ride_label.visible = false
     return true
@@ -263,6 +340,7 @@ func park() -> bool:
     # Keep real location, not an invented spawn or road junction.
     reset_ride_visuals()
     reparent(home_parent)
+    disable_rider_sensing()
     collision_layer = 16
     set_braking(false)
     rider = null
