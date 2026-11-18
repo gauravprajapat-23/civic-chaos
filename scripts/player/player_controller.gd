@@ -318,7 +318,7 @@ func _rider_place_clear(at: Vector3) -> bool:
         if (obstacle.collision_layer & 1) == 0:
             return false
         # A thin flat floor under the rider is legitimate support.
-        var cs := obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        var cs := CivicRideableBike.single_collision_shape(obstacle)
         if cs == null or not (cs.shape is BoxShape3D):
             return false
         var box := cs.shape as BoxShape3D
