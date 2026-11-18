@@ -372,9 +372,22 @@ func _find_bike_dismount_position(bike: CivicRideableBike) -> Vector3:
             return candidate
     return Vector3(INF, INF, INF)
 
+## Keep real keyboard reverse independent of a stale joystick/up action.
+## Negative throttle means travel toward +Z (rear wheel), not "brake".
+static func bike_throttle_input(forward_amount: float, reverse_amount: float,
+        physical_s: bool) -> float:
+    if physical_s:
+        return -1.0
+    return clampf(forward_amount - reverse_amount, -1.0, 1.0)
+
 func _advance_bike(delta: float) -> void:
     var controls := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-    var throttle: float = -controls.y
+    # Use independent action strengths so keyboard S is not cancelled by a
+    # sticky analog forward input. Android still uses joystick down.
+    var throttle: float = bike_throttle_input(
+        Input.get_action_strength("move_forward"),
+        Input.get_action_strength("move_back"),
+        Input.is_physical_key_pressed(KEY_S))
     if Input.is_action_pressed("jump"):
         _bike_speed = move_toward(_bike_speed, 0.0, BIKE_BRAKE_MPS2 * delta)
     elif throttle > 0.05:
