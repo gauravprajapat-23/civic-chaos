@@ -271,9 +271,12 @@ func _make_footprint_query(world_origin: Vector3, yaw: float,
     var basis := Basis(Vector3.UP, yaw)
     query.transform = Transform3D(basis, world_origin + basis * FOOTPRINT_CENTER)
     query.motion = motion
-    query.collision_mask = 1 | 2 | 4 | 8
+    query.collision_mask = 1 | 2 | 4 | 8 | 16
     query.margin = FOOTPRINT_MARGIN
     var omit: Array[RID] = excluding.duplicate()
+    # Own parked interaction shape must not block a legitimate mount;
+    # other parked bikes/civic street posts remain real clearance hazards.
+    omit.append(get_rid())
     if is_instance_valid(_rider_sensing_body):
         omit.append(_rider_sensing_body.get_rid())
     query.exclude = omit
