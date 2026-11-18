@@ -80,20 +80,57 @@ static func bend_joint(a: Vector3, b: Vector3, upper: float,
         lateral = Vector3.RIGHT
     return a + direction * along + lateral.normalized() * height
 
-func configure(fork: Node3D) -> void:
+
+## Borrow the actual player's authored meshes instead of substituting a
+## generic faceless rider. Their materials, hairstyle and future cosmetic
+## edits remain identical on foot and when mounted.
+func _copy_player_appearance(source: Node3D) -> bool:
+    if source == null:
+        return false
+    var placements: Dictionary = {
+        "Torso": Vector3(0.0, 1.65, 0.28),
+        "Hips": _hip,
+        "Neck": Vector3(0.0, 2.02, 0.24),
+        "Head": Vector3(0.0, 2.24, 0.23)
+    }
+    for name in placements.keys():
+        if source.get_node_or_null(str(name)) == null:
+            return false
+    var shirt_mesh := source.get_node_or_null("Torso/Shirt") as MeshInstance3D
+    var face_mesh := source.get_node_or_null("Head/Face") as MeshInstance3D
+    var hips_mesh := source.get_node_or_null("Hips") as MeshInstance3D
+    if shirt_mesh != null and shirt_mesh.material_override != null:
+        _shirt = shirt_mesh.material_override
+    if face_mesh != null and face_mesh.material_override != null:
+        _skin = face_mesh.material_override
+    if hips_mesh != null and hips_mesh.material_override != null:
+        _pants = hips_mesh.material_override
+    for name in ["Torso", "Hips", "Neck", "Head"]:
+        var original := source.get_node(str(name)) as Node3D
+        var copy := original.duplicate() as Node3D
+        copy.name = "Rider" + name
+        copy.position = placements[name]
+        copy.rotation = Vector3.ZERO
+        copy.visible = true
+        add_child(copy)
+    return true
+
+func configure(fork: Node3D, appearance_source: Node3D = null) -> void:
     _fork = fork
     _skin = _material(Color(0.72, 0.48, 0.33))
     _shirt = _material(Color(0.15, 0.39, 0.74))
     _pants = _material(Color(0.19, 0.24, 0.35))
-    _box("SeatedHips", Vector3(0.44, 0.20, 0.32), _hip, _pants)
-    _box("RiderTorso", Vector3(0.54, 0.63, 0.30),
-        Vector3(0, 1.65, 0.28), _shirt)
-    _box("RiderNeck", Vector3(0.16, 0.13, 0.16),
-        Vector3(0, 2.02, 0.24), _skin)
-    _box("RiderHead", Vector3(0.37, 0.40, 0.35),
-        Vector3(0, 2.24, 0.23), _skin)
-    _box("RiderHair", Vector3(0.39, 0.10, 0.36),
-        Vector3(0, 2.46, 0.23), _material(Color(0.13, 0.11, 0.12)))
+    if not _copy_player_appearance(appearance_source):
+        # Headless art fixtures may mount a plain Node3D with no Visual.
+        _box("SeatedHips", Vector3(0.44, 0.20, 0.32), _hip, _pants)
+        _box("RiderTorso", Vector3(0.54, 0.63, 0.30),
+            Vector3(0, 1.65, 0.28), _shirt)
+        _box("RiderNeck", Vector3(0.16, 0.13, 0.16),
+            Vector3(0, 2.02, 0.24), _skin)
+        _box("RiderHead", Vector3(0.37, 0.40, 0.35),
+            Vector3(0, 2.24, 0.23), _skin)
+        _box("RiderHair", Vector3(0.39, 0.10, 0.36),
+            Vector3(0, 2.46, 0.23), _material(Color(0.13, 0.11, 0.12)))
     for side in [-1.0, 1.0]:
         var prefix := "Left" if side < 0.0 else "Right"
         var grip := Marker3D.new()
