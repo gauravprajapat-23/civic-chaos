@@ -351,6 +351,7 @@ func park() -> bool:
     # Keep real location, not an invented spawn or road junction.
     reset_ride_visuals()
     if is_instance_valid(_mounted_rider_visual):
+        _mounted_rider_visual.detach_targets()
         _mounted_rider_visual.queue_free()
         _mounted_rider_visual = null
     reparent(home_parent)
