@@ -3,6 +3,7 @@ extends SceneTree
 ## only accepted, still-active calls to real coordinates.
 const Dispatch = preload("res://scripts/ui/free_roam_dispatch_board.gd")
 const CityMap = preload("res://scripts/ui/civic_city_map.gd")
+const RoadBuilder = preload("res://scripts/world/junction_builder.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -51,8 +52,13 @@ func _run() -> void:
         "objective": "Inspect the fallen sign",
         "has_target": true, "target": live["target"]
     }
+    map.set_road_graph(RoadBuilder.make_city_graph())
     map.update_position(Vector3(2, 0, 0), Vector3.FORWARD, guidance)
     map._select_location(-1)
+    if not bool(map.route_state.get("ok", false)) or (
+            (map.route_state.get("points", PackedVector3Array()) as PackedVector3Array).size() < 2):
+        _fail("accepted call did not generate a road-network route")
+        return
     if map._navigation_goal().get("target") != live["target"]:
         _fail("GPS target is not the current live incident position")
         return
