@@ -305,6 +305,13 @@ func update_ride_visuals(steer: float, signed_speed: float,
     ) * MAX_VISUAL_LEAN_RAD * speed_ratio
     _visual_rig.rotation.z = lerpf(_visual_rig.rotation.z,
         bank, minf(1.0, delta * 5.5))
+    # VEHICLE-RIDE-05D: visual brake-dive and rebound, always below a
+    # mild arcade limit. Do not change root physics or tire collision.
+    var braking: bool = absf(signed_speed) > 0.3 and (
+        absf(accepted_distance) < absf(signed_speed) * delta * 0.45)
+    var target_pitch: float = -0.045 if braking else 0.0
+    _visual_rig.rotation.x = lerpf(_visual_rig.rotation.x,
+        target_pitch, minf(1.0, delta * 4.5))
     # Tiny arcade suspension bob driven ONLY by accepted road travel.
     # Stops bobbing when motion is blocked; this is not ground suspension.
     var bounce: float = 0.0
