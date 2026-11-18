@@ -135,10 +135,19 @@ func _run() -> void:
         _fail("bike allowed dismount into a real vehicle collider")
         return
     obstacle.queue_free()
-    await physics_frame
-    await physics_frame
+    # The obstacle was injected directly into the occupied rider capsule.
+    # Allow the physics server to flush that transient collider and permit
+    # the post-brake motion to settle before asserting a safe side exit.
+    for settle_frame in range(8):
+        await physics_frame
     if not player.dismount_bike():
-        _fail("safe stationary bike cannot be parked")
+        _fail("safe stationary bike cannot be parked; speed=%.3f horizontal=%.3f cooldown=%.3f worksite_clear=%s exit=%s" % [
+            player._bike_speed,
+            Vector2(player.velocity.x, player.velocity.z).length(),
+            player._bike_exit_cooldown,
+            str(player._bike_worksite_clear()),
+            str(player._find_bike_dismount_position(bike))
+        ])
         return
     if player.ridden_bike != null or bike.get_parent() != world or bike.collision_layer != 16 or bike.rider != null:
         _fail("parking did not return bike to world and restore USE")
