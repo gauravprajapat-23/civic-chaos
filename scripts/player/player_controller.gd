@@ -194,10 +194,25 @@ func mount_bike(bike: CivicRideableBike) -> bool:
         return false
     if global_position.distance_to(bike.global_position) > CivicRideableBike.MOUNT_DISTANCE_M:
         return false
-    # Preserve the parked bike's facing. Previously mounting snapped its
-    # direction to the on-foot character and could turn it into a wall.
+    # Mount only at the actual parked bike position. Never drag a
+    # parked bike across the road into the walker's current car overlap.
     var parked_heading: float = bike.global_rotation.y
+    var bike_origin: Vector3 = bike.global_position
+    if not bike.footprint_clear_at(bike_origin, parked_heading, [get_rid()]):
+        interaction_message.emit("Bike is blocked by a car, pedestrian or wall.")
+        return false
+    if not _rider_place_clear(bike_origin):
+        interaction_message.emit("No safe standing room to reach the bike seat.")
+        return false
+    # A short mount transfer is permitted only when the path between
+    # the walker and seat is clear; it cannot pass through a traffic car.
+    if not _rider_transfer_clear(global_position, bike_origin):
+        interaction_message.emit("Walk around the obstruction before mounting.")
+        return false
+    var old_pos: Vector3 = global_position
+    global_position = bike_origin
     if not bike.mount_to(self):
+        global_position = old_pos
         return false
     ridden_bike = bike
     _bike_speed = 0.0
@@ -234,8 +249,15 @@ func dismount_bike() -> bool:
         interaction_message.emit("Stop away from cars and pedestrians to dismount.")
         return false
     var bike: CivicRideableBike = ridden_bike
+    # Check a genuine side-exit capsule rather than leaving the walking
+    # player occupying exactly the same volume as the parked motorcycle.
+    var dismount_position: Vector3 = _find_bike_dismount_position(bike)
+    if not dismount_position.is_finite():
+        interaction_message.emit("Both sides blocked. Move the bike before exiting.")
+        return false
     if not bike.park():
         return false
+    global_position = dismount_position
     ridden_bike = null
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
@@ -272,6 +294,53 @@ func _bike_worksite_clear() -> bool:
     query.exclude = [get_rid()]
     return get_world_3d().direct_space_state.intersect_shape(query, 8).is_empty()
 
+## Reusable rider capsule test; physical riding and walking remain
+## world-only for move_and_slide(), with NPC collision query enforcement.
+func _rider_place_clear(at: Vector3) -> bool:
+    var body := get_node_or_null("CollisionShape3D") as CollisionShape3D
+    if body == null or body.shape == null:
+        return false
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = body.shape
+    query.transform = Transform3D(body.global_transform.basis,
+        at + Vector3.UP * 0.9)
+    query.collision_mask = 1 | 4 | 8
+    query.exclude = [get_rid()]
+    query.margin = 0.02
+    var hits: Array[Dictionary] = get_world_3d().direct_space_state.intersect_shape(query, 16)
+    for hit in hits:
+        var obstacle := hit.get("collider") as CollisionObject3D
+        if obstacle == null:
+            continue
+        if (obstacle.collision_layer & 1) == 0:
+            return false
+        # A thin flat floor under the rider is legitimate support.
+        var cs := obstacle.get_node_or_null("CollisionShape3D") as CollisionShape3D
+        if cs == null or not (cs.shape is BoxShape3D):
+            return false
+        var box := cs.shape as BoxShape3D
+        if cs.global_position.y + box.size.y * 0.5 > at.y + 0.035:
+            return false
+    return true
+
+func _rider_transfer_clear(start: Vector3, finish: Vector3) -> bool:
+    var delta: Vector3 = finish - start
+    var steps: int = maxi(1, int(ceil(delta.length() / 0.3)))
+    for step in range(1, steps + 1):
+        if not _rider_place_clear(start.lerp(finish, float(step) / float(steps))):
+            return false
+    return true
+
+func _find_bike_dismount_position(bike: CivicRideableBike) -> Vector3:
+    if not _bike_worksite_clear():
+        return Vector3(INF, INF, INF)
+    var right: Vector3 = Basis(Vector3.UP, _bike_heading) * Vector3.RIGHT
+    for sign in [1.0, -1.0]:
+        var candidate: Vector3 = global_position + right * (sign * 1.15)
+        if _rider_place_clear(candidate) and _rider_transfer_clear(global_position, candidate):
+            return candidate
+    return Vector3(INF, INF, INF)
+
 func _advance_bike(delta: float) -> void:
     var controls := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var throttle: float = -controls.y
@@ -284,7 +353,15 @@ func _advance_bike(delta: float) -> void:
         _bike_speed = move_toward(_bike_speed, BIKE_REVERSE_MPS * throttle, BIKE_BRAKE_MPS2 * delta)
     else:
         _bike_speed = move_toward(_bike_speed, 0.0, BIKE_COAST_MPS2 * delta)
-    _bike_heading += bike_steering_delta(controls.x, _bike_speed, delta)
+    var proposed_heading: float = _bike_heading + bike_steering_delta(controls.x, _bike_speed, delta)
+    # Swept linear travel alone cannot detect the front wheel swinging
+    # sideways into a stopped car while the handlebars turn. Guard the
+    # destination orientation first; if obstructed do not rotate into it.
+    if not ridden_bike.footprint_clear_at(
+            global_position, proposed_heading, [get_rid()]):
+        _bike_speed = 0.0
+    else:
+        _bike_heading = proposed_heading
     var direction := Vector3(-sin(_bike_heading), 0, -cos(_bike_heading))
     velocity.x = direction.x * _bike_speed
     velocity.z = direction.z * _bike_speed
@@ -314,32 +391,30 @@ func _advance_bike(delta: float) -> void:
     _set_bike_pose(true)
 
 func _limit_bike_motion(delta: float) -> void:
-    if _bike_guard == null:
-        _bike_guard = BoxShape3D.new()
-        _bike_guard.size = Vector3(1.0, 1.1, 1.8)
-    var motion := Vector3(velocity.x, 0, velocity.z) * delta
+    if not is_instance_valid(ridden_bike):
+        return
+    var motion := Vector3(velocity.x, 0.0, velocity.z) * delta
     if motion.length_squared() < 0.000001:
         return
-    var query := PhysicsShapeQueryParameters3D.new()
-    query.shape = _bike_guard
-    query.transform = Transform3D(Basis(Vector3.UP, _bike_heading),
-        global_position + Vector3.UP * 0.95)
-    query.motion = motion
-    query.collision_mask = 1 | 4 | 8
-    query.exclude = [get_rid()]
-    query.margin = 0.02
-    var space := get_world_3d().direct_space_state
-    if not space.intersect_shape(query, 8).is_empty():
+    var bike: CivicRideableBike = ridden_bike
+    var query := bike._make_footprint_query(
+        global_position, _bike_heading, motion, [get_rid()])
+    # Protect against driving *deeper* into an existing overlap.
+    # A side-touching car must not be entered by moving the wheel nose
+    # through its cabin, regardless of the smaller player capsule.
+    if bike._footprint_hits_blocker(query):
         _bike_speed = 0.0
         velocity.x = 0.0
         velocity.z = 0.0
+        print("CIVIC_BIKE_HOLD reason=occupied_full_footprint heading=%.3f" % _bike_heading)
         return
-    var safe: PackedFloat32Array = space.cast_motion(query)
-    if safe.size() > 0 and safe[0] < 0.99:
-        var amount: float = maxf(0.0, float(safe[0]) - 0.02)
-        velocity.x *= amount
-        velocity.z *= amount
-        _bike_speed *= amount
+    var fractions: PackedFloat32Array = get_world_3d().direct_space_state.cast_motion(query)
+    if fractions.size() >= 1 and float(fractions[0]) < 0.999:
+        var allowance: float = maxf(0.0, float(fractions[0]) - 0.025)
+        velocity.x *= allowance
+        velocity.z *= allowance
+        _bike_speed *= allowance
+        print("CIVIC_BIKE_HOLD reason=swept_car_world_or_person safe_fraction=%.3f" % allowance)
 
 ## Queue save restoration for the next physics tick so the space is unlocked.
 ## A queued restore is not considered successful until placement passes checks.
