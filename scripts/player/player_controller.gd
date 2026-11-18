@@ -355,10 +355,17 @@ func _advance_bike(delta: float) -> void:
         _bike_speed = move_toward(_bike_speed, 0.0, BIKE_COAST_MPS2 * delta)
     var proposed_heading: float = _bike_heading + bike_steering_delta(controls.x, _bike_speed, delta)
     # Swept linear travel alone cannot detect the front wheel swinging
-    # sideways into a stopped car while the handlebars turn. Guard the
-    # destination orientation first; if obstructed do not rotate into it.
-    if not ridden_bike.footprint_clear_at(
-            global_position, proposed_heading, [get_rid()]):
+    # sideways into a stopped car while the handlebars turn. Check a
+    # short angular sweep, not only the final yaw, before turning.
+    var turning_blocked: bool = false
+    for step in range(1, 4):
+        var checked_heading: float = lerpf(
+            _bike_heading, proposed_heading, float(step) / 3.0)
+        if not ridden_bike.footprint_clear_at(
+                global_position, checked_heading, [get_rid()]):
+            turning_blocked = true
+            break
+    if turning_blocked:
         _bike_speed = 0.0
     else:
         _bike_heading = proposed_heading
@@ -370,7 +377,9 @@ func _advance_bike(delta: float) -> void:
     _limit_horizontal_actor_motion(delta)
     var previous: Vector3 = global_position
     move_and_slide()
-    _recover_vehicle_descent_overlap()
+    # WALKER-ONLY roof recovery would teleport an occupied bike sideways
+    # after an NPC contact. Riding has a complete envelope guard instead;
+    # never call walking car-overlap relocation from mounted physics.
     var displacement: Vector3 = global_position - previous
     displacement.y = 0.0
     if is_instance_valid(ridden_bike):
