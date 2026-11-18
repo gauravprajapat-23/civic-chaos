@@ -9,6 +9,10 @@ var home_parent: Node
 var _wheel_front: MeshInstance3D
 var _wheel_rear: MeshInstance3D
 var _ride_label: Label3D
+var _front_assembly: Node3D
+var _headlamp: MeshInstance3D
+var _brake_lamp: MeshInstance3D
+var _wheel_roll_total: float = 0.0
 
 func _ready() -> void:
     collision_layer = 16
@@ -58,6 +62,26 @@ func _wheel(part_name: String, at: Vector3) -> MeshInstance3D:
     spoke_paint.albedo_color = Color(0.78, 0.82, 0.84)
     spoke.material_override = spoke_paint
     wheel.add_child(spoke)
+    var ring := MeshInstance3D.new()
+    ring.name = "WheelHub"
+    var hub := CylinderMesh.new()
+    hub.top_radius = 0.16
+    hub.bottom_radius = 0.16
+    hub.height = 0.265
+    ring.mesh = hub
+    ring.material_override = spoke_paint
+    wheel.add_child(ring)
+    for side in [-1.0, 1.0]:
+        var disc := MeshInstance3D.new()
+        disc.name = "BrakeDisc_%d" % int(side)
+        var disc_mesh := CylinderMesh.new()
+        disc_mesh.top_radius = 0.29
+        disc_mesh.bottom_radius = 0.29
+        disc_mesh.height = 0.016
+        disc.mesh = disc_mesh
+        disc.position.y = float(side) * 0.14
+        disc.material_override = spoke_paint
+        wheel.add_child(disc)
     return wheel
 
 func _make_visuals() -> void:
@@ -83,8 +107,10 @@ func _make_visuals() -> void:
         Color(0.20, 0.23, 0.25))
     _part("Headlight", Vector3(0.36, 0.27, 0.15), Vector3(0, 1.13, -1.05),
         Color(1.0, 0.94, 0.62))
-    _part("TailLight", Vector3(0.40, 0.15, 0.12), Vector3(0, 0.98, 1.05),
+    _brake_lamp = _part("TailLight", Vector3(0.40, 0.15, 0.12), Vector3(0, 0.98, 1.05),
         Color(1.0, 0.12, 0.07))
+    _headlamp = get_node_or_null("Headlight") as MeshInstance3D
+    _enhance_motorcycle_body()
     _ride_label = Label3D.new()
     _ride_label.name = "BikeHint"
     _ride_label.text = "BIKE\nE / USE TO RIDE"
@@ -92,6 +118,58 @@ func _make_visuals() -> void:
     _ride_label.pixel_size = 0.006
     _ride_label.position = Vector3(0, 2.2, 0)
     add_child(_ride_label)
+
+## Motorcycle-design pass: readable silhouette and details at mobile
+## camera distance. All parts are purely visual, with zero physics bodies.
+func _enhance_motorcycle_body() -> void:
+    var steel := Color(0.58, 0.67, 0.71)
+    var black := Color(0.10, 0.13, 0.15)
+    var accent := Color(0.96, 0.43, 0.12)
+    var dark_red := Color(0.54, 0.10, 0.10)
+    _part("EngineBlock", Vector3(0.48, 0.51, 0.57), Vector3(0, 0.73, -0.03), steel)
+    _part("EngineCase", Vector3(0.55, 0.28, 0.42), Vector3(0, 0.70, -0.06), black)
+    for side in [-1.0, 1.0]:
+        var x: float = float(side)
+        _part("EngineCoolingFin_%d" % int(side), Vector3(0.08, 0.07, 0.40),
+            Vector3(0.29 * x, 0.78, -0.05), steel)
+        _part("FootPeg_%d" % int(side), Vector3(0.36, 0.08, 0.13),
+            Vector3(0.42 * x, 0.65, 0.32), black)
+        _part("RearShock_%d" % int(side), Vector3(0.075, 0.55, 0.085),
+            Vector3(0.22 * x, 0.86, 0.68), steel)
+        _part("TankAccent_%d" % int(side), Vector3(0.035, 0.13, 0.50),
+            Vector3(0.30 * x, 1.12, -0.23), accent)
+        _part("MirrorStem_%d" % int(side), Vector3(0.065, 0.48, 0.065),
+            Vector3(0.47 * x, 1.75, -0.92), steel)
+        _part("MirrorGlass_%d" % int(side), Vector3(0.28, 0.17, 0.09),
+            Vector3(0.47 * x, 2.00, -0.92), black)
+    _part("ExhaustPipe", Vector3(0.17, 0.15, 1.25),
+        Vector3(0.35, 0.54, 0.44), steel)
+    _part("ExhaustTip", Vector3(0.20, 0.21, 0.20),
+        Vector3(0.35, 0.54, 1.12), black)
+    _part("FrontMudguard", Vector3(0.35, 0.13, 0.80),
+        Vector3(0.0, 0.88, -0.95), dark_red)
+    _part("RearMudguard", Vector3(0.38, 0.12, 0.85),
+        Vector3(0.0, 0.91, 0.87), dark_red)
+    _part("TankKneeGuard", Vector3(0.62, 0.19, 0.35),
+        Vector3(0, 0.97, -0.30), black)
+    _part("RearGrabRail", Vector3(0.57, 0.08, 0.20),
+        Vector3(0, 1.24, 0.85), steel)
+    _part("FrontNumberPlate", Vector3(0.34, 0.22, 0.08),
+        Vector3(0, 1.36, -1.08), Color(0.96, 0.92, 0.78))
+    _part("SidePanelLeft", Vector3(0.06, 0.25, 0.49),
+        Vector3(-0.31, 0.93, 0.36), dark_red)
+    _part("SidePanelRight", Vector3(0.06, 0.25, 0.49),
+        Vector3(0.31, 0.93, 0.36), dark_red)
+
+func set_braking(active: bool) -> void:
+    if not is_instance_valid(_brake_lamp):
+        return
+    var paint := _brake_lamp.material_override as StandardMaterial3D
+    if paint != null:
+        paint.albedo_color = Color(1.0, 0.25, 0.16) if active else Color(0.62, 0.06, 0.04)
+        paint.emission_enabled = active
+        paint.emission = Color(0.8, 0.10, 0.04)
+        paint.emission_energy_multiplier = 1.5 if active else 0.0
 
 func interact(actor: Node) -> void:
     if rider != null or not (actor is Node3D) or not actor.has_method("mount_bike"):
@@ -111,6 +189,7 @@ func mount_to(player: Node3D) -> bool:
     reparent(player)
     position = Vector3.ZERO
     rotation = Vector3.ZERO
+    _wheel_roll_total = 0.0
     collision_layer = 0
     if is_instance_valid(_ride_label):
         _ride_label.visible = false
@@ -122,6 +201,7 @@ func park() -> bool:
     # Keep real location, not an invented spawn or road junction.
     reparent(home_parent)
     collision_layer = 16
+    set_braking(false)
     rider = null
     if is_instance_valid(_ride_label):
         _ride_label.visible = true
@@ -131,6 +211,7 @@ func animate_wheels(distance_m: float) -> void:
     if not is_finite(distance_m) or absf(distance_m) <= 0.000001:
         return
     var angular_distance: float = distance_m / 0.43
+    _wheel_roll_total += angular_distance
     # Cylinders were tilted by PI/2 around Z in _wheel(), so their
     # spin axle is the cylinder's LOCAL Y axis (world/bike X).
     # rotate_y() applies a parent-space yaw and makes them swivel flat.
