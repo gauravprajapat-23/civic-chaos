@@ -186,7 +186,7 @@ func _physics_process(delta: float) -> void:
         visual.position.y = lerpf(0.9, 1.33, _bike_dismount_height_blend)
     _animate_walk(delta)
     if _bike_camera_recovering:
-        var easing: float = minf(1.0, delta * 10.0)
+        var easing: float = minf(1.0, delta * 14.0)
         spring_arm.spring_length = lerpf(spring_arm.spring_length,
             _mount_camera_length, easing)
         camera_pivot.position.y = lerpf(camera_pivot.position.y,
