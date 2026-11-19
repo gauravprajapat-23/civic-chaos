@@ -3,6 +3,8 @@ extends CanvasLayer
 ## AUD3-MAP-01: original live city map, sourced from the actual road layout.
 ## UI-only: never invent mission positions, routes, reward state or traffic.
 signal toggle_requested
+const ModalGuard = preload("res://scripts/ui/civic_modal_input_guard.gd")
+var _focus_before_open: WeakRef
 
 const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
@@ -186,6 +188,12 @@ func _input(event: InputEvent) -> void:
             get_viewport().set_input_as_handled()
 
 func set_expanded(value: bool) -> void:
+    # Always discard a captured pan/pinch on a real modal transition.
+    if expanded == value:
+        return
+    ModalGuard.release_touch_controls(get_tree())
+    if value:
+        _focus_before_open = ModalGuard.remember_focus(get_viewport(), large_frame)
     expanded = value
     _dragging_mouse = false
     _touch_points.clear()
@@ -196,8 +204,12 @@ func set_expanded(value: bool) -> void:
         map_button.visible = not value
     if large_frame != null:
         large_frame.visible = value
-    if value and close_button != null:
-        close_button.grab_focus()
+    if value:
+        if close_button != null:
+            close_button.grab_focus()
+    else:
+        ModalGuard.restore_focus(get_viewport(), _focus_before_open, large_frame)
+        _focus_before_open = null
     _redraw()
 
 ## Camera conversion for the panning/zooming full map.
@@ -399,8 +411,9 @@ func _fit() -> void:
     map_surface.custom_minimum_size = bounds.size
     map_button.position = Vector2(bounds.position.x, bounds.end.y + 4.0)
     map_button.size = Vector2(bounds.size.x, 34.0)
-    large_frame.position = Vector2(maxf(8, size.x * 0.08), maxf(8, size.y * 0.06))
-    large_frame.size = Vector2(maxf(250, size.x * 0.84), maxf(200, size.y * 0.88))
+    var full_bounds: Rect2 = expanded_bounds(size)
+    large_frame.position = full_bounds.position
+    large_frame.size = full_bounds.size
     _redraw()
 
 ## Pure transform shared by minimap and full map. North is screen-up (-Z).
@@ -536,3 +549,12 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
         position - facing * radius * 0.6 - side * radius * 0.65
     ]), PLAYER)
     canvas.draw_arc(position, radius + 2.0, 0, TAU, 24, Color.WHITE, 1.3)
+
+## A device can rotate while MAP is open; never push the full frame offscreen.
+static func expanded_bounds(viewport: Vector2) -> Rect2:
+    if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
+        return Rect2()
+    var margin: float = 8.0
+    var width: float = minf(viewport.x - margin * 2.0, viewport.x * 0.92)
+    var height: float = minf(viewport.y - margin * 2.0, viewport.y * 0.94)
+    return Rect2((viewport - Vector2(width, height)) * 0.5, Vector2(width, height))
