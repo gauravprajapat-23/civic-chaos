@@ -44,6 +44,18 @@ func _run() -> void:
     if not player.dismount_bike():
         _fail("park failed after supported ride")
         return
+    # Dismount must release the seated limb pose before walking resumes.
+    for limb_name in ["LeftArm", "RightArm", "LeftLeg", "RightLeg"]:
+        var limb := player.visual.get_node_or_null(limb_name) as Node3D
+        if limb == null:
+            _fail("missing walking limb: " + limb_name)
+            return
+        if absf(limb.rotation.x) > 0.001:
+            _fail("seated limb pose persisted after dismount: " + limb_name)
+            return
+    if not player.visual.visible:
+        _fail("walking character remained hidden after dismount")
+        return
     if bike.get_parent() != world:
         _fail("bike was not parked in world")
         return

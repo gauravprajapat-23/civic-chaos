@@ -268,7 +268,8 @@ func dismount_bike() -> bool:
     spring_arm.spring_length = _mount_camera_length
     camera_pivot.position.y = _mount_camera_height
     visual.rotation.z = 0.0
-    _set_bike_pose(true)
+    # Restore the on-foot limb pose; mounted rig is already detached.
+    _set_bike_pose(false)
     velocity = Vector3.ZERO
     riding_changed.emit(false)
     interaction_message.emit("Bike parked | E / USE near bike to ride again.")
