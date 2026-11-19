@@ -301,15 +301,26 @@ func _physics_process(delta: float) -> void:
     var movement: Vector3 = remaining.normalized() * minf(
         remaining.length(), SERVICE_SPEED_MPS * minf(delta, 0.10))
     var next: Vector3 = position + movement
-    # Refresh Traffic context from the exact directed route waypoint. The
-    # adapter verifies geometry; a missing/stale owner never grants entry.
+    # Recompute arclength from the selected directed lane, not from a stale
+    # waypoint progress sample. Traffic independently checks the geometry.
     var context_ok: bool = true
-    if _traffic_adapter != null:
+    if _traffic_gate_configured:
+        context_ok = _traffic_adapter != null and is_instance_valid(_traffic_adapter)
         var step_index: int = route_index - 1
-        context_ok = step_index >= 0 and step_index < _route_lane_indices.size()
+        context_ok = context_ok and step_index >= 0 and step_index < _route_lane_indices.size()
         if context_ok:
-            context_ok = _traffic_adapter.set_route_context(_lane_ids,
-                _route_lane_indices[step_index], float(_route_progress_m[step_index]))
+            var lane_index: int = _route_lane_indices[step_index]
+            context_ok = lane_index >= 0 and lane_index < _lane_ids.size()
+            if context_ok:
+                var graph: CivicRoadGraph = _traffic_adapter._spawner.road_graph if is_instance_valid(_traffic_adapter._spawner) else null
+                var lane: CivicLaneData = graph.get_lane(_lane_ids[lane_index]) if graph != null else null
+                context_ok = lane != null
+                if context_ok:
+                    var projection: Dictionary = LaneRoutes._projection(lane, position)
+                    context_ok = float(projection["offset"]) <= 2.5
+                    if context_ok:
+                        context_ok = _traffic_adapter.set_route_context(_lane_ids,
+                            lane_index, float(projection["distance"]))
     var traffic_permitted: bool = not _traffic_gate_configured
     if _traffic_gate_configured and context_ok:
         traffic_permitted = traffic_step_permission.is_valid() and bool(traffic_step_permission.call(position, next))
