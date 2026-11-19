@@ -89,7 +89,88 @@ function Invoke-GateProcess {
     $output = (Get-Content -LiteralPath $out -Raw -ErrorAction SilentlyContinue) +
         "`n" + (Get-Content -LiteralPath $err -Raw -ErrorAction SilentlyContinue)
     $engineError = $output -match '(?m)^\s*(SCRIPT ERROR:|ERROR:|FATAL ERROR:)'
-    $markerFound = (-not $Marker) -or $output.Contains($Marker)
+    $markerFound = (-not $Marker) -or ($output -match '(?m)^CIVIC_CHAOS_[A-Z0-9_]+_PASS\s*
+    $ok = -not $timedOut -and $process.ExitCode -eq 0 -and
+        -not $engineError -and $markerFound
+    $entry = [ordered]@{
+        name = $Name
+        passed = $ok
+        exit_code = $process.ExitCode
+        timeout = $timedOut
+        engine_error = $engineError
+        marker_found = $markerFound
+        stdout = "build/gate-01/$Name.stdout.log"
+        stderr = "build/gate-01/$Name.stderr.log"
+    }
+    $report.tests += $entry
+    if ($ok) { $report.passed++ } else { $report.failed++ }
+    Save-Report
+    if (-not $ok) {
+        Write-Host $output
+        throw "FAILED $Name (timeout=$timedOut, exit=$($process.ExitCode), marker=$markerFound). Logs in build/gate-01."
+    }
+    Write-Host "PASS $Name" -ForegroundColor Green
+}
+Push-Location $root
+try {
+    if (-not (Test-Path -LiteralPath $Godot)) { throw "Godot executable not found: $Godot" }
+    $branch = (& git branch --show-current | Out-String).Trim()
+    $sha = (& git rev-parse HEAD | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $branch -ne $ExpectedBranch -or
+            $sha -notmatch '^[0-9a-f]{40}$') {
+        throw "Wrong branch/commit: $branch $sha"
+    }
+    $report.branch = $branch
+    $report.commit = $sha
+    # Ignore generated reports/APK files; fail if source is modified.
+    $changes = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $changes) {
+        throw "Local source tree is not clean: $changes"
+    }
+    foreach ($group in $groups.Keys) {
+        foreach ($name in $groups[$group]) {
+            if (-not (Test-Path -LiteralPath (Join-Path $root "tests\$name"))) {
+                throw "Missing required $group test: tests/$name"
+            }
+        }
+    }
+    Invoke-GateProcess "import" @("--headless", "--path", ".", "--editor", "--import", "--quit")
+    foreach ($group in $groups.Keys) {
+        Write-Host "Running $group verification..." -ForegroundColor Cyan
+        foreach ($name in $groups[$group]) {
+            $stem = [System.IO.Path]::GetFileNameWithoutExtension($name)
+            Invoke-GateProcess $stem @("--headless", "--path", ".", "--script", "res://tests/$name") "CIVIC_CHAOS_"
+
+        }
+    }
+    if ($BuildApk) {
+        $apkDir = Join-Path $root "build\android"
+        New-Item -ItemType Directory -Force $apkDir | Out-Null
+        $relative = "build/android/CivicChaos-GATE-01-debug.apk"
+        Invoke-GateProcess "android-export" @("--headless", "--path", ".", "--export-debug", '"Android Debug"', $relative)
+        $apk = Join-Path $root $relative
+        if (-not (Test-Path $apk) -or (Get-Item $apk).Length -lt 1024) {
+            throw "Android export did not create a usable APK"
+        }
+        $report.android_apk = $relative
+    }
+    $report.status = "passed"
+    Save-Report
+    Write-Host "GATE-01 PASS at commit $sha. Report: $reportPath" -ForegroundColor Green
+    if (-not $BuildApk) {
+        Write-Host "APK not built; Android device acceptance is still pending." -ForegroundColor Yellow
+    } else {
+        Write-Host "Debug APK built. On-device visual QA still pending." -ForegroundColor Yellow
+    }
+} catch {
+    $report.status = "failed"
+    $report.error = $_.Exception.Message
+    Save-Report
+    throw
+} finally {
+    Pop-Location
+}
+)
     $ok = -not $timedOut -and $process.ExitCode -eq 0 -and
         -not $engineError -and $markerFound
     $entry = [ordered]@{
@@ -157,7 +238,7 @@ try {
         $apkDir = Join-Path $root "build\android"
         New-Item -ItemType Directory -Force $apkDir | Out-Null
         $relative = "build/android/CivicChaos-GATE-01-debug.apk"
-        Invoke-GateProcess "android-export" @("--headless", "--path", ".", "--export-debug", "Android Debug", $relative)
+        Invoke-GateProcess "android-export" @("--headless", "--path", ".", "--export-debug", '"Android Debug"', $relative)
         $apk = Join-Path $root $relative
         if (-not (Test-Path $apk) -or (Get-Item $apk).Length -lt 1024) {
             throw "Android export did not create a usable APK"
