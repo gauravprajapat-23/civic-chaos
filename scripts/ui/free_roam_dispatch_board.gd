@@ -20,6 +20,9 @@ var route_button: Button
 var service_button: Button
 var service_status: Label
 var close_button: Button
+var content_scroll: ScrollContainer
+var content_stack: VBoxContainer
+var _focus_before_open: WeakRef
 var _feed: Dictionary = {}
 var accepted_call_id: int = -1
 var service_call_id: int = -1
@@ -44,20 +47,30 @@ func _ready() -> void:
     outer.add_theme_constant_override("margin_right", 16)
     outer.add_theme_constant_override("margin_bottom", 12)
     panel.add_child(outer)
+    content_scroll = ScrollContainer.new()
+    content_scroll.name = "DispatchScroll"
+    content_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    content_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    content_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    outer.add_child(content_scroll)
     var stack := VBoxContainer.new()
-    stack.add_theme_constant_override("separation", 14)
-    outer.add_child(stack)
+    stack.name = "DispatchContent"
+    stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    stack.add_theme_constant_override("separation", 10)
+    content_scroll.add_child(stack)
+    content_stack = stack
     var top := HBoxContainer.new()
     stack.add_child(top)
     heading = Label.new()
     heading.text = "MUNICIPAL DISPATCH"
-    heading.add_theme_font_size_override("font_size", 22)
+    heading.add_theme_font_size_override("font_size", 18)
+    heading.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     top.add_child(heading)
     close_button = Button.new()
     close_button.name = "CloseDispatch"
-    close_button.text = "CLOSE  (F7)"
-    close_button.custom_minimum_size = Vector2(115, 48)
+    close_button.text = "CLOSE"
+    close_button.custom_minimum_size = Vector2(76, 48)
     close_button.pressed.connect(func() -> void: toggle_requested.emit())
     top.add_child(close_button)
     status = Label.new()
@@ -72,19 +85,19 @@ func _ready() -> void:
     accept_button = Button.new()
     accept_button.name = "AcceptCall"
     accept_button.text = "ACCEPT CALL"
-    accept_button.custom_minimum_size = Vector2(210, 50)
+    accept_button.custom_minimum_size = Vector2(0, 50)
     accept_button.pressed.connect(func() -> void: accept_requested.emit())
     stack.add_child(accept_button)
     route_button = Button.new()
     route_button.name = "ShowRoute"
     route_button.text = "SHOW ON CITY MAP"
-    route_button.custom_minimum_size = Vector2(210, 50)
+    route_button.custom_minimum_size = Vector2(0, 50)
     route_button.pressed.connect(func() -> void: route_requested.emit())
     stack.add_child(route_button)
     service_button = Button.new()
     service_button.name = "RequestService"
     service_button.text = "REQUEST MUNICIPAL SERVICE"
-    service_button.custom_minimum_size = Vector2(210, 48)
+    service_button.custom_minimum_size = Vector2(0, 48)
     service_button.pressed.connect(func() -> void: service_requested.emit())
     stack.add_child(service_button)
     service_status = Label.new()
@@ -121,7 +134,14 @@ func set_expanded(value: bool) -> void:
     expanded = value and enabled
     _sync_visibility()
     if expanded and close_button != null:
+        _focus_before_open = weakref(get_viewport().gui_get_focus_owner()) if get_viewport().gui_get_focus_owner() != null else null
+        content_scroll.scroll_vertical = 0
         close_button.grab_focus()
+    elif not expanded and _focus_before_open != null:
+        var previous: Variant = _focus_before_open.get_ref()
+        if previous is Control and is_instance_valid(previous) and previous.is_visible_in_tree():
+            (previous as Control).grab_focus()
+        _focus_before_open = null
 
 func _sync_visibility() -> void:
     if button != null:
@@ -198,6 +218,15 @@ func _fit() -> void:
     var viewport: Vector2 = get_viewport().get_visible_rect().size
     button.position = Vector2(maxf(8.0, viewport.x - 106.0), maxf(68.0, viewport.y * 0.60))
     button.size = Vector2(92, 44)
-    panel.position = Vector2(maxf(8.0, (viewport.x - minf(530.0, viewport.x - 16.0)) * 0.5),
-        maxf(12.0, viewport.y * 0.12))
-    panel.size = Vector2(minf(530.0, viewport.x - 16.0), minf(580.0, viewport.y * 0.86))
+    var bounds: Rect2 = panel_bounds(viewport)
+    panel.position = bounds.position
+    panel.size = bounds.size
+
+## Pure presentation geometry; never depends on call or mission state.
+static func panel_bounds(viewport: Vector2) -> Rect2:
+    if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
+        return Rect2()
+    var margin: float = 8.0
+    var width: float = minf(530.0, maxf(0.0, viewport.x - margin * 2.0))
+    var height: float = minf(580.0, maxf(0.0, viewport.y - margin * 2.0))
+    return Rect2(Vector2((viewport.x - width) * 0.5, (viewport.y - height) * 0.5), Vector2(width, height))
