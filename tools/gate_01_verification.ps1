@@ -76,26 +76,49 @@ function Invoke-GateProcess {
     param([string]$Name, [string[]]$Arguments, [string]$Marker = "")
     $out = Join-Path $evidence "$Name.stdout.log"
     $err = Join-Path $evidence "$Name.stderr.log"
-    # Separate streams to avoid PowerShell 5.1 interpreting Godot stderr
-    # diagnostic lines as terminating NativeCommandError records.
-    $process = Start-Process -FilePath $Godot -ArgumentList $Arguments `
-        -WorkingDirectory $root -Wait:$false -PassThru `
-        -RedirectStandardOutput $out -RedirectStandardError $err
-    $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
-    if ($timedOut) {
-        try { $process.Kill() } catch { }
-        $process.WaitForExit()
+    # .NET Process reliably exposes ExitCode on Windows PowerShell 5.1.
+    # Read both streams concurrently to avoid native process deadlocks.
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $Godot
+    $startInfo.WorkingDirectory = $root
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $quoted = foreach ($arg in $Arguments) {
+        '"' + $arg.Replace('"', '\\"') + '"'
     }
-    $output = (Get-Content -LiteralPath $out -Raw -ErrorAction SilentlyContinue) +
-        "`n" + (Get-Content -LiteralPath $err -Raw -ErrorAction SilentlyContinue)
+    $startInfo.Arguments = $quoted -join ' '
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    $timedOut = $false
+    $exitCode = $null
+    try {
+        if (-not $process.Start()) { throw "Godot process failed to start: $Name" }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
+        if ($timedOut) {
+            try { $process.Kill() } catch { }
+        }
+        $process.WaitForExit()
+        $stdoutText = $stdoutTask.GetAwaiter().GetResult()
+        $stderrText = $stderrTask.GetAwaiter().GetResult()
+        $stdoutText | Set-Content -LiteralPath $out -Encoding UTF8
+        $stderrText | Set-Content -LiteralPath $err -Encoding UTF8
+        if ($process.HasExited) { $exitCode = [int]$process.ExitCode }
+    } finally {
+        $process.Dispose()
+    }
+    $output = $stdoutText + "`n" + $stderrText
     $engineError = $output -match '(?m)^\s*(SCRIPT ERROR:|ERROR:|FATAL ERROR:)'
     $markerFound = (-not $Marker) -or ($output -match '(?m)^CIVIC_CHAOS_[A-Z0-9_]+_PASS\s*$')
-    $ok = -not $timedOut -and $process.ExitCode -eq 0 -and
+    $ok = -not $timedOut -and $null -ne $exitCode -and $exitCode -eq 0 -and
         -not $engineError -and $markerFound
     $entry = [ordered]@{
         name = $Name
         passed = $ok
-        exit_code = $process.ExitCode
+        exit_code = $exitCode
         timeout = $timedOut
         engine_error = $engineError
         marker_found = $markerFound
@@ -107,7 +130,7 @@ function Invoke-GateProcess {
     Save-Report
     if (-not $ok) {
         Write-Host $output
-        throw "FAILED $Name (timeout=$timedOut, exit=$($process.ExitCode), marker=$markerFound). Logs in build/gate-01."
+        throw "FAILED $Name (timeout=$timedOut, exit=$($exitCode), marker=$markerFound). Logs in build/gate-01."
     }
     Write-Host "PASS $Name" -ForegroundColor Green
 }
@@ -147,7 +170,7 @@ try {
         $apkDir = Join-Path $root "build\android"
         New-Item -ItemType Directory -Force $apkDir | Out-Null
         $relative = "build/android/CivicChaos-GATE-01-debug.apk"
-        Invoke-GateProcess "android-export" @("--headless", "--path", ".", "--export-debug", '"Android Debug"', $relative)
+        Invoke-GateProcess "android-export" @("--headless", "--path", ".", "--export-debug", "Android Debug", $relative)
         $apk = Join-Path $root $relative
         if (-not (Test-Path $apk) -or (Get-Item $apk).Length -lt 1024) {
             throw "Android export did not create a usable APK"
