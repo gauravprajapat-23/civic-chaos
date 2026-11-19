@@ -66,6 +66,14 @@ var _marshal_assist_center_blockers: int = 0
 var _wrong_way_retry_elapsed: float = 0.0
 var _checkpoint_load_queue: CivicCheckpointLoadQueue = CheckpointLoadQueue.new()
 
+## Retire outstanding service authority before the scene's traffic owner
+## disappears. The van must not keep callbacks or physical collision state.
+func _exit_tree() -> void:
+    if is_instance_valid(_active_call_service):
+        var exiting_service: CivicCallServiceResponse = _active_call_service
+        _active_call_service = null
+        exiting_service.retire()
+
 func _enter_tree() -> void:
     _bind_key("move_forward", KEY_W)
     _bind_key("move_back", KEY_S)
