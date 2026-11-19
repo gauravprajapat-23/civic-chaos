@@ -40,7 +40,8 @@ func evaluate(adapter: CivicResponderStepPermission,
         _denied_steps = mini(_denied_steps + 1, MAX_TICK)
     # No expensive classification on every physics frame. But always sample
     # a change between permitted and held immediately for responsive UI.
-    var due: bool = _samples.is_empty() or allowed != _last_allowed or (\n        usable != _last_adapter_present) or (context_valid != _last_context_valid) or (
+    var due: bool = _samples.is_empty() or allowed != _last_allowed or (
+        usable != _last_adapter_present) or (context_valid != _last_context_valid) or (
         traffic_tick >= _last_sample_tick + SAMPLE_PERIOD_TICKS)
     if due:
         var reason: String = "clear" if allowed else _classify(adapter, from_position, to_position)
