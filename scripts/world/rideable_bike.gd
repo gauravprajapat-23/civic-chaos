@@ -26,6 +26,8 @@ const MAX_FRONT_STEER_RAD: float = 0.38
 var _headlamp: MeshInstance3D
 var _brake_lamp: MeshInstance3D
 var _wheel_roll_total: float = 0.0
+## Bounded cosmetic contact compression. Never changes collision/body pose.
+var _impact_compression: float = 0.0
 
 func _ready() -> void:
     collision_layer = 16
@@ -396,6 +398,13 @@ func _assemble_steering_fork() -> void:
         if part != null:
             part.reparent(_front_assembly, true)
 
+## Contacts stop the physical bike first; this visual response is a short,
+## bounded fork/body dip with no impulse into cars or rider displacement.
+func register_impact(speed_mps: float) -> void:
+    if is_finite(speed_mps) and speed_mps > 0.15:
+        _impact_compression = maxf(_impact_compression,
+            clampf(speed_mps / 14.0, 0.0, 1.0))
+
 func update_ride_visuals(steer: float, signed_speed: float,
         delta: float, accepted_distance: float) -> void:
     if not is_instance_valid(_visual_rig) or delta <= 0.0:
@@ -406,8 +415,6 @@ func update_ride_visuals(steer: float, signed_speed: float,
     if is_instance_valid(_front_assembly):
         _front_assembly.rotation.y = lerpf(_front_assembly.rotation.y,
             steering_angle, minf(1.0, delta * 9.0))
-    if is_instance_valid(_mounted_rider_visual):
-        _mounted_rider_visual.update_targets()
     # Right bank is negative Z roll on an upright Godot model.
     # Reverse banking follows the reversed turning direction.
     var bank: float = -clampf(steer, -1.0, 1.0) * (
@@ -419,9 +426,11 @@ func update_ride_visuals(steer: float, signed_speed: float,
     # mild arcade limit. Do not change root physics or tire collision.
     var braking: bool = absf(signed_speed) > 0.3 and (
         absf(accepted_distance) < absf(signed_speed) * delta * 0.45)
-    var target_pitch: float = -0.045 if braking else 0.0
+    var target_pitch: float = (-0.045 if braking else 0.0) - (
+        _impact_compression * 0.065)
     _visual_rig.rotation.x = lerpf(_visual_rig.rotation.x,
-        target_pitch, minf(1.0, delta * 4.5))
+        target_pitch, minf(1.0, delta * 10.0 if _impact_compression > 0.0 else delta * 4.5))
+    _impact_compression = move_toward(_impact_compression, 0.0, delta * 3.0)
     # Tiny arcade suspension bob driven ONLY by accepted road travel.
     # Stops bobbing when motion is blocked; this is not ground suspension.
     var bounce: float = 0.0
@@ -429,11 +438,16 @@ func update_ride_visuals(steer: float, signed_speed: float,
         bounce = sin(_wheel_roll_total * 0.45) * 0.025 * speed_ratio
     _visual_rig.position.y = lerpf(_visual_rig.position.y,
         bounce, minf(1.0, delta * 7.0))
+    # Evaluate hands after steering, banking, pitch and rebound settle.
+    # Both grips and hand meshes share the resulting visual transform.
+    if is_instance_valid(_mounted_rider_visual):
+        _mounted_rider_visual.update_targets()
 
 func get_visual_lean() -> float:
     return _visual_rig.rotation.z if is_instance_valid(_visual_rig) else 0.0
 
 func reset_ride_visuals() -> void:
+    _impact_compression = 0.0
     if is_instance_valid(_visual_rig):
         _visual_rig.rotation = Vector3.ZERO
         _visual_rig.position = Vector3.ZERO
