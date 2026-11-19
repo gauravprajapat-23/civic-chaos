@@ -120,20 +120,20 @@ func _run() -> void:
     if not gate.set_route_context(PackedInt32Array([1, 4]), 0, distance):
         _fail("route recovery")
         return
-    if telemetry.evaluate(gate, start, start + Vector3(8, 0, 0), 89) or telemetry.snapshot()["reason"] != "invalid_motion":
+    if telemetry.evaluate(gate, start, start + Vector3(8, 0, 0), 109) or telemetry.snapshot()["reason"] != "invalid_motion":
         _fail("invalid motion incorrectly permitted")
         return
 
     # Bounded history and deterministic no-allocation cadence; repeat at
     # fixed integer ticks and ensure identical reason sequence.
     for i in range(100):
-        telemetry.evaluate(gate, start, finish, 100 + i * Telemetry.SAMPLE_PERIOD_TICKS)
+        telemetry.evaluate(gate, start, finish, 140 + i * Telemetry.SAMPLE_PERIOD_TICKS)
     var saved: Dictionary = telemetry.snapshot()
     if int(saved["sample_count"]) != Telemetry.MAX_SAMPLES or (
             (saved["samples"] as Array).size() != Telemetry.MAX_SAMPLES):
         _fail("unbounded diagnostic sample history")
         return
-    if int(saved["observed_steps"]) != 114 or int(saved["denied_steps"]) <= 0:
+    if int(saved["observed_steps"]) != 115 or int(saved["denied_steps"]) <= 0:
         _fail("diagnostic counters corrupted")
         return
     var detached: Dictionary = telemetry.snapshot()
