@@ -10,9 +10,14 @@ signal lifecycle_finished(call_id: int, final_status: String)
 ## this worker never grants signal priority or changes junction phases.
 var traffic_step_permission: Callable = Callable()
 var _traffic_gate_configured: bool = false
+var _traffic_adapter: CivicResponderStepPermission
+var _lane_ids: PackedInt32Array = PackedInt32Array()
+var _route_lane_indices: PackedInt32Array = PackedInt32Array()
+var _route_progress_m: PackedFloat32Array = PackedFloat32Array()
 var _terminal_status: String = ""
 
-const Routes = preload("res://scripts/ui/civic_map_routes.gd")
+const LaneRoutes = preload("res://scripts/civic/responder_lane_route.gd")
+const TrafficPermission = preload("res://scripts/traffic/responder_step_permission.gd")
 const SERVICE_SPEED_MPS: float = 5.5
 const ARRIVAL_DISTANCE_M: float = 0.5
 const BLOCKED_NOTICE_S: float = 2.5
@@ -114,6 +119,7 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
     var points := PackedVector3Array()
     var spawn := Vector3.ZERO
     var selected_stop := Vector3.ZERO
+    var selected_plan: Dictionary = {}
     var stops: Array[Vector3] = roadside_candidates(graph, at)
     for roadside in stops:
         if not _space_clear(roadside, true):
@@ -122,7 +128,7 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
             var candidate := Vector3(depot.x, 0.12, depot.z)
             if candidate.distance_to(roadside) < 3.0 or not _space_clear(candidate, true):
                 continue
-            var proposed: Dictionary = Routes.plan(graph, depot, roadside)
+            var proposed: Dictionary = LaneRoutes.plan(graph, candidate, roadside)
             if not bool(proposed.get("ok", false)):
                 continue
             var proposed_points: PackedVector3Array = proposed.get(
@@ -132,6 +138,7 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
             spawn = candidate
             selected_stop = roadside
             points = proposed_points
+            selected_plan = proposed
             break
         if points.size() >= 2:
             break
@@ -140,8 +147,11 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
     call_id = incident_id
     service_label = service_for(kind)
     target = at
-    stop_point = selected_stop
+    stop_point = points[-1]
     route = points
+    _lane_ids = selected_plan["lane_ids"]
+    _route_lane_indices = selected_plan["lane_indices"]
+    _route_progress_m = selected_plan["lane_progress_m"]
     route_index = 1
     position = spawn
     _build_visual()
@@ -221,6 +231,18 @@ func _space_clear(at: Vector3, spawning: bool = false) -> bool:
     query.margin = 0.03
     return get_world_3d().direct_space_state.intersect_shape(query, 12).is_empty()
 
+## Bind the authoritative Traffic adapter for the lifetime of this responder.
+## The Main-owned integration must provide its real configured spawner.
+## A failed or invalid binding permanently fails closed until reconfigured.
+func configure_traffic(spawner: CivicTrafficSpawner) -> bool:
+    _traffic_gate_configured = true
+    traffic_step_permission = Callable()
+    _traffic_adapter = TrafficPermission.new()
+    if not _traffic_adapter.configure(spawner):
+        return false
+    traffic_step_permission = Callable(_traffic_adapter, "allows_step")
+    return true
+
 ## Traffic may supply a callable (from_position, to_position) -> bool.
 ## A never-configured gate preserves CALLS-02 compatibility. Once configured,
 ## invalidation of Traffic's owner must never become an implicit green light.
@@ -235,6 +257,7 @@ func lifecycle_state() -> Dictionary:
         "status": response_status, "terminal_status": _terminal_status,
         "position": position, "stop_point": stop_point,
         "route_index": route_index, "route_size": route.size(),
+        "lane_route_size": _lane_ids.size(),
         "traffic_gate_configured": _traffic_gate_configured,
         "traffic_gate_available": traffic_step_permission.is_valid()}
 
@@ -277,8 +300,17 @@ func _physics_process(delta: float) -> void:
     var movement: Vector3 = remaining.normalized() * minf(
         remaining.length(), SERVICE_SPEED_MPS * minf(delta, 0.10))
     var next: Vector3 = position + movement
-    var traffic_permitted: bool = true
-    if _traffic_gate_configured:
+    # Refresh Traffic context from the exact directed route waypoint. The
+    # adapter verifies geometry; a missing/stale owner never grants entry.
+    var context_ok: bool = true
+    if _traffic_adapter != null:
+        var step_index: int = route_index - 1
+        context_ok = step_index >= 0 and step_index < _route_lane_indices.size()
+        if context_ok:
+            context_ok = _traffic_adapter.set_route_context(_lane_ids,
+                _route_lane_indices[step_index], float(_route_progress_m[step_index]))
+    var traffic_permitted: bool = not _traffic_gate_configured
+    if _traffic_gate_configured and context_ok:
         traffic_permitted = traffic_step_permission.is_valid() and bool(traffic_step_permission.call(position, next))
     if not traffic_permitted or not _step_is_clear(position, next):
         _blocked_seconds += delta
@@ -306,6 +338,10 @@ func retire() -> void:
     active = false
     _terminal_status = response_status
     lifecycle_finished.emit(call_id, _terminal_status)
+    if _traffic_adapter != null:
+        _traffic_adapter.clear_context()
+    _traffic_adapter = null
+    traffic_step_permission = Callable()
     if is_instance_valid(_van):
         _van.collision_layer = 0
         _van.collision_mask = 0
