@@ -148,6 +148,9 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
     service_label = service_for(kind)
     target = at
     stop_point = points[-1]
+    # A deployed van cannot move without the authoritative Traffic gate.
+    # Master must bind the active spawner using configure_traffic().
+    _traffic_gate_configured = true
     route = points
     _lane_ids = selected_plan["lane_ids"]
     _route_lane_indices = selected_plan["lane_indices"]
