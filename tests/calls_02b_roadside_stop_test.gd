@@ -3,6 +3,9 @@ extends SceneTree
 ## not a teleport to the off-road incident prop.
 const Responder = preload("res://scripts/civic/call_service_response.gd")
 const Builder = preload("res://scripts/world/junction_builder.gd")
+const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
+const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
+const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -22,10 +25,17 @@ func _run() -> void:
             return
     var stage := Node3D.new()
     root.add_child(stage)
+    var spawner := _traffic_fixture(stage, graph)
+    if spawner == null:
+        _fail("live Traffic authority failed to initialize")
+        return
     var van := Responder.new() as CivicCallServiceResponse
     stage.add_child(van)
     if not van.configure(graph, 50105, "fallen_public_sign", incident):
         _fail("no collision-clear response route from a public depot")
+        return
+    if not van.configure_traffic(spawner):
+        _fail("responder failed to bind authoritative Traffic rules")
         return
     if van.stop_point.distance_to(incident) < 3.0 or (
             van.stop_point.distance_to(incident) > 18.0):
@@ -50,6 +60,19 @@ func _run() -> void:
     stage.queue_free()
     print("CIVIC_CHAOS_CALLS_02B_ROADSIDE_STOP_PASS")
     quit(0)
+
+## Legacy CALLS movement fixtures now use the same fail-closed Traffic
+## authority required by GAME-002. No disabling permission checks.
+func _traffic_fixture(stage: Node3D, graph: CivicRoadGraph) -> CivicTrafficSpawner:
+    var spawner := Spawner.new() as CivicTrafficSpawner
+    stage.add_child(spawner)
+    if not spawner.configure(graph, 777, true):
+        spawner.queue_free()
+        return null
+    var signals := Signals.new(12.0, 3.0, 2.0)
+    signals.enable_single_approach_mode()
+    spawner.configure_intersection(signals, Reservations.new())
+    return spawner
 
 func _fail(reason: String) -> void:
     push_error(reason)
