@@ -3,6 +3,9 @@ extends SceneTree
 ## road-graph waypoints, never teleporting to the caller or through walls.
 const Response = preload("res://scripts/civic/call_service_response.gd")
 const Builder = preload("res://scripts/world/junction_builder.gd")
+const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
+const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
+const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -10,13 +13,21 @@ func _initialize() -> void:
 func _run() -> void:
     var stage := Node3D.new()
     root.add_child(stage)
+    var graph: CivicRoadGraph = Builder.make_city_graph()
+    var spawner := _traffic_fixture(stage, graph)
+    if spawner == null:
+        _fail("live Traffic authority failed to initialize")
+        return
     var responder := Response.new() as CivicCallServiceResponse
     stage.add_child(responder)
-    var result := responder.configure(Builder.make_city_graph(), 50042,
+    var result := responder.configure(graph, 50042,
         "fallen_public_sign", Vector3(9, 0, -29))
     if not result or not responder.active or responder.arrived or (
             responder.route.size() < 2):
         _fail("municipal vehicle could not start legal response route")
+        return
+    if not responder.configure_traffic(spawner):
+        _fail("responder failed to bind authoritative Traffic rules")
         return
     if responder.get_node_or_null("MunicipalServiceVehicle") == null or (
             responder.find_child("MunicipalServiceVan", true, false) == null):
@@ -71,6 +82,19 @@ func _run() -> void:
     stage.queue_free()
     print("CIVIC_CHAOS_CALLS_02_RESPONSE_VEHICLE_PASS")
     quit(0)
+
+## Legacy CALLS movement fixtures now use the same fail-closed Traffic
+## authority required by GAME-002. No disabling permission checks.
+func _traffic_fixture(stage: Node3D, graph: CivicRoadGraph) -> CivicTrafficSpawner:
+    var spawner := Spawner.new() as CivicTrafficSpawner
+    stage.add_child(spawner)
+    if not spawner.configure(graph, 777, true):
+        spawner.queue_free()
+        return null
+    var signals := Signals.new(12.0, 3.0, 2.0)
+    signals.enable_single_approach_mode()
+    spawner.configure_intersection(signals, Reservations.new())
+    return spawner
 
 func _fail(reason: String) -> void:
     push_error(reason)
