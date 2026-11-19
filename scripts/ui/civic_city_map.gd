@@ -134,7 +134,7 @@ func _ready() -> void:
     _map_area.gui_input.connect(_on_large_map_input)
     _map_area.draw.connect(_draw_large)
     stack.add_child(_map_area)
-    var selector := HBoxContainer.new()
+    var selector := HFlowContainer.new()
     selector.name = "MapLocations"
     selector.add_theme_constant_override("separation", 5)
     stack.add_child(selector)
@@ -147,7 +147,7 @@ func _ready() -> void:
         location.pressed.connect(_select_location.bind(i - 1))
         selector.add_child(location)
         location_buttons.append(location)
-    var zone_selector := HBoxContainer.new()
+    var zone_selector := HFlowContainer.new()
     zone_selector.name = "ExplorationZones"
     zone_selector.add_theme_constant_override("separation", 5)
     stack.add_child(zone_selector)
