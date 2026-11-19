@@ -2,6 +2,7 @@ class_name CivicFreeRoamDispatchBoard
 extends CanvasLayer
 ## GAME-025-02: non-authoritative dispatch board for existing Free Roam.
 ## This UI never spawns/finishes activities or edits the incident scheduler.
+const ModalGuard = preload("res://scripts/ui/civic_modal_input_guard.gd")
 signal toggle_requested
 signal accept_requested
 signal service_requested
@@ -124,23 +125,29 @@ func _input(event: InputEvent) -> void:
 func set_available(value: bool) -> void:
     enabled = value
     if not value:
-        expanded = false
+        set_expanded(false)
         accepted_call_id = -1
         service_call_id = -1
         response_status = ""
     _sync_visibility()
 
 func set_expanded(value: bool) -> void:
-    expanded = value and enabled
+    var next_expanded: bool = value and enabled
+    if expanded == next_expanded:
+        _sync_visibility()
+        return
+    ModalGuard.release_touch_controls(get_tree())
+    if next_expanded:
+        _focus_before_open = ModalGuard.remember_focus(get_viewport(), panel)
+    expanded = next_expanded
     _sync_visibility()
-    if expanded and close_button != null:
-        _focus_before_open = weakref(get_viewport().gui_get_focus_owner()) if get_viewport().gui_get_focus_owner() != null else null
-        content_scroll.scroll_vertical = 0
-        close_button.grab_focus()
-    elif not expanded and _focus_before_open != null:
-        var previous: Variant = _focus_before_open.get_ref()
-        if previous is Control and is_instance_valid(previous) and previous.is_visible_in_tree():
-            (previous as Control).grab_focus()
+    if expanded:
+        if content_scroll != null:
+            content_scroll.scroll_vertical = 0
+        if close_button != null:
+            close_button.grab_focus()
+    else:
+        ModalGuard.restore_focus(get_viewport(), _focus_before_open, panel)
         _focus_before_open = null
 
 func _sync_visibility() -> void:
@@ -216,8 +223,9 @@ func _fit() -> void:
     if panel == null:
         return
     var viewport: Vector2 = get_viewport().get_visible_rect().size
-    button.position = Vector2(maxf(8.0, viewport.x - 106.0), maxf(68.0, viewport.y * 0.60))
-    button.size = Vector2(92, 44)
+    var open_bounds: Rect2 = open_button_bounds(viewport)
+    button.position = open_bounds.position
+    button.size = open_bounds.size
     var bounds: Rect2 = panel_bounds(viewport)
     panel.position = bounds.position
     panel.size = bounds.size
@@ -230,3 +238,12 @@ static func panel_bounds(viewport: Vector2) -> Rect2:
     var width: float = minf(530.0, maxf(0.0, viewport.x - margin * 2.0))
     var height: float = minf(580.0, maxf(0.0, viewport.y - margin * 2.0))
     return Rect2(Vector2((viewport.x - width) * 0.5, (viewport.y - height) * 0.5), Vector2(width, height))
+
+## Keep the CALLS launcher inside the visible viewport after device rotation.
+static func open_button_bounds(viewport: Vector2) -> Rect2:
+    if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
+        return Rect2()
+    var width: float = minf(92.0, maxf(0.0, viewport.x - 16.0))
+    var height: float = minf(44.0, maxf(0.0, viewport.y - 16.0))
+    return Rect2(Vector2(maxf(0.0, viewport.x - width - 8.0),
+        clampf(viewport.y * 0.60, 8.0, maxf(8.0, viewport.y - height - 8.0))), Vector2(width, height))
