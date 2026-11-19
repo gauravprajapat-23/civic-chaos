@@ -25,6 +25,9 @@ var route_index: int = 1
 var _van: StaticBody3D
 var _probe: BoxShape3D
 
+func _init() -> void:
+    process_mode = Node.PROCESS_MODE_PAUSABLE
+
 static func service_for(kind: String) -> String:
     return str(VALID_SERVICES.get(kind, ""))
 
@@ -34,19 +37,31 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
             not at.is_finite()) or service_for(kind).is_empty() or (
             not is_inside_tree()):
         return false
-    var planned: Dictionary = Routes.plan(graph, SERVICE_ORIGIN, at)
-    if not bool(planned.get("ok", false)):
-        return false
-    var points: PackedVector3Array = planned.get("points", PackedVector3Array())
-    if points.size() < 2:
-        return false
-    # A call already at the depot needs no vehicle dispatch animation.
-    if SERVICE_ORIGIN.distance_to(at) < ARRIVAL_DISTANCE_M:
-        return false
-    var spawn := Vector3(SERVICE_ORIGIN.x, 0.12, SERVICE_ORIGIN.z)
     _probe = BoxShape3D.new()
     _probe.size = Vector3(1.1, 1.15, 1.9)
-    if not _space_clear(spawn, true):
+    # Public roads may be temporarily occupied. Look for a safe depot
+    # departure along existing road nodes, never spawn inside another car.
+    var candidate_origins: Array[Vector3] = [
+        SERVICE_ORIGIN, Vector3(-46, 0, 0),
+        Vector3(0, 0, -46), Vector3(46, 0, -46)
+    ]
+    var points := PackedVector3Array()
+    var spawn := Vector3.ZERO
+    for depot in candidate_origins:
+        var candidate := Vector3(depot.x, 0.12, depot.z)
+        if not _space_clear(candidate, true):
+            continue
+        var proposed: Dictionary = Routes.plan(graph, depot, at)
+        if not bool(proposed.get("ok", false)):
+            continue
+        var proposed_points: PackedVector3Array = proposed.get(
+            "points", PackedVector3Array())
+        if proposed_points.size() < 2 or depot.distance_to(at) < ARRIVAL_DISTANCE_M:
+            continue
+        spawn = candidate
+        points = proposed_points
+        break
+    if points.size() < 2:
         return false
     call_id = incident_id
     service_label = service_for(kind)
