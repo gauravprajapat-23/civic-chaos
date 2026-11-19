@@ -41,5 +41,8 @@ func _run() -> void:
     _assert(response.lifecycle_state()["terminal_status"] == "SERVICE UNAVAILABLE", "snapshot retains terminal reason")
     response.retire()
     _assert(finished.size() == 1, "retire is idempotent")
-    print("GAME-001 lifecycle: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
+    if failures == 0:
+        print("CIVIC_CHAOS_CALLS_02C_LIFECYCLE_PASS")
+    else:
+        print("CIVIC_CHAOS_CALLS_02C_LIFECYCLE_FAIL: %d assertions" % failures)
     quit(0 if failures == 0 else 1)
