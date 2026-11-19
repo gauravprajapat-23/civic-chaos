@@ -30,6 +30,21 @@ func _run() -> void:
             InputMap.add_action(action)
     var stage := Node3D.new()
     root.add_child(stage)
+    # Safe dismount requires verified floor support. The previous
+    # standalone fixture had no ground, so the real safety check
+    # correctly rejected every side even after its barriers moved.
+    var road := StaticBody3D.new()
+    road.name = "RoadSupport"
+    road.collision_layer = 1
+    road.collision_mask = 0
+    road.position = Vector3(0.0, -0.30, 0.0)
+    var road_shape := CollisionShape3D.new()
+    road_shape.name = "CollisionShape3D"
+    var road_box := BoxShape3D.new()
+    road_box.size = Vector3(80.0, 0.60, 80.0)
+    road_shape.shape = road_box
+    road.add_child(road_shape)
+    stage.add_child(road)
     var player := PlayerScene.instantiate() as CivicPlayerController
     player.position = Vector3(1.2, 0, 0)
     stage.add_child(player)
@@ -58,6 +73,18 @@ func _run() -> void:
 
     left_barrier.position = Vector3(-8, 0, 0)
     await physics_frame
+    # A one-sided opening must not bypass either floor validation or
+    # the still-occupied right-side vehicle collision.
+    var support: Vector3 = player._bike_exit_support_origin()
+    if not support.is_finite():
+        _fail("valid road support was not detected before left-side exit")
+        return
+    if not player._rider_place_clear(support + Vector3.LEFT * 1.15):
+        _fail("cleared left exit still fails standing capsule clearance")
+        return
+    if player._rider_place_clear(support + Vector3.RIGHT * 1.15):
+        _fail("occupied right exit incorrectly marked safe")
+        return
     if not player.dismount_bike():
         _fail("could not dismount through the newly clear left side")
         return
