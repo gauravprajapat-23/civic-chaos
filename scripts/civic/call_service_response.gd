@@ -96,6 +96,21 @@ func _build_visual() -> void:
     body.position.y = 0.75
     body.material_override = paint
     _van.add_child(body)
+    var tire_material := StandardMaterial3D.new()
+    tire_material.albedo_color = Color(0.08, 0.09, 0.11)
+    for side in [-1.0, 1.0]:
+        for axle in [-0.58, 0.58]:
+            var wheel := MeshInstance3D.new()
+            wheel.name = "Wheel_%d_%d" % [int(side), int(axle * 100)]
+            var tire := CylinderMesh.new()
+            tire.top_radius = 0.27
+            tire.bottom_radius = 0.27
+            tire.height = 0.13
+            wheel.mesh = tire
+            wheel.material_override = tire_material
+            wheel.position = Vector3(side * 0.57, 0.35, axle)
+            wheel.rotation.z = PI * 0.5
+            _van.add_child(wheel)
     var stripe := MeshInstance3D.new()
     stripe.name = "ServiceRoofBeacon"
     var lamp := BoxMesh.new()
