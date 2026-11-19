@@ -3,6 +3,7 @@ extends CanvasLayer
 ## GAME-025-02: non-authoritative dispatch board for existing Free Roam.
 ## This UI never spawns/finishes activities or edits the incident scheduler.
 const ModalGuard = preload("res://scripts/ui/civic_modal_input_guard.gd")
+const SafeLayout = preload("res://scripts/ui/civic_hud_safe_layout.gd")
 signal toggle_requested
 signal accept_requested
 signal service_requested
@@ -24,6 +25,8 @@ var close_button: Button
 var content_scroll: ScrollContainer
 var content_stack: VBoxContainer
 var _focus_before_open: WeakRef
+var hud_safe_area: Rect2 = Rect2()
+var hud_exclusions: Array[Rect2] = []
 var _feed: Dictionary = {}
 var accepted_call_id: int = -1
 var service_call_id: int = -1
@@ -36,6 +39,7 @@ func _ready() -> void:
     button.name = "OpenDispatch"
     button.text = "CALLS"
     button.custom_minimum_size = Vector2(92, 44)
+    button.focus_mode = Control.FOCUS_ALL
     button.pressed.connect(func() -> void: toggle_requested.emit())
     add_child(button)
     panel = PanelContainer.new()
@@ -152,7 +156,7 @@ func set_expanded(value: bool) -> void:
 
 func _sync_visibility() -> void:
     if button != null:
-        button.visible = enabled and not expanded
+        button.visible = enabled and not expanded and button.size.x >= 44.0 and button.size.y >= 44.0
     if panel != null:
         panel.visible = enabled and expanded
 
@@ -219,31 +223,35 @@ func service_requested_for(call_id: int, status: String) -> void:
     response_status = status
     update_feed(_feed)
 
+## Presentation-only update from Master after rotation, inset, or control changes.
+## Does not modify dispatch state or claim ownership of input arbitration.
+func set_hud_constraints(safe_area: Rect2, exclusions: Array[Rect2] = []) -> void:
+    hud_safe_area = safe_area
+    hud_exclusions = exclusions.duplicate()
+    _fit()
+
 func _fit() -> void:
     if panel == null:
         return
     var viewport: Vector2 = get_viewport().get_visible_rect().size
-    var open_bounds: Rect2 = open_button_bounds(viewport)
+    var open_bounds: Rect2 = SafeLayout.launcher(viewport, Vector2(92, 48), hud_safe_area, hud_exclusions, true)
+    button.visible = enabled and not expanded and open_bounds.has_area()
     button.position = open_bounds.position
     button.size = open_bounds.size
-    var bounds: Rect2 = panel_bounds(viewport)
+    var bounds: Rect2 = SafeLayout.panel(viewport, Vector2(530, 580), hud_safe_area)
     panel.position = bounds.position
     panel.size = bounds.size
+    heading.add_theme_font_size_override("font_size", 16 if bounds.size.x < 370.0 else 18)
+    content_stack.add_theme_constant_override("separation", 6 if bounds.size.y < 390.0 else 10)
 
 ## Pure presentation geometry; never depends on call or mission state.
 static func panel_bounds(viewport: Vector2) -> Rect2:
     if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
         return Rect2()
-    var margin: float = 8.0
-    var width: float = minf(530.0, maxf(0.0, viewport.x - margin * 2.0))
-    var height: float = minf(580.0, maxf(0.0, viewport.y - margin * 2.0))
-    return Rect2(Vector2((viewport.x - width) * 0.5, (viewport.y - height) * 0.5), Vector2(width, height))
+    return SafeLayout.panel(viewport, Vector2(530, 580))
 
 ## Keep the CALLS launcher inside the visible viewport after device rotation.
 static func open_button_bounds(viewport: Vector2) -> Rect2:
     if not viewport.is_finite() or viewport.x <= 0.0 or viewport.y <= 0.0:
         return Rect2()
-    var width: float = minf(92.0, maxf(0.0, viewport.x - 16.0))
-    var height: float = minf(44.0, maxf(0.0, viewport.y - 16.0))
-    return Rect2(Vector2(maxf(0.0, viewport.x - width - 8.0),
-        clampf(viewport.y * 0.60, 8.0, maxf(8.0, viewport.y - height - 8.0))), Vector2(width, height))
+    return SafeLayout.launcher(viewport, Vector2(92, 48))
