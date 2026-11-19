@@ -15,10 +15,6 @@ var _lane_ids: PackedInt32Array = PackedInt32Array()
 var _route_lane_indices: PackedInt32Array = PackedInt32Array()
 var _route_progress_m: PackedFloat32Array = PackedFloat32Array()
 var _terminal_status: String = ""
-var _traffic_adapter: RefCounted
-var _road_graph: CivicRoadGraph
-var _lane_ids: PackedInt32Array = PackedInt32Array()
-var _leg_lanes: PackedInt32Array = PackedInt32Array()
 
 const LaneRoutes = preload("res://scripts/civic/responder_lane_route.gd")
 const TrafficPermission = preload("res://scripts/traffic/responder_step_permission.gd")
@@ -123,8 +119,6 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
     var points := PackedVector3Array()
     var spawn := Vector3.ZERO
     var selected_stop := Vector3.ZERO
-    var selected_lanes := PackedInt32Array()
-    var selected_legs := PackedInt32Array()
     var selected_plan: Dictionary = {}
     var stops: Array[Vector3] = roadside_candidates(graph, at)
     for roadside in stops:
@@ -148,11 +142,8 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
             break
         if points.size() >= 2:
             break
-    if points.size() < 2 or selected_lanes.is_empty() or selected_legs.size() != points.size() - 1:
+    if points.size() < 2 or selected_plan.is_empty():
         return false
-    _road_graph = graph
-    _lane_ids = selected_lanes
-    _leg_lanes = selected_legs
     call_id = incident_id
     service_label = service_for(kind)
     target = at
@@ -261,40 +252,6 @@ func set_traffic_step_permission(permission: Callable) -> void:
     _traffic_gate_configured = true
     traffic_step_permission = permission
 
-## Main configures one Traffic-owned adapter per responder and keeps a strong
-## reference here until retirement. An unavailable configured adapter denies steps.
-func configure_traffic_adapter(adapter: RefCounted) -> bool:
-    _traffic_adapter = adapter
-    set_traffic_step_permission(Callable())
-    if adapter == null or not adapter.has_method("set_route_context") or not adapter.has_method("allows_step"):
-        return false
-    set_traffic_step_permission(Callable(adapter, "allows_step"))
-    return true
-
-func lane_route_state() -> Dictionary:
-    return {"lane_ids": _lane_ids.duplicate(), "leg_lanes": _leg_lanes.duplicate(),
-        "leg_index": route_index - 1}
-
-func _permission_context_ready() -> bool:
-    if not _traffic_gate_configured:
-        return true
-    if _traffic_adapter == null or not traffic_step_permission.is_valid():
-        return false
-    if _road_graph == null or route_index < 1 or route_index > _leg_lanes.size():
-        return false
-    var leg: int = route_index - 1
-    var lane_index: int = _leg_lanes[leg]
-    if lane_index < 0 or lane_index >= _lane_ids.size():
-        return false
-    var lane: CivicLaneData = _road_graph.get_lane(_lane_ids[lane_index])
-    if lane == null:
-        return false
-    var location: Dictionary = LaneRoutes._project(lane, position)
-    if float(location["lateral_m"]) > 2.5:
-        return false
-    return bool(_traffic_adapter.call("set_route_context",
-        _lane_ids, lane_index, float(location["distance_m"])))
-
 func lifecycle_state() -> Dictionary:
     return {"call_id": call_id, "active": active, "arrived": arrived,
         "status": response_status, "terminal_status": _terminal_status,
@@ -380,10 +337,6 @@ func retire() -> void:
     if not active:
         return
     active = false
-    if _traffic_adapter != null and _traffic_adapter.has_method("clear_context"):
-        _traffic_adapter.call("clear_context")
-    traffic_step_permission = Callable()
-    _traffic_adapter = null
     _terminal_status = response_status
     lifecycle_finished.emit(call_id, _terminal_status)
     if _traffic_adapter != null:
