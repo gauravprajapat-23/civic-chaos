@@ -83,9 +83,22 @@ func _ready() -> void:
     large_frame.visible = false
     large_frame.mouse_filter = Control.MOUSE_FILTER_STOP
     add_child(large_frame)
+    # UI-003: PanelContainer sizes itself to its child's minimum. Without a
+    # scroll viewport, several rows of map actions can expand FullCityMap past
+    # the safe bounds on short landscape screens, even after _fit() clamps it.
+    # Keep the panel bounded and let its content scroll instead.
+    var scroll := ScrollContainer.new()
+    scroll.name = "FullCityMapScroll"
+    scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    large_frame.add_child(scroll)
     var stack := VBoxContainer.new()
+    stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
     stack.add_theme_constant_override("separation", 8)
-    large_frame.add_child(stack)
+    scroll.add_child(stack)
     var header := HFlowContainer.new()
     header.add_theme_constant_override("h_separation", 5)
     header.add_theme_constant_override("v_separation", 5)
@@ -132,6 +145,7 @@ func _ready() -> void:
     _map_area = Control.new()
     _map_area.name = "FullMapDrawing"
     _map_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    _map_area.custom_minimum_size = Vector2(0, 180)
     _map_area.mouse_filter = Control.MOUSE_FILTER_STOP
     _map_area.clip_contents = true
     _map_area.gui_input.connect(_on_large_map_input)
