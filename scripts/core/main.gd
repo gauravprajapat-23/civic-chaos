@@ -1376,9 +1376,9 @@ func _sync_dispatch_service() -> void:
     var report: Dictionary = free_roam_world.dispatch_state()
     if not bool(report.get("has_event", false)) or (
             int(report.get("call_id", -1)) != _active_call_service.call_id):
-        var stale_service: CivicCallServiceResponse = _active_call_service
+        var replaced_service: CivicCallServiceResponse = _active_call_service
         _active_call_service = null
-        stale_service.retire()
+        replaced_service.retire()
 
 func _on_dispatch_route_requested() -> void:
     if not _dispatch_open or dispatch_board == null:
