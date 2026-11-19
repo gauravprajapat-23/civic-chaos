@@ -156,9 +156,11 @@ func update_feed(value: Dictionary) -> void:
     route_button.disabled = not accepted or not bool(_feed.get("has_target", false))
     var service_type: String = str(_feed.get("service_type", ""))
     service_button.visible = not service_type.is_empty() and active
+    var can_retry: bool = response_status == "SERVICE UNAVAILABLE"
     service_button.disabled = not accepted or service_type.is_empty() or (
-        service_call_id == current_id)
-    service_button.text = "REQUEST " + service_type
+        service_call_id == current_id and not can_retry)
+    service_button.text = "RETRY " + service_type if can_retry else (
+        "REQUEST " + service_type)
     service_status.text = "%s | %s" % [service_type, response_status] if (
         accepted and service_call_id == current_id) else (
         "Accept this call before requesting municipal assistance." if (
