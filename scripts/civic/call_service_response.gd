@@ -1,0 +1,144 @@
+class_name CivicCallServiceResponse
+extends Node3D
+## CALLS-02: one visual municipal response van traveling along the real
+## city road graph. This is NOT incident completion, traffic priority,
+## an ambulance, or an instant-spawn reward.
+signal status_changed(status: String)
+
+const Routes = preload("res://scripts/ui/civic_map_routes.gd")
+const SERVICE_SPEED_MPS: float = 5.5
+const ARRIVAL_DISTANCE_M: float = 2.5
+const SERVICE_ORIGIN: Vector3 = Vector3(-46.0, 0.0, -46.0)
+const VALID_SERVICES: Dictionary = {
+    "civic_litter": "SANITATION",
+    "fallen_public_sign": "MAINTENANCE",
+    "misplaced_safety_cone": "ROAD SAFETY"
+}
+
+var call_id: int = -1
+var service_label: String = ""
+var target: Vector3 = Vector3.ZERO
+var active: bool = false
+var arrived: bool = false
+var route: PackedVector3Array = PackedVector3Array()
+var route_index: int = 1
+var _van: StaticBody3D
+var _probe: BoxShape3D
+
+static func service_for(kind: String) -> String:
+    return str(VALID_SERVICES.get(kind, ""))
+
+func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
+        at: Vector3) -> bool:
+    if active or call_id > 0 or graph == null or incident_id <= 0 or (
+            not at.is_finite()) or service_for(kind).is_empty() or (
+            not is_inside_tree()):
+        return false
+    var planned: Dictionary = Routes.plan(graph, SERVICE_ORIGIN, at)
+    if not bool(planned.get("ok", false)):
+        return false
+    var points: PackedVector3Array = planned.get("points", PackedVector3Array())
+    if points.size() < 2:
+        return false
+    # A call already at the depot needs no vehicle dispatch animation.
+    if SERVICE_ORIGIN.distance_to(at) < ARRIVAL_DISTANCE_M:
+        return false
+    var spawn := Vector3(SERVICE_ORIGIN.x, 0.12, SERVICE_ORIGIN.z)
+    _probe = BoxShape3D.new()
+    _probe.size = Vector3(1.1, 1.15, 1.9)
+    if not _space_clear(spawn, true):
+        return false
+    call_id = incident_id
+    service_label = service_for(kind)
+    target = at
+    route = points
+    route_index = 1
+    position = spawn
+    _build_visual()
+    active = true
+    status_changed.emit("EN ROUTE")
+    return true
+
+func _build_visual() -> void:
+    _van = StaticBody3D.new()
+    _van.name = "MunicipalServiceVehicle"
+    _van.collision_layer = 4
+    _van.collision_mask = 0
+    add_child(_van)
+    var collider := CollisionShape3D.new()
+    collider.name = "CollisionShape3D"
+    collider.shape = _probe
+    collider.position.y = 0.7
+    _van.add_child(collider)
+    var paint := StandardMaterial3D.new()
+    paint.albedo_color = Color(0.93, 0.73, 0.20)
+    paint.metallic = 0.12
+    var body := MeshInstance3D.new()
+    body.name = "MunicipalServiceVan"
+    var box := BoxMesh.new()
+    box.size = Vector3(1.15, 0.9, 1.95)
+    body.mesh = box
+    body.position.y = 0.75
+    body.material_override = paint
+    _van.add_child(body)
+    var stripe := MeshInstance3D.new()
+    stripe.name = "ServiceRoofBeacon"
+    var lamp := BoxMesh.new()
+    lamp.size = Vector3(0.56, 0.16, 0.32)
+    stripe.mesh = lamp
+    stripe.position.y = 1.28
+    var amber := StandardMaterial3D.new()
+    amber.albedo_color = Color(0.99, 0.43, 0.08)
+    amber.emission_enabled = true
+    amber.emission = amber.albedo_color
+    stripe.material_override = amber
+    _van.add_child(stripe)
+    var label := Label3D.new()
+    label.name = "ServiceLabel"
+    label.text = service_label
+    label.font_size = 30
+    label.pixel_size = 0.005
+    label.position = Vector3(0, 1.65, 0)
+    _van.add_child(label)
+
+## Only actual obstacles at van height block the next step.
+## Ground/sidewalk support is below the probe, so no collision bypass
+## for walls, traffic, pedestrians, props or mounted motorcycles.
+func _space_clear(at: Vector3, spawning: bool = false) -> bool:
+    if not is_inside_tree():
+        return false
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = _probe
+    query.transform = Transform3D(Basis.IDENTITY, at + Vector3.UP * 0.76)
+    query.collision_mask = 1 | 2 | 4 | 8 | 16
+    if not spawning and is_instance_valid(_van):
+        query.exclude = [_van.get_rid()]
+    query.margin = 0.03
+    return get_world_3d().direct_space_state.intersect_shape(query, 12).is_empty()
+
+func _physics_process(delta: float) -> void:
+    if not active or arrived or delta <= 0.0 or route_index >= route.size():
+        return
+    var waypoint: Vector3 = route[route_index]
+    var remaining: Vector3 = Vector3(waypoint.x - position.x, 0,
+        waypoint.z - position.z)
+    if remaining.length() < 0.20:
+        route_index += 1
+        if route_index >= route.size():
+            arrived = true
+            status_changed.emit("ON SCENE")
+        return
+    var movement: Vector3 = remaining.normalized() * minf(
+        remaining.length(), SERVICE_SPEED_MPS * delta)
+    var next: Vector3 = position + movement
+    if not _space_clear(next):
+        return # Traffic and pedestrians retain right of way.
+    position = next
+    rotation.y = atan2(-movement.x, -movement.z)
+    if Vector2(position.x - target.x, position.z - target.z).length() <= ARRIVAL_DISTANCE_M:
+        arrived = true
+        status_changed.emit("ON SCENE")
+
+func retire() -> void:
+    active = false
+    queue_free()
