@@ -30,13 +30,13 @@ func _run() -> void:
             return
         Input.action_press("sprint")
         board.set_expanded(false)
-        if Input.is_action_pressed("sprint") or board.panel.visible or get_focus_owner() != home:
+        if Input.is_action_pressed("sprint") or board.panel.visible or root.gui_get_focus_owner() != home:
             _fail("closing CALLS did not release input and restore focus")
             return
     board.set_expanded(true)
     home.hide()
     board.set_expanded(false)
-    if get_focus_owner() == home:
+    if root.gui_get_focus_owner() == home:
         _fail("closing CALLS focused a hidden control")
         return
     home.show()
