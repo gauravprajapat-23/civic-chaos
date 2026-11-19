@@ -9,6 +9,7 @@ signal lifecycle_finished(call_id: int, final_status: String)
 ## Optional Traffic-owned permission gate. A false response holds the van;
 ## this worker never grants signal priority or changes junction phases.
 var traffic_step_permission: Callable = Callable()
+var _traffic_gate_configured: bool = false
 var _terminal_status: String = ""
 
 const Routes = preload("res://scripts/ui/civic_map_routes.gd")
@@ -221,15 +222,21 @@ func _space_clear(at: Vector3, spawning: bool = false) -> bool:
     return get_world_3d().direct_space_state.intersect_shape(query, 12).is_empty()
 
 ## Traffic may supply a callable (from_position, to_position) -> bool.
-## An unset gate preserves CALLS-02 compatibility until Master wires TRF-001.
+## A never-configured gate preserves CALLS-02 compatibility. Once configured,
+## invalidation of Traffic's owner must never become an implicit green light.
+## Traffic owns lane/intersection resolution; this callable is not authoritative
+## until TRF-002 supplies its fail-closed route/lane mapping.
 func set_traffic_step_permission(permission: Callable) -> void:
+    _traffic_gate_configured = true
     traffic_step_permission = permission
 
 func lifecycle_state() -> Dictionary:
     return {"call_id": call_id, "active": active, "arrived": arrived,
         "status": response_status, "terminal_status": _terminal_status,
         "position": position, "stop_point": stop_point,
-        "route_index": route_index, "route_size": route.size()}
+        "route_index": route_index, "route_size": route.size(),
+        "traffic_gate_configured": _traffic_gate_configured,
+        "traffic_gate_available": traffic_step_permission.is_valid()}
 
 func _finish_on_scene() -> void:
     arrived = true
@@ -271,8 +278,8 @@ func _physics_process(delta: float) -> void:
         remaining.length(), SERVICE_SPEED_MPS * minf(delta, 0.10))
     var next: Vector3 = position + movement
     var traffic_permitted: bool = true
-    if traffic_step_permission.is_valid():
-        traffic_permitted = bool(traffic_step_permission.call(position, next))
+    if _traffic_gate_configured:
+        traffic_permitted = traffic_step_permission.is_valid() and bool(traffic_step_permission.call(position, next))
     if not traffic_permitted or not _step_is_clear(position, next):
         _blocked_seconds += delta
         if _blocked_seconds >= ABORT_BLOCKED_S:
