@@ -3,6 +3,9 @@ extends SceneTree
 ## the responder withdraws so it cannot cause permanent road gridlock.
 const Responder = preload("res://scripts/civic/call_service_response.gd")
 const Builder = preload("res://scripts/world/junction_builder.gd")
+const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
+const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
+const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -10,11 +13,19 @@ func _initialize() -> void:
 func _run() -> void:
     var stage := Node3D.new()
     root.add_child(stage)
+    var graph: CivicRoadGraph = Builder.make_city_graph()
+    var spawner := _traffic_fixture(stage, graph)
+    if spawner == null:
+        _fail("live Traffic authority failed to initialize")
+        return
     var van := Responder.new() as CivicCallServiceResponse
     stage.add_child(van)
-    if not van.configure(Builder.make_city_graph(), 50106,
+    if not van.configure(graph, 50106,
             "misplaced_safety_cone", Vector3(9, 0.12, -29)):
         _fail("test responder could not be dispatched")
+        return
+    if not van.configure_traffic(spawner):
+        _fail("responder failed to bind authoritative Traffic rules")
         return
     var statuses: Array[String] = []
     van.status_changed.connect(func(value: String) -> void: statuses.append(value))
@@ -66,6 +77,19 @@ func _run() -> void:
     stage.queue_free()
     print("CIVIC_CHAOS_CALLS_02B_GRIDLOCK_RECOVERY_PASS")
     quit(0)
+
+## Legacy CALLS movement fixtures now use the same fail-closed Traffic
+## authority required by GAME-002. No disabling permission checks.
+func _traffic_fixture(stage: Node3D, graph: CivicRoadGraph) -> CivicTrafficSpawner:
+    var spawner := Spawner.new() as CivicTrafficSpawner
+    stage.add_child(spawner)
+    if not spawner.configure(graph, 777, true):
+        spawner.queue_free()
+        return null
+    var signals := Signals.new(12.0, 3.0, 2.0)
+    signals.enable_single_approach_mode()
+    spawner.configure_intersection(signals, Reservations.new())
+    return spawner
 
 func _fail(reason: String) -> void:
     push_error(reason)
