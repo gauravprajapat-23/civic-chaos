@@ -6,6 +6,8 @@ const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const Profile = preload("res://scripts/traffic/vehicle_profile.gd")
 const Budget = preload("res://scripts/traffic/traffic_budget.gd")
 const OuterPriority = preload("res://scripts/traffic/outer_intersection_priority.gd")
+const StopDiag = preload("res://scripts/traffic/traffic_stop_diagnostics.gd")
+const CentralPriority = preload("res://scripts/traffic/central_intersection_priority.gd")
 var work_budget: CivicTrafficBudget = Budget.new()
 
 @export_range(1, 100, 1) var maximum_active: int = 20
@@ -31,6 +33,275 @@ var rejected_total: int = 0
 var total_delay_seconds: float = 0.0
 var current_tick: int = 0
 var _vehicle_delay: Dictionary = {}
+## CAR-SAFE-05: never feed more vehicles into near-total standstill.
+## This is deterministic backpressure, NOT an override of collision/signal
+## priority. Once vehicles move again, the normal spawn schedule resumes.
+const GRIDLOCK_MIN_VEHICLES: int = 3
+const GRIDLOCK_STOPPED_PERCENT: int = 75
+## Four exclusive signal approaches offer far less throughput than paired
+## greens. Do not inject a car every 1.5 seconds into a blocked network.
+## These are *admission* limits; older checkpoint fleets remain valid.
+const CITY_MOVING_FLEET_LIMIT: int = 12
+const CITY_SPAWN_PERIOD_TICKS: int = 100
+const CITY_SOFT_QUEUE_MIN: int = 5
+const CITY_SOFT_STOPPED_PERCENT: int = 50
+const CITY_DRAIN_CLEAR_TICKS: int = 80
+var _city_drain_until_tick: int = 0
+
+static func city_soft_congested(active_count: int, stopped_count: int) -> bool:
+	return active_count >= CITY_SOFT_QUEUE_MIN and (
+		stopped_count * 100 >= active_count * CITY_SOFT_STOPPED_PERCENT)
+
+func city_admission_blocked() -> bool:
+	if not city_mode:
+		return false
+	if central_service_priority_active() or central_recovery_active():
+		return true
+	if current_tick < _city_drain_until_tick:
+		return true
+	var pressure: Dictionary = queue_pressure()
+	return city_soft_congested(int(pressure["active"]), int(pressure["stopped"]))
+
+func _update_city_drain() -> void:
+	if not city_mode:
+		return
+	var pressure: Dictionary = queue_pressure()
+	if city_soft_congested(int(pressure["active"]), int(pressure["stopped"])):
+		_city_drain_until_tick = maxi(_city_drain_until_tick, current_tick + CITY_DRAIN_CLEAR_TICKS)
+
+var _spawn_backpressure_ticks: int = 0
+## ROAD-GAME-01: player-authorized traffic metering pauses new arrivals,
+## never moving existing cars or changing signal / pedestrian permissions.
+var _marshal_meter_until_tick: int = 0
+## Runtime-only stop evidence; never saved or used for traffic decisions.
+var diagnostics_enabled: bool = true
+var _observation_hold_reason: Dictionary = {}
+var _observed_stop_reason: Dictionary = {}
+var _stop_streaks: Dictionary = {}
+var _observed_blocker: Dictionary = {}
+## Cross-fleet central coordination: mission cars are physical traffic even
+## though mission scripts advance them separately and own their save state.
+## Never copy them into active_vehicles or count them as completed routes.
+var _external_road_users: Array[CivicVehicleAgent] = []
+## Incident detours affect only FUTURE background spawns. Existing cars
+## remain physical; authorized mission actions must clear the obstruction.
+var _incident_route_closures: Dictionary = {}
+## Authorized municipal service can meter NEW central entries until its
+## convoy clears. This is not a green override, vehicle despawn or teleport.
+var _central_service_vehicle: CivicVehicleAgent
+## Post-tow discharge window for genuine stopped mission followers.
+## Never exempts these actors from traffic signals, physical leads,
+## pedestrian checks or central conflict ownership.
+const RECOVERY_MAX_TICKS: int = 2800
+var _central_recovery_followers: Array[CivicVehicleAgent] = []
+var _central_recovery_until_tick: int = 0
+
+func start_central_recovery(followers: Array[CivicVehicleAgent], duration_ticks: int = RECOVERY_MAX_TICKS) -> bool:
+	if road_graph == null or duration_ticks < 1 or duration_ticks > RECOVERY_MAX_TICKS:
+		return false
+	var eligible: Array[CivicVehicleAgent] = []
+	for car in followers:
+		if is_instance_valid(car) and car.active and not eligible.has(car):
+			eligible.append(car)
+	if eligible.is_empty():
+		return false
+	_central_recovery_followers = eligible
+	_central_recovery_until_tick = current_tick + duration_ticks
+	return true
+
+func clear_central_recovery() -> void:
+	_central_recovery_followers.clear()
+	_central_recovery_until_tick = 0
+
+func central_recovery_active() -> bool:
+	if current_tick >= _central_recovery_until_tick:
+		return false
+	for car in _central_recovery_followers:
+		if is_instance_valid(car) and car.active and not car.route.is_empty() and (
+			car.current_route_index == 0):
+			return true
+	return false
+
+func central_recovery_allows(car: CivicVehicleAgent) -> bool:
+	return _central_recovery_followers.has(car) and is_instance_valid(car) and car.active
+
+
+func set_central_service_priority(service: CivicVehicleAgent) -> void:
+	_central_service_vehicle = service if is_instance_valid(service) and service.active else null
+
+func clear_central_service_priority(service: CivicVehicleAgent = null) -> void:
+	if service == null or _central_service_vehicle == service:
+		_central_service_vehicle = null
+
+func central_service_priority_active() -> bool:
+	return is_instance_valid(_central_service_vehicle) and _central_service_vehicle.active
+
+
+
+func set_incident_route_closure(owner: String, lane_id: int) -> bool:
+	if owner.is_empty() or road_graph == null or road_graph.get_lane(lane_id) == null:
+		return false
+	_incident_route_closures[owner] = lane_id
+	return true
+
+func clear_incident_route_closure(owner: String) -> void:
+	_incident_route_closures.erase(owner)
+
+func route_lane_closed(lane_id: int) -> bool:
+	return _incident_route_closures.values().has(lane_id)
+
+func _open_route_options(options: Array[int]) -> Array[int]:
+	var available: Array[int] = []
+	for lane_id in options:
+		if not route_lane_closed(lane_id):
+			available.append(lane_id)
+	return available
+
+func register_road_user(car: CivicVehicleAgent) -> void:
+	if is_instance_valid(car) and not _external_road_users.has(car):
+		_external_road_users.append(car)
+
+func unregister_road_user(car: CivicVehicleAgent) -> void:
+	_external_road_users.erase(car)
+
+func traffic_road_users() -> Array[CivicVehicleAgent]:
+	var result: Array[CivicVehicleAgent] = []
+	for car in active_vehicles:
+		if is_instance_valid(car) and car.active:
+			result.append(car)
+	for car in _external_road_users:
+		if is_instance_valid(car) and car.active and not result.has(car):
+			result.append(car)
+	return result
+
+static func congestion_backpressure(active_count: int, stopped_count: int) -> bool:
+	if active_count < GRIDLOCK_MIN_VEHICLES:
+		return false
+	return stopped_count * 100 >= active_count * GRIDLOCK_STOPPED_PERCENT
+
+## Purely observational, indexed by live fleet slot when exported. Logs
+## every 120 same-cause stopped ticks (six seconds at fixed 20 Hz).
+func _record_stop_evidence(vehicle: CivicVehicleAgent) -> void:
+	var id: int = vehicle.get_instance_id()
+	var reason: String = StopDiag.stop_reason(vehicle, str(_observation_hold_reason.get(id, "")))
+	if reason == "":
+		_observed_stop_reason.erase(id)
+		_observed_blocker.erase(id)
+		_stop_streaks.erase(id)
+		return
+	var streak: int = int(_stop_streaks.get(id, 0)) + 1 if _observed_stop_reason.get(id, "") == reason else 1
+	_observed_stop_reason[id] = reason
+	_stop_streaks[id] = streak
+	_observed_blocker[id] = vehicle.last_physics_blocker
+	if not StopDiag.should_log(streak):
+		return
+	var slot: int = active_vehicles.find(vehicle)
+	var lane_id: int = vehicle.route[vehicle.current_route_index] if not vehicle.route.is_empty() else -1
+	var phase: String = traffic_signals.phase_name() if traffic_signals != null else "no_central_signal"
+	print("CIVIC_TRAFFIC_HOLD tick=%d slot=%d lane=%d step=%d distance=%.2f speed=%.2f reason=%s phase=%s blocker=%s" % [
+		current_tick, slot, lane_id, vehicle.current_route_index, vehicle.lane_distance_m,
+		vehicle.speed_mps, reason, phase, str(_observed_blocker.get(id, ""))])
+	if streak % 600 == 0 and reason != "red_signal":
+		print("CIVIC_HEAD_OF_LINE tick=%d slot=%d trace=%s" % [
+			current_tick, slot, str(head_of_line(vehicle))])
+
+## TRAFFIC-FIX-12 — trace the *front* of a physical queue, rather
+## than reporting every stopped follower as a separate traffic fault.
+## Pure observation: no despawns, signal overrides or traffic decisions.
+func head_of_line(vehicle: CivicVehicleAgent) -> Dictionary:
+	if not is_instance_valid(vehicle) or not vehicle.active:
+		return {"valid": false}
+	var fleet: Array[CivicVehicleAgent] = traffic_road_users()
+	var chain: Array[String] = []
+	var seen: Dictionary = {}
+	var current: CivicVehicleAgent = vehicle
+	var terminal_reason: String = ""
+	var terminal_blocker: String = ""
+	for depth in range(24):
+		var id: int = current.get_instance_id()
+		if seen.has(id):
+			terminal_reason = "physical_cycle"
+			break
+		seen[id] = true
+		chain.append(str(current.get_path()) if current.is_inside_tree() else str(id))
+		var blocker_path: String = current.last_physics_blocker
+		var next_car: CivicVehicleAgent = null
+		if not blocker_path.is_empty() and current.is_inside_tree():
+			var candidate: Node = current.get_node_or_null(NodePath(blocker_path))
+			if candidate != null:
+				for car in fleet:
+					if candidate == car or car.is_ancestor_of(candidate):
+						next_car = car
+						break
+		# For stationary cars with no collider sweep, use the existing
+		# same-lane sensor; only an actual physically preceding car counts.
+		if next_car == null and current.route.size() > 0:
+			var observed: Dictionary = CivicTrafficSensor.nearest_lead(current, fleet)
+			if bool(observed.get("detected", false)):
+				for car in fleet:
+					if car.get_instance_id() == int(observed.get("object_id", -1)) and car.speed_mps < 0.2:
+						next_car = car
+						break
+		if next_car == null:
+			terminal_reason = str(_observed_stop_reason.get(id, current.last_physics_hold_reason))
+			terminal_blocker = blocker_path
+			break
+		current = next_car
+	return {"valid": true, "chain": chain, "head": current.name,
+		"head_lane": current.route[current.current_route_index] if not current.route.is_empty() else -1,
+		"head_distance": current.lane_distance_m, "head_reason": terminal_reason,
+		"head_blocker": terminal_blocker, "cycle": terminal_reason == "physical_cycle"}
+
+func stop_diagnostics() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for slot in range(active_vehicles.size()):
+		var car: CivicVehicleAgent = active_vehicles[slot]
+		if not is_instance_valid(car) or not car.active:
+			continue
+		var id: int = car.get_instance_id()
+		result.append({"slot": slot, "tick": current_tick,
+			"lane_id": car.route[car.current_route_index] if not car.route.is_empty() else -1,
+			"route_step": car.current_route_index, "distance": car.lane_distance_m,
+			"speed": car.speed_mps, "position": car.global_position,
+			"reason": str(_observed_stop_reason.get(id, "")),
+			"streak_ticks": int(_stop_streaks.get(id, 0)),
+			"blocker": str(_observed_blocker.get(id, "")),
+			"signal_phase": traffic_signals.phase_name() if traffic_signals != null else "no_central_signal"})
+	return result
+
+## CAR-ART-05E: render-only fleet adjustment from the active camera.
+## Never called during collision probing or checkpoint transactions.
+func update_fleet_visual_lod(camera_position: Vector3) -> void:
+	if restore_prepared():
+		return
+	for car in active_vehicles:
+		if not is_instance_valid(car) or not car.active:
+			continue
+		var visuals: CivicVehicleVisuals = car.get_node_or_null("DetailVisuals") as CivicVehicleVisuals
+		if visuals != null:
+			visuals.update_lod_distance(car.global_position.distance_to(camera_position))
+
+func request_marshal_metering(duration_ticks: int) -> bool:
+	if road_graph == null or restore_prepared() or duration_ticks < 1 or duration_ticks > 1200:
+		return false
+	_marshal_meter_until_tick = maxi(_marshal_meter_until_tick, current_tick + duration_ticks)
+	return true
+
+func clear_marshal_metering() -> void:
+	_marshal_meter_until_tick = 0
+
+func marshal_metering_active() -> bool:
+	return current_tick < _marshal_meter_until_tick
+
+func queue_pressure() -> Dictionary:
+	var stopped: int = 0
+	for car in active_vehicles:
+		if is_instance_valid(car) and car.active and car.speed_mps < 0.2:
+			stopped += 1
+	return {"active": active_vehicles.size(), "stopped": stopped,
+		"congested": congestion_backpressure(active_vehicles.size(), stopped),
+		"backpressure_ticks": _spawn_backpressure_ticks}
+
 
 func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: bool = false) -> bool:
 	# Preflight *all* fallible inputs before touching the current traffic
@@ -67,6 +338,17 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 			vehicle.queue_free()
 	active_vehicles.clear()
 	_vehicle_delay.clear()
+	_observation_hold_reason.clear()
+	_observed_stop_reason.clear()
+	_stop_streaks.clear()
+	_observed_blocker.clear()
+	_external_road_users.clear()
+	_incident_route_closures.clear()
+	_central_service_vehicle = null
+	clear_central_recovery()
+	_spawn_backpressure_ticks = 0
+	_city_drain_until_tick = 0
+	_marshal_meter_until_tick = 0
 	work_budget.configure(maximum_active, 8)
 	work_budget.reset_runtime()
 	road_graph = graph
@@ -93,8 +375,10 @@ func advance_fixed(tick: int, delta: float) -> void:
 	# Otherwise an earlier fleet slot can enter a conflict zone while a later
 	# slot arbitrates against already-mutated positions in the same fixed tick.
 	var observations: Dictionary = {}
+	_observation_hold_reason.clear()
+	var whole_fleet: Array[CivicVehicleAgent] = traffic_road_users()
 	for vehicle in active_vehicles:
-		var observation: Dictionary = CivicTrafficSensor.nearest_lead(vehicle, active_vehicles)
+		var observation: Dictionary = CivicTrafficSensor.nearest_lead(vehicle, whole_fleet)
 		observations[vehicle.get_instance_id()] = apply_stop_line_observation(vehicle, observation)
 	# Capture actual evaluations; do not throttle or reuse stale lead
 	# observations just to report lower CPU cost.
@@ -108,20 +392,54 @@ func advance_fixed(tick: int, delta: float) -> void:
 		if vehicle.speed_mps < 0.2:
 			_vehicle_delay[vehicle.get_instance_id()] = float(_vehicle_delay.get(vehicle.get_instance_id(), 0.0)) + delta
 		vehicle.advance_fixed(delta)
+		if diagnostics_enabled:
+			_record_stop_evidence(vehicle)
 	for index in range(active_vehicles.size() - 1, -1, -1):
 		var vehicle := active_vehicles[index]
 		if not vehicle.active:
 			completed_total += 1
 			total_delay_seconds += float(_vehicle_delay.get(vehicle.get_instance_id(), 0.0))
 			_vehicle_delay.erase(vehicle.get_instance_id())
+			_observed_stop_reason.erase(vehicle.get_instance_id())
+			_stop_streaks.erase(vehicle.get_instance_id())
+			_observed_blocker.erase(vehicle.get_instance_id())
 			active_vehicles.remove_at(index)
 			vehicle.queue_free()
-	if tick % spawn_interval_ticks == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
-		try_spawn()
+	# The four-direction city needs slower demand and a drain window.
+	# A genuine physical obstruction must never be fed by fresh arrivals.
+	_update_city_drain()
+	var congestion: Dictionary = queue_pressure()
+	if bool(congestion["congested"]) or city_admission_blocked():
+		_spawn_backpressure_ticks += 1
+	else:
+		var interval: int = maxi(spawn_interval_ticks, CITY_SPAWN_PERIOD_TICKS) if city_mode else spawn_interval_ticks
+		if not marshal_metering_active() and tick % interval == 0 and active_vehicles.size() < mini(maximum_active, work_budget.maximum_agents):
+			try_spawn()
 	work_budget.record_duration_us(Time.get_ticks_usec() - started_us)
+
+## TRAFFIC-FIX-06: Pedestrians walking north/south beside the north/
+## south vehicle axis occupy the EAST/WEST traffic conflict zone only,
+## and vice versa. Physical pedestrian sweep remains the final authority.
+## Holding BOTH axis zones at every green can starve the entire city.
+static func crossing_conflict_zone(approach: String) -> String:
+	if approach == "N" or approach == "S":
+		return "pedestrian_crossing_ns"
+	if approach == "E" or approach == "W":
+		return "pedestrian_crossing_ew"
+	return ""
+
+static func crossing_blocks_approach(reservations: CivicIntersectionReservations,
+		approach: String) -> bool:
+	if reservations == null:
+		return false
+	var zone: String = crossing_conflict_zone(approach)
+	return zone != "" and reservations.occupant(zone) >= 0
 
 func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation: Dictionary) -> Dictionary:
 	var observation: Dictionary = initial_observation.duplicate()
+	var id: int = vehicle.get_instance_id() if vehicle != null else -1
+	if diagnostics_enabled and id >= 0:
+		_observation_hold_reason[id] = "lead_vehicle" if bool(initial_observation.get("detected", false)) else ""
 	# The central junction keeps its original signal + crossing reservation
 	# contract. Outer junctions use a fixed-tick stateless priority policy,
 	# independent of the one central signal and safe across F5/F9 restores.
@@ -136,8 +454,17 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 		return observation
 	var stop_distance: float = maxf(0.0, lane.length_m() - 5.0)
 	var gap: float = stop_distance - vehicle.lane_distance_m
+	# During a reported municipal tow, hold only NEW entrances to the
+	# central node. Vehicles already past the stopline must leave safely.
+	# All traffic, including mission followers, obeys this stop-line hold.
+	if ((central_service_priority_active() and vehicle != _central_service_vehicle) or
+			(central_recovery_active() and not central_recovery_allows(vehicle))) and (
+			CentralPriority.is_inbound(lane) and gap >= 0.0):
+		if diagnostics_enabled and id >= 0:
+			_observation_hold_reason[id] = "municipal_service_priority" if central_service_priority_active() else "mission_recovery_priority"
+		return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
 	if city_mode and OuterPriority.is_controlled(lane):
-		var decision: Dictionary = OuterPriority.disposition(vehicle, road_graph, active_vehicles, current_tick)
+		var decision: Dictionary = OuterPriority.disposition(vehicle, road_graph, traffic_road_users(), current_tick)
 		var must_yield: bool = bool(decision.get("yield", false))
 		# A pedestrian in the road's crossing conflict zone receives the
 		# same priority. Check only when the approaching car can enter soon;
@@ -145,19 +472,82 @@ func apply_stop_line_observation(vehicle: CivicVehicleAgent, initial_observation
 		if not must_yield and gap >= 0.0 and gap <= 12.0:
 			must_yield = _outer_pedestrian_occupied(OuterPriority.junction_for_lane(lane))
 		if must_yield and gap >= 0.0:
-			return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
-		return observation
-	if traffic_signals == null:
+			var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+			if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
+					float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
+				_observation_hold_reason[id] = "outer_pedestrian" if not bool(decision.get("yield", false)) else StopDiag.outer_reason(str(decision.get("reason", "")))
+			return merged
 		return observation
 	var approach: String = signal_approach_for_lane(lane, city_mode)
 	if approach.is_empty():
 		return observation
-	var pedestrian_occupied: bool = false
-	if crossing_reservations != null:
-		pedestrian_occupied = crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or crossing_reservations.occupant("pedestrian_crossing_ew") >= 0
-	if gap >= 0.0 and (traffic_signals.aspect_for_approach(approach) != "green" or pedestrian_occupied):
-		return _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+	# First preserve the explicit signal / physical pedestrian reservation.
+	# The unsignalled legacy graph still gets a safe single-entrant junction.
+	var pedestrian_occupied: bool = crossing_blocks_approach(crossing_reservations, approach)
+	var signal_hold: String = ""
+	if traffic_signals != null:
+		signal_hold = StopDiag.signal_reason(traffic_signals.aspect_for_approach(approach), pedestrian_occupied)
+	elif pedestrian_occupied:
+		signal_hold = "crossing_occupied"
+	if gap >= 0.0 and signal_hold != "":
+		var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+		if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
+				float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
+			_observation_hold_reason[id] = signal_hold
+		return merged
+	# Next arbitrate one physical entrant at a time. This prevents four
+	# unsignalled fixture arms (and opposing green turning cars in the city)
+	# from entering a central conflict zone simultaneously. No occupant is
+	# removed, and a car already through the stopline remains committed.
+	if gap >= 0.0 and CentralPriority.is_inbound(lane):
+		var decision: Dictionary = CentralPriority.disposition(vehicle, road_graph,
+			traffic_road_users(), gap, traffic_signals)
+		if bool(decision.get("yield", false)):
+			var merged: Dictionary = _merge_stop_line(observation, gap, vehicle.minimum_gap_m)
+			if diagnostics_enabled and id >= 0 and (not bool(observation.get("detected", false)) or
+					float(merged.get("gap_m", INF)) < float(observation.get("gap_m", INF))):
+				_observation_hold_reason[id] = str(decision.get("reason", "central_priority"))
+			return merged
 	return observation
+
+## MISSION-TOW-01: scripted municipal service is NOT a background
+## fleet member, so the fleet-slot tie-break in apply_stop_line_observation
+## cannot arbitrate its entry. A service convoy must obey the real central
+## signal, pedestrian reservation and occupied vehicle conflict zone.
+## Physical sweeps in the mission separately protect its full route.
+func municipal_service_observation(vehicle: CivicVehicleAgent) -> Dictionary:
+	var clear: Dictionary = {"detected": false}
+	if road_graph == null or vehicle == null or vehicle.route.is_empty():
+		return clear
+	if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
+		return clear
+	var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
+	if lane == null or not CentralPriority.is_inbound(lane):
+		return clear
+	var gap: float = lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m
+	if gap < 0.0:
+		return clear
+	var hold_reason: String = municipal_service_hold_reason(vehicle)
+	return _merge_stop_line(clear, gap, vehicle.minimum_gap_m) if hold_reason != "" else clear
+
+func municipal_service_hold_reason(vehicle: CivicVehicleAgent) -> String:
+	if road_graph == null or vehicle == null or vehicle.route.is_empty():
+		return ""
+	if vehicle.current_route_index < 0 or vehicle.current_route_index >= vehicle.route.size():
+		return ""
+	var lane: CivicLaneData = road_graph.get_lane(vehicle.route[vehicle.current_route_index])
+	if lane == null or not CentralPriority.is_inbound(lane):
+		return ""
+	if lane.length_m() - CentralPriority.STOP_LINE_M - vehicle.lane_distance_m < 0.0:
+		return ""
+	if traffic_signals != null and traffic_signals.aspect_for_approach(signal_approach_for_lane(lane, city_mode)) != "green":
+		return "red_signal"
+	if crossing_blocks_approach(crossing_reservations, signal_approach_for_lane(lane, city_mode)):
+		return "pedestrian_crossing"
+	for car in traffic_road_users():
+		if car != vehicle and CentralPriority.occupies(car, road_graph):
+			return "central_zone_occupied"
+	return ""
 
 static func _merge_stop_line(observation: Dictionary, gap: float, minimum_gap: float) -> Dictionary:
 	var safe_gap: float = maxf(0.0, gap + minimum_gap)
@@ -194,14 +584,49 @@ static func signal_approach_for_lane(lane: CivicLaneData, expanded_city: bool) -
 		return "N" if heading.z > 0.0 else "S"
 	return "W" if heading.x > 0.0 else "E"
 
+## MAP-CHALLENGE-01: prefer legitimate right/left turns so travel has
+## route decisions rather than repeating straight drives. This does not
+## invent shortcuts, ignore closed lanes or affect mission-owned routes.
+## A fixed seeded RNG maintains deterministic spawn/replay behavior.
+func _choose_city_turn(incoming_id: int, choices: Array[int]) -> int:
+	if choices.is_empty():
+		return -1
+	if road_graph == null:
+		return choices[0]
+	var source: CivicLaneData = road_graph.get_lane(incoming_id)
+	if source == null:
+		return choices[rng.randi_range(0, choices.size() - 1)]
+	var origin_direction: Vector3 = (source.centerline[-1] - source.centerline[0]).normalized()
+	var turns: Array[int] = []
+	for next_id in choices:
+		var next_lane: CivicLaneData = road_graph.get_lane(next_id)
+		if next_lane == null:
+			continue
+		var exit_direction: Vector3 = (next_lane.centerline[-1] - next_lane.centerline[0]).normalized()
+		if absf(origin_direction.dot(exit_direction)) < 0.35:
+			turns.append(next_id)
+	if not turns.is_empty() and rng.randi_range(0, 99) < 70:
+		return turns[rng.randi_range(0, turns.size() - 1)]
+	return choices[rng.randi_range(0, choices.size() - 1)]
+
 func try_spawn() -> bool:
+	# Callers outside advance_fixed() must obey the same congestion rule.
+	# No RNG draws or rejection counters change for deferred arrivals.
+	if marshal_metering_active() or bool(queue_pressure()["congested"]) or city_admission_blocked():
+		return false
 	if road_graph == null or active_vehicles.size() >= mini(maximum_active, work_budget.maximum_agents):
 		return false
-	var entry_lanes := city_entry_lanes if city_mode else normal_entry_lanes
+	if city_mode and active_vehicles.size() >= mini(maximum_active, CITY_MOVING_FLEET_LIMIT):
+		return false
+	var original_entries: PackedInt32Array = city_entry_lanes if city_mode else normal_entry_lanes
+	var entry_lanes := PackedInt32Array()
+	for candidate_id in original_entries:
+		if not route_lane_closed(candidate_id):
+			entry_lanes.append(candidate_id)
 	if entry_lanes.is_empty():
 		return false
 	var entry: int = entry_lanes[rng.randi_range(0, entry_lanes.size() - 1)]
-	var exits: Array[int] = road_graph.outgoing_legal_lanes(entry, 1)
+	var exits: Array[int] = _open_route_options(road_graph.outgoing_legal_lanes(entry, 1))
 	if exits.is_empty():
 		rejected_total += 1
 		return false
@@ -209,14 +634,14 @@ func try_spawn() -> bool:
 		if vehicle.active and vehicle.route[vehicle.current_route_index] == entry and vehicle.lane_distance_m < spawn_clearance_m:
 			rejected_total += 1
 			return false
-	var destination: int = exits[rng.randi_range(0, exits.size() - 1)]
+	var destination: int = _choose_city_turn(entry, exits) if city_mode else exits[rng.randi_range(0, exits.size() - 1)]
 	var path := PackedInt32Array([entry, destination])
 	if city_mode:
 		for step in range(rng.randi_range(2, 5)):
-			var choices: Array[int] = road_graph.outgoing_legal_lanes(path[path.size() - 1], 1)
+			var choices: Array[int] = _open_route_options(road_graph.outgoing_legal_lanes(path[path.size() - 1], 1))
 			if choices.is_empty():
 				break
-			path.append(choices[rng.randi_range(0, choices.size() - 1)])
+			path.append(_choose_city_turn(path[path.size() - 1], choices))
 	var vehicle := VehicleScene.instantiate() as CivicVehicleAgent
 	if vehicle == null:
 		push_error("Vehicle scene did not instantiate as CivicVehicleAgent")
@@ -227,7 +652,10 @@ func try_spawn() -> bool:
 		vehicle.queue_free()
 		rejected_total += 1
 		return false
-	vehicle.physics_obstacle_checks_enabled = city_mode
+	# All physical cars must yield to real player/pedestrian bodies, not
+	# just cars in the expanded-city mode. Isolated abstract agents in
+	# deterministic unit tests still have no collision body.
+	vehicle.physics_obstacle_checks_enabled = true
 	if _spawn_occupied(vehicle):
 		vehicle.queue_free()
 		rejected_total += 1
@@ -244,6 +672,8 @@ func metrics() -> Dictionary:
 	return {
 		"active": active_vehicles.size(),
 		"timing": work_budget.metrics(),
+		"congested": congestion_backpressure(active_vehicles.size(), queue_count),
+		"spawn_backpressure_ticks": _spawn_backpressure_ticks,
 		"queue": queue_count,
 		"spawned": spawned_total,
 		"completed": completed_total,
@@ -255,7 +685,7 @@ func metrics() -> Dictionary:
 func _spawn_occupied(candidate: CivicVehicleAgent) -> bool:
 	# Validate full oriented collider volume: player, pedestrians, cars, props.
 	# Vehicle footprint helper ignores supporting road/terrain floor surfaces.
-	if candidate.footprint_blocked_at(candidate.global_transform):
+	if not candidate.people_clear_at(candidate.global_transform) or candidate.footprint_blocked_at(candidate.global_transform):
 		return true
 	for other in active_vehicles:
 		if not is_instance_valid(other) or not other.active:
@@ -444,7 +874,10 @@ func prepare_restore(data: Variant) -> bool:
 		car.physics_obstacle_checks_enabled = bool(item["obstacle_checks"])
 		car.clear_lead_observation()
 		car._place_on_lane()
-		if car.footprint_blocked_at(car.global_transform):
+		# Apply the same player/pedestrian buffer used by live spawning.
+		# A restored car may never be staged on top of a character merely
+		# because the smaller hard collider happens not to intersect yet.
+		if not car.people_clear_at(car.global_transform) or car.footprint_blocked_at(car.global_transform):
 			car.free()
 			valid = false
 			break
@@ -505,6 +938,7 @@ func commit_restore() -> bool:
 	# and may move the logical clock backwards. Never retain a future decision
 	# cursor or sensor observations from the generation that was replaced.
 	work_budget.reset_runtime()
+	_spawn_backpressure_ticks = 0
 	current_tick = int(data["current_tick"])
 	spawned_total = int(data["spawned_total"])
 	completed_total = int(data["completed_total"])

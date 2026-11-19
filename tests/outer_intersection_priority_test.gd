@@ -35,20 +35,35 @@ func _run() -> void:
     if central == null or Priority.is_controlled(central):
         _fail("outer policy unexpectedly took over central signal")
         return
-    var ns_green: int = 0
-    var ew_green: int = 0
+    var counts: Dictionary = {"N": 0, "E": 0, "S": 0, "W": 0}
     var all_red: int = 0
     for tick in range(Priority.PERIOD_TICKS):
-        var n: bool = Priority.aspect("ns", tick) == "green"
-        var e: bool = Priority.aspect("ew", tick) == "green"
-        if n and e:
-            _fail("conflicting approaches simultaneously authorized at tick " + str(tick))
+        var granted: int = 0
+        for approach in ["N", "E", "S", "W"]:
+            if Priority.aspect(approach, tick) == "green":
+                granted += 1
+                counts[approach] = int(counts[approach]) + 1
+        if granted > 1:
+            _fail("multiple outer approaches green at tick " + str(tick))
             return
-        ns_green += int(n)
-        ew_green += int(e)
-        all_red += int(not n and not e)
-    if ns_green != 120 or ew_green != 120 or all_red != 80:
-        _fail("outer cycle does not have both six-second greens and all-red clearance")
+        all_red += int(granted == 0)
+    if all_red != Priority.CLEARANCE_TICKS * 4:
+        _fail("outer four-way clearance duration incorrect")
+        return
+    for direction in counts:
+        if int(counts[direction]) != Priority.GREEN_TICKS:
+            _fail("missing six-second green for " + direction)
+            return
+    for lane in ns:
+        if Priority.approach_for_lane(lane) == "N":
+            ns = [lane]
+            break
+    for lane in ew:
+        if Priority.approach_for_lane(lane) == "E":
+            ew = [lane]
+            break
+    if ns.size() != 1 or ew.size() != 1:
+        _fail("failed to locate north and east approach")
         return
 
     var spawner: CivicTrafficSpawner = Spawner.new() as CivicTrafficSpawner
@@ -56,7 +71,7 @@ func _run() -> void:
         _fail("outer policy spawner rejected valid city graph")
         return
     var north_car := _car(ns[0], 7.0)
-    var other_north := _car(ns[1], 7.0)
+    var other_north := _car(ns[0], 7.0)
     var east_car := _car(ew[0], 7.0)
     spawner.active_vehicles.append(north_car)
     spawner.active_vehicles.append(east_car)
@@ -71,17 +86,17 @@ func _run() -> void:
         return
     spawner.current_tick = 160
     if not _stops(spawner, north_car) or _stops(spawner, east_car):
-        _fail("EW phase did not reverse approach right-of-way")
+        _fail("east-exclusive phase did not reverse approach right-of-way")
         return
 
     spawner.active_vehicles.clear()
     spawner.active_vehicles.append(north_car)
     spawner.active_vehicles.append(other_north)
     spawner.current_tick = 1
-    var first: CivicVehicleAgent = north_car if ns[0].lane_id < ns[1].lane_id else other_north
-    var second: CivicVehicleAgent = other_north if first == north_car else north_car
+    var first: CivicVehicleAgent = north_car
+    var second: CivicVehicleAgent = other_north
     if _stops(spawner, first) or not _stops(spawner, second):
-        _fail("opposite-direction tie did not select a single stable lane-ID winner")
+        _fail("same-direction tie did not select one winner")
         return
     # If two cars share the same lane and stop-line distance, saved fleet
     # order is the final tie-breaker; both must not enter in one fixed tick.

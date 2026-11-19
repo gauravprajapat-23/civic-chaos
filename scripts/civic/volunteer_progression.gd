@@ -63,6 +63,27 @@ static func rank_for(reputation: int) -> String:
         return "Neighborhood Helper"
     return "New Volunteer"
 
+## GAME-025-04: a recognition-only exploration goal requiring both actual
+## visited places and the existing audited civic-work receipts. No points,
+## currency, mission rewards or score changes are performed by this view.
+static func exploration_goal(visited: int, resolved: int, processed: Dictionary) -> Dictionary:
+    if visited < 0 or visited > 4:
+        return {}
+    var record: Dictionary = overview(500, resolved, processed)
+    if record.is_empty():
+        return {}
+    var activities: int = int(record["activities"])
+    var eligible: bool = visited == 4 and activities >= 3
+    return {
+        "title": "Neighborhood Guide",
+        "visited": visited,
+        "visit_target": 4,
+        "activities": activities,
+        "activity_target": 3,
+        "earned": eligible,
+        "reward": "Explorer recognition (no civic score bonus)"
+    }
+
 static func overview(reputation: int, resolved: int, processed: Dictionary) -> Dictionary:
     if reputation < 0 or reputation > 1000 or resolved < 0:
         return {}

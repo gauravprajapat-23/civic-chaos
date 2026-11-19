@@ -1,28 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_player"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.35
 height = 1.8
-
-[sub_resource type="CapsuleMesh" id="BodyMesh"]
-radius = 0.29
-height = 0.84
-
-[sub_resource type="SphereMesh" id="HeadMesh"]
-radius = 0.24
-height = 0.48
-
-[sub_resource type="CapsuleMesh" id="LimbMesh"]
-radius = 0.10
-height = 0.72
-
-[sub_resource type="StandardMaterial3D" id="ClothingMaterial"]
-albedo_color = Color(0.12, 0.35, 0.72, 1)
-
-[sub_resource type="StandardMaterial3D" id="SkinMaterial"]
-albedo_color = Color(0.68, 0.43, 0.28, 1)
 
 [node name="PlayerRoot" type="CharacterBody3D"]
 script = ExtResource("1_player")
@@ -36,34 +18,6 @@ shape = SubResource("CapsuleShape3D_player")
 
 [node name="Visual" type="Node3D" parent="."]
 position = Vector3(0, 0.9, 0)
-
-[node name="Torso" type="MeshInstance3D" parent="Visual"]
-position = Vector3(0, 0.18, 0)
-mesh = SubResource("BodyMesh")
-material_override = SubResource("ClothingMaterial")
-
-[node name="Head" type="MeshInstance3D" parent="Visual"]
-position = Vector3(0, 0.86, 0)
-mesh = SubResource("HeadMesh")
-material_override = SubResource("SkinMaterial")
-
-[node name="LeftArm" type="MeshInstance3D" parent="Visual"]
-position = Vector3(-0.43, 0.14, 0)
-mesh = SubResource("LimbMesh")
-material_override = SubResource("ClothingMaterial")
-
-[node name="RightArm" type="MeshInstance3D" parent="Visual"]
-position = Vector3(0.43, 0.14, 0)
-mesh = SubResource("LimbMesh")
-material_override = SubResource("ClothingMaterial")
-
-[node name="LeftLeg" type="MeshInstance3D" parent="Visual"]
-position = Vector3(-0.17, -0.48, 0)
-mesh = SubResource("LimbMesh")
-
-[node name="RightLeg" type="MeshInstance3D" parent="Visual"]
-position = Vector3(0.17, -0.48, 0)
-mesh = SubResource("LimbMesh")
 
 [node name="CameraPivot" type="Node3D" parent="."]
 position = Vector3(0, 1.5, 0)

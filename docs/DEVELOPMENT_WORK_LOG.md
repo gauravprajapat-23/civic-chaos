@@ -23,18 +23,231 @@ The GAME-024 result applies only to the exact local commit tested. Later commits
 | ID | Priority | Task | State | Acceptance evidence |
 |---|---|---|---|---|
 | UX-01 | P1 | Responsive start menu and accessible How to Play guide | FOCUSED GODOT TEST PASSED — VISUAL REVIEW PENDING | Godot import; menu navigation focused test; keyboard/touch review |
-| QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | TODO | Recorded steps, screenshots, blockers and end state |
+| QA-PLAY-01 | P0 | Complete a human first-time playthrough of tutorial, wrong way, parking, cleanup, finale and Free Roam | PLAYTHROUGH MATRIX READY — HUMAN/ANDROID EVIDENCE PENDING | Recorded steps, screenshots, blockers and end state |
 | AI-03-VERIFY | P1 | Verify opt-in daily routine / assistance safely and in real scenes | SAFETY FIX + TEST COMMITTED — LOCAL VERIFICATION PENDING | Godot import, AI tests, crossing/traffic checkpoints, visual review |
 | UX-02 | P1 | HUD / modal readability, touch sizing and safe-area audit | RESPONSIVE TEST PASSED — DEVICE REVIEW PENDING | Screenshot comparison at PC and mobile aspect ratios |
 | STORY-CHOICE-01 | P1 | Make meaningful, safely recoverable player choices | 3 PARKING FOCUSED TESTS PASSED — FULL GATE PENDING | Distinct tested consequences, no duplicate rewards |
 | PROG-01 | P1 | Reputation ranks and offline rotating civic goals | USER REPORTED FOCUSED TESTS PASS — LATEST FULL GATE UNCONFIRMED | Save/replay/anti-farming tests, clear return incentive |
 | PROG-02 | P1 | Neighborhood support unlocks with physical Free Roam navigation benefits | CODE COMMITTED — GODOT TEST PENDING | Audited-receipt thresholds, visual beacon, stage transition, reload consistency |
+| PROG-03 | P1 | Visible neighborhood improvement projects earned from real civic work | CODE COMMITTED — LOCAL TESTS / VISUAL QA PENDING | Tier gates, no extra scores, physically non-blocking objects, checkpoint reconstruction |
+| PROG-04 | P1 | Usable community garden, kiosk and solar response information services | CODE COMMITTED — GODOT REGRESSION PENDING | E/USE gated at real location, audited unlock, no score mutation, valid save replay |
+| GAME-QA-01 | P0 | Complete Playability and Visual Audit | AUDIT PLAN + HUD/GUIDE LAYOUT FIX COMMITTED — LOCAL TESTS PENDING | Actual screenshots, full manual journey, Android QA |
 | ART-01 | P1 | Consistent buildings, NPC silhouettes, props, environment and movement polish | TODO | Visible screenshots and real playtest signoff |
 | AUDIO-01 | P1 | Feedback SFX, ambiance, dialogue captions and mute/volume controls | TODO | Auditory/readability QA and muted accessibility |
 | PERF-ANDROID-01 | P0 | Android touch parity, real-device frame/physics measurements and stability | TODO | Hardware profile, no invented FPS claims, complete campaign test |
 | RELEASE-01 | P0 | Signed Android release export, package QA and final acceptance | BLOCKED | Completed P0/P1 checks, reproducible signed build |
 
 ## Work journal (append, never overwrite historical evidence)
+
+### 2026-11-14 — AUD3-FIX-01 mobile pause, USE and interrupted touch input
+- Implemented source-confirmed mobile touch Pause and USE integration. `CivicTouchControls` now emits `pause_requested` and `interact_requested` from TouchScreenButton presses; `scripts/core/main.gd` connects these to existing pause and player interaction paths independently of the keyboard-only `_unhandled_key_input()`.
+- Added `CivicTouchControls.cancel_active_touches()` and `set_controls_active()` to release joystick and action state when pausing, opening an incident card/finale, and on focus loss. `CivicPlayerController.cancel_mobile_look()` clears the held camera finger. The joystick won't capture touches if hidden behind modals. Existing Resume button restores touch controls.
+- Fixed invalid-to-valid touch layout recovery by re-enabling action buttons when a viewport returns to valid geometry.
+- Added `tests/aud3_mobile_input_lifecycle_test.gd` and included it in `tools/car_art_04e_verification.ps1`. Updated `docs/qa/GAME_IMPROVEMENT_AUDIT_2026_11_14.md` with precise acceptance steps.
+- **Current status: code and tests committed, Godot import/full regression and physical Android checks still pending.** No CI workflows or branches triggered. Use existing Android Debug export preset only after verification, signed release remains blocked.
+
+
+
+### 2026-11-14 — AUD3 whole-game improvement audit started
+- Reviewed the approved `CIVIC_CHAOS_GAME_DESIGN.md`, release backlog, active gameplay orchestration, mission/event managers, mobile touch controls and joystick, player controller, civic HUD and mission guide, traffic backpressure, CAR-ART-04/MOB-CTRL-01 trackers and exact-revision release scripts.
+- Created `docs/qa/GAME_IMPROVEMENT_AUDIT_2026_11_14.md` with twelve actionable findings, source-confidence classifications, prioritized coding tasks and acceptance gates.
+- Highest-priority code findings: touch Pause is exposed as an on-screen action but handled only by `main.gd::_unhandled_key_input`; hidden modal touch-layer does not explicitly release a claimed joystick pointer; invalid-screen touch layout hides action buttons without restoring visible state after recovery.
+- Broader blockers: full GAME-024 gate not re-proven on current mobile source SHA; end-to-end human Story→Free Roam and physical Android touch/performance acceptance absent; traffic backpressure does not independently break existing jams.
+- **Audit-only commit; gameplay code unchanged.** No GitHub Actions, branch change, PR merge or release claimed. First implementation task is `AUD3-FIX-01` touch pause and modal input lifecycle.
+
+
+
+### 2026-11-14 — MOB-CTRL-01 local regression: missing InputMap action on touch UI startup
+- User's CAR-ART-04E local gate at `7287d64` passed import and seven car tests, then failed with Godot `ERROR: The InputMap action "move_left" doesn't exist`. The standalone mobile touch test has no game input bootstrap; `CivicMobileJoystick.release_stick()` previously attempted `Input.action_release()` for missing names during desktop layout/cleanup.
+- Updated `scripts/ui/mobile_joystick.gd` to register only missing movement action names in `_ready()`, and to safely skip nonexistent actions on teardown; updated `scripts/ui/touch_controls.gd` to register only absent Jump/Run/Use/Pause action names. This preserves preexisting keyboard/gamepad mappings.
+- Strengthened `tests/touch_controls_test.gd` to verify all eight action names are present before interacting with the controls. Updated `docs/qa/MOB_CTRL_01_TRACKER.md` with local evidence. **Source committed, new Godot run pending.** No GitHub Actions triggered.
+
+
+
+### 2026-11-14 — MOB-CTRL-01: Android circular joystick and improved touch controls
+- User requested PUBG-style **interaction familiarity**, not copied assets. Inspected live `scripts/ui/touch_controls.gd`: it created eight rectangular text buttons, four of which formed a directional cross; safe-area helper `CivicTouchLayout.plan()` was only staged and not connected to live controls.
+- Implemented original vector-drawn `CivicMobileJoystick` with finger ownership, deadzone, clamped analog axis strengths, normalized diagonal, and release/reset semantics. Replaced four-arrow movement hitboxes with joystick and kept Jump, Run, Use and Pause as original circular action buttons.
+- Added live safe-area `CivicTouchLayout.joystick_plan()` for portrait and landscape, without altering the old `plan()` contract. Connected live controls to this helper and added action-button look-finger exclusion to `CivicPlayerController`.
+- Added and updated focused fixtures `tests/mobile_joystick_test.gd`, `tests/mobile_joystick_layout_test.gd`, `tests/touch_controls_test.gd`; previous `touch_layout_test.gd` left intact. Reduced button artwork generation to one shared texture.
+- Created `docs/qa/MOB_CTRL_01_TRACKER.md` with exact Windows local gate, multi-touch/rotation/safe-area Android acceptance and performance checklist. **Code committed but local Godot import/tests, GAME-024 full regression, physical Android testing and UI screenshots remain pending.** No GitHub Actions invoked.
+
+
+
+### 2026-11-14 — CAR-ART-04E fixture emitted engine ERROR despite PASS
+- User verified at `9a4fb27`: side-jump collision **PASS**, direct-fall clearance **PASS**, original player-car contact **PASS**. The new airborne guard printed `CIVIC_CHAOS_CAR_ART_04E_AIRBORNE_GUARD_PASS` but emitted an engine `ERROR: Condition "!is_inside_tree()" is true` from `tests/car_art_04e_airborne_guard_test.gd:32`. The strict full QA gate correctly must reject this output even with exit code 0.
+- Root cause: fixture assigned `player.global_position` before the player was added to the scene tree. Fixed initialization to use local `player.position`, which is valid before adding a node to the tree (`6ecff66`).
+- Updated `docs/qa/CAR_ART_04_TRACKER.md` with exact user evidence and pending clean rerun. **No gameplay changes** from this particular fix; full GAME-024 acceptance, Android screenshots and hardware performance remain pending.
+
+
+
+### 2026-11-14 — CAR-ART-04E actual airborne cabin penetration fixed (unverified)
+- User supplied local Godot results at `608d462`: import and direct fall test passed, but the corrected side-jump fixture exposed a **real** player/car penetration (`jumping player clipped into vehicle cabin`). The run stopped before any subsequent fixtures.
+- Root cause: the player uses horizontal capsule sweeps on car layer 4, but the capsule rises above the 1.2-m-tall vehicle physical box during a jump. Normal sweeps then allow horizontal movement into the car's footprint. Recovery after descent cannot prevent that initial ingress.
+- Implemented a cached `BoxShape3D` extended vertical **query-only** horizontal sweep in `scripts/player/player_controller.gd` that guards side approaches at jump height while keeping the world-only player floor collision mask and the traffic physics footprint unchanged. Moving outward from an existing overlap remains possible. Commit `7807fe9`.
+- Added `tests/car_art_04e_airborne_guard_test.gd` checking contact at raised height plus release when the vehicle moves away; registered in the CAR-ART-04E local acceptance runner. Commits `ed2727f`, `1ed3915`.
+- Updated `docs/qa/CAR_ART_04_TRACKER.md` with exact failed evidence and the new P0 verification condition; commit `1711fce`. **Godot tests and device playtest have not been rerun for this revision; keep release blocked pending actual evidence.**
+
+
+
+### 2026-11-14 — CAR-ART-04E clean-source gate fix for generated test UID files
+- User's exact Windows output on `748b5bb`: CAR-ART-04E aborted at the initial clean-SHA check, listing six untracked `tests/*.gd.uid` sidecars created by Godot's editor import. This run did **not** execute any Godot tests. Earlier side-jump regression remains unverified after the previous fixture fix.
+- Updated `.gitignore` to ignore **only** `/tests/*.gd.uid`; gameplay source, test GDScript files, and non-test UID resources remain eligible for strict clean-SHA enforcement by both CAR-ART-04E and GAME-024 gates. This avoids deletion/force-add of generated local files and handles newly added tests automatically.
+- Added Python `tests/test_godot_uid_clean_gate.py` with `git check-ignore --no-index` assertions for both ignored test UID sidecars and visible actual source edits.
+- Updated `docs/qa/CAR_ART_04_TRACKER.md` with evidence and next verification. Commits `2dd2f07`, `258b6b1`, `587ba74`. **Fix committed; local rerun pending.** No GitHub Actions triggered.
+
+
+
+### 2026-11-14 — CAR-ART-04A side-jump test failure fixed; CAR-ART-04E gate started
+- User supplied two local Godot 4.7.2 runs through `e8c7511`. Both imported without script errors. `car_art_04bc_visual_test.gd`, `vehicle_visuals_test.gd`, and `car_art_04a_jump_clearance_test.gd` passed; the second run also passed `car_art_04d_materials_test.gd`. `car_art_04a_side_contact_test.gd` failed: **`jump test never left the ground`**, aborting the remaining list. Do **not** treat later tests or current full gate as passed.
+- Cause in test harness: fixed eight-frame spawn settling period before pressing Jump, without confirming `CharacterBody3D.is_on_floor()`; the controller only permits jump from a confirmed floor. Changed fixture to wait up to 90 physics frames for grounding, then assert a real airborne impulse before performing collision checks (`3d436d7`). No game physics changed in this fix.
+- Started CAR-ART-04E by adding `tools/car_art_04e_verification.ps1`: fail-closed exact-branch clean-source test gate, Godot import, 13 focused vehicle/traffic fixtures with logs, existing full GAME-024 verifier and optional Android debug APK export **only after successful gates**. A companion tracker `docs/qa/CAR_ART_04_TRACKER.md` records exact reported evidence and physical-device checks. Commits `dd8e295`, `0653352`, `5fcd19e`.
+- **Code committed, not locally rerun.** Need successful CAR-ART-04E script, full GAME-024 pass on exact SHA, visual jump and mirror evidence on Windows and Android. Do not claim signed release or hardware FPS without device measurements.
+
+
+
+### 2026-11-14 — CAR-ART-04D automotive paint/material pass
+- Inspected the actual sedan `scripts/traffic/vehicle_visuals.gd`, physical vehicle scene, existing 04B/C glass and mirror tests and `docs/qa/CAR_ART_04_TRACKER.md`.
+- Replaced extremely saturated traffic paint colors with muted blue, oxblood red, silver, graphite and forest green. Gave paint a modest metallic and clearcoat finish; preserved deterministic lane-based choice without RNG consumption.
+- Adjusted windshield and mirror glass as **distinct opaque PBR materials** suitable for Godot mobile/Compatibility (not a physically simulated live reflection); refined plastic trim, front bumper, rubber tires, hub metal, default headlamp emission and tire radial segmentation.
+- Added `tests/car_art_04d_materials_test.gd` covering separate finish identities, clearcoat and roughness bands, deterministic palette, braking emissive cues, opaque glass, tire/hub contrast and **unchanged hard collision footprint**.
+- Updated `docs/qa/CAR_ART_04_TRACKER.md`: **04D CODE + TEST COMMITTED, NOT GODOT VERIFIED**. Commits `a78ae39`, `d2bf7d6`, `8640e9b`, `8d86308`. 04E full GAME-024, physical Android profiling and screenshots pending. No GitHub Actions manually triggered.
+
+
+
+### 2026-11-14 — CAR-ART-04B/C enclosed sedan glass and mirror redesign
+- User asked to continue CAR-ART-04. Based on the actual `vehicle_visuals.gd`, the previous mirror was a solid dark block at ±0.855 m with no rear-facing glass or mount; front/side glass was oversized and sat outside the tapered cabin silhouette.
+- `scripts/traffic/vehicle_visuals.gd` now positions roof and front/rear/side glass relative to the tapered cabin. Both mirror assemblies have short attached mounts, compact dark housings and separate pale blue-gray metallic mirror glass on the rear-facing surface. Existing `Mirror_L`/`Mirror_R` node names retained.
+- Added `tests/car_art_04bc_visual_test.gd` checking symmetric mirrors, mounting offsets, housing dimensions, reflective material separation, cabin mesh, unchanged vehicle collision box and no additional physical colliders.
+- Tracker `docs/qa/CAR_ART_04_TRACKER.md` advanced phases 04B/C to **CODE COMMITTED / TEST NOT YET RUN**. 04A jump/collision acceptance remains pending, 04D paint/materials and 04E physical Android audit remain open.
+- Commits `485f392`, `cb0d7e4`, `4e7b8a0`; no GitHub Actions triggered. **Godot import, focused geometry tests, full GAME-024 gate, screenshots and Android measurements still pending.**
+
+
+
+### 2026-11-14 — CAR-ART-04A airborne player-car contact started
+- User screenshot showed player visually embedded in roof/cabin; the current `CivicPlayerController` uses world-only collision mask 1 and independent horizontal vehicle layer-4 sweeps. Source review confirmed previous contact code swept only at the **present** player capsule height and skipped collision evaluation when horizontal input was zero; a descending player could consequently enter the car from above.
+- Updated `scripts/player/player_controller.gd`: conservative horizontal-motion collision fraction at current **and predicted vertical** height, and minimal tested perimeter escape for a falling player overlapping a vehicle. The recovery checks world/car/pedestrian clearance before repositioning and preserves the no-vehicle-roof-as-floor policy. No traffic logic, collision layers or save schema changed.
+- Added `tests/car_art_04a_jump_clearance_test.gd` (center and side descent) and `tests/car_art_04a_side_contact_test.gd` (airborne forward contact and subsequent release).
+- Created full work register `docs/qa/CAR_ART_04_TRACKER.md` for phases 04A collision, 04B cabin, 04C mirrors, 04D paint/glass, 04E Android/gameplay acceptance. All work is tracked as **committed vs verified**, with P0 acceptance gates and PC/device evidence requirements.
+- Commits `8c33548`, `2be2bfd`, `a50fe8b`, `1a1b890`, `dd17c7e`.
+- **LOCAL GODOT VERIFICATION PENDING.** Run new focused tests, prior `player_vehicle_contact_test.gd`, traffic/crossing/checkpoint tests and exact-SHA GAME-024 gate. Manual jump/sideways collision screenshot or video and Android playtest remain necessary before marking 04A passed. No GitHub Actions triggered.
+
+
+
+### 2026-11-14 — CAR-SAFE-05 initial flow-recovery and Android measurement batch
+- Inspected `CivicTrafficSpawner.advance_fixed()`, existing per-tick safety observations, `CivicTrafficBudget.metrics()`, checkpoint state and outer intersection tests. Existing spawner continued creating new cars even when most active cars were stationary.
+- Implemented deterministic **queue-pressure spawn backoff**: at least 3 active vehicles and at least 75% below 0.2 m/s suppresses new spawns; automatically clears once moving traffic reduces congestion. No rerouting, teleporting, signal override, collision bypass, RNG draws or false rejections. Both per-tick and direct `try_spawn()` use the same admission policy.
+- Added live diagnostic metrics `congested`, `spawn_backpressure_ticks` and `queue_pressure()` while preserving the existing save schema and accurate measured workload telemetry. Counter resets on traffic generation configure and checkpoint commit.
+- Added focused `tests/car_safe_05_backpressure_test.gd` for 3/4 queued vs 2/4 moving, suppression without changing RNG/rejections, automatic release and snapshot isolation.
+- Added `docs/qa/CAR_SAFE_05_FLOW_PERFORMANCE.md` with strict Godot local verification and physical Android measurement checklist. **No Android FPS/device figures claimed.** Persistent stalled traffic root-cause resolution and safe reroutes remain open follow-up work.
+- Commits `9004139`, `659505f`, `811e773`. **Code committed, Godot local regression and hardware observations pending.** Do not run GitHub Actions.
+
+
+
+### 2026-11-14 — CAR-SAFE-04 live traffic checkpoint/character protection
+- User reports the preceding focused traffic/character tests passed; the latest full GAME-024 acceptance for subsequently modified code is **not yet verified**.
+- Reviewed `CivicTrafficSpawner.prepare_restore()`, `CivicVehicleAgent.people_clear_at()`, vehicle/player/pedestrian collision layers and outer-junction physical traffic tests. Found a concrete restore-path gap: normal spawning rejects actors in the **45-cm protective buffer**, but checkpoint staging checked only `footprint_blocked_at` (smaller hard collision).
+- `prepare_restore()` now applies both padded `people_clear_at` and hard `footprint_blocked_at` checks before staging vehicles. A failed restore still frees staged cars and restores old collision layers; no checkpoint fields or movement rules were changed.
+- Added `tests/car_safe_04_checkpoint_test.gd`: valid save payload at a real graph position; reject player and pedestrian each placed outside the hard box but inside the padded corridor; confirm no state change/prepared generation after rejection; clear actors, stage/abort, then stage/commit successfully.
+- Reuses one per-vehicle `BoxShape3D` for repeated human collision probes instead of allocating a new shape at each route-sampling step, and extends `tests/car_character_clearance_test.gd` with shape-identity assertions.
+- Commits `0d3846a`, `74f8d53`, `2b6395a`, `90e48b8`.
+- **Local Godot validation pending:** import, `car_safe_04_checkpoint_test.gd`, `car_character_clearance_test.gd`, `vehicle_actor_safety_test.gd`, `vehicle_pedestrian_recovery_test.gd`, `outer_intersection_movement_test.gd`, `traffic_checkpoint_invariants_test.gd`, `checkpoint_load_queue_test.gd`, then full GAME-024 verification. Manual moving-player busy-junction and Android performance observations remain pending.
+
+
+
+### 2026-11-14 — CAR-SAFE-03 unblock Godot parser and guard traffic spawn indentation
+- User's exact Godot 4.7.2 console output revealed a **syntax blocker** at `scripts/traffic/traffic_spawner.gd:233`: `Used space character for indentation instead of tab as used before in the file`. Godot editor import displayed script errors despite allowing the terminal session to continue; four earlier focused tests still passed, but `traffic_checkpoint_invariants_test.gd` could not load `CivicTrafficSpawner`. Later tests were **not executed**.
+- Corrected only the two misindented comments and `vehicle.physics_obstacle_checks_enabled = true` inside `try_spawn()`, preserving the intended character-avoidance physics and tick behavior. Commit `c14487e`.
+- Added Python guard `tests/test_traffic_spawn_indentation.py` to require tab indentation in `try_spawn()` and verify actor clearance is enabled before the spawn occupancy check, and checked before appending the car. Commit `0f56f0b`.
+- **Status: FIX COMMITTED, GODOT IMPORT AND TRAFFIC REGRESSION RE-RUN PENDING.** Note that Godot may print `SCRIPT ERROR` while returning exit code 0: inspect output explicitly as well as `$LASTEXITCODE`. Re-run safety, actor overlap/recovery, checkpoint, junction tests, then the full GAME-024 gate. Do not export an APK based on the broken import.
+
+
+
+### 2026-11-14 — CAR-SAFE-02 protected vehicle/person clearance and sedan polish
+- Source review: CivicVehicleAgent already used full oriented footprint sweeps with sub-metre samples, physical layer 4 car body, player collision layer 2, pedestrian collision layer 8, and player side-motion cast. Preserve deterministic route physics and existing save/checkpoint schema.
+- Added a **separate padded human clearance query** (45 cm on car sides/front/rear) at each prospective vehicle footprint step plus an immediate safety query before acceleration. People within the corridor hold traffic in place, instead of allowing visual/physical overlap. The car's actual collision shape remains unchanged; surface/road/prop queries are still done by the existing authoritative footprint.
+- Spawner now refuses a traffic entry within the same padded player/pedestrian corridor. No new randomness or backend; traffic timing/determinism requires local regression verification.
+- Added `tests/car_character_clearance_test.gd` with player and pedestrian sensing bodies to validate stop-before-contact and resume-after-clear in a real Godot physics world.
+- Car visuals expanded with three front grille slats, a front badge and paired side marker/reflector details; extended `tests/vehicle_visuals_test.gd` to check these objects.
+- Commits `4b76259`, `75d557f`, `f534440`, `b53ef81`, `28b9ec0`.
+- **CODE COMMITTED; LOCAL GODOT VERIFICATION PENDING.** Import and test `car_character_clearance_test.gd`, `vehicle_visuals_test.gd`, `vehicle_scene_contract_test.gd`, `vehicle_feedback_optional_test.gd`, `player_vehicle_contact_test.gd`, `traffic_checkpoint_invariants_test.gd`, `outer_intersection_priority_test.gd`, `outer_intersection_movement_test.gd`, then full GAME-024 gate at exact commit. A complete PC/Android crossing playthrough and FPS capture still required; cannot assert collisions never occur without physical-device verification.
+
+
+
+### 2026-11-13 — ART-CAR-02 visual detail and physical car/actor avoidance
+- User requested more recognizable cars, and improved interaction when the player or NPC pedestrians come into contact with moving cars.
+- **Physical change:** `scripts/traffic/traffic_spawner.gd` now enables the existing physics obstacle sweep for *all* spawned physical vehicles, not only expanded-city cars. Each vehicle samples its forthcoming footprint and brakes when layer-2 player, layer-8 pedestrian, other vehicle or protruding street obstacle would be hit; the fixed route, collision box, save schema, speed law and RNG remain unchanged. Pure abstract traffic-agent tests continue to function without a collider. This avoids introducing dynamic rigid-body impulses or damage while stopping actor penetration.
+- **Pedestrian spawn hardening:** `_spawn_is_clear` avoids currently known live traffic positions when a spawner is connected. This intentionally avoids unsafe `direct_space_state` queries in `_ready()`; physics-frame pedestrian path probes remain unchanged. Changes `ba82bf0`, `588da95`.
+- **Visual:** additional window center pillars, door seams, running boards, wheel-arch trim, bumper intake, chrome waistline, fog lamps and central brake strip. Rear light emission responds to real vehicle stop state; no new colliders or traffic RNG draws. `4d06a00`, `9f7525f`.
+- **Regression:** `tests/vehicle_actor_safety_test.gd` stages a physically collidable player then a pedestrian in a real lane, requires a moving car to brake before contact and resume after clearance. `tests/vehicle_visuals_test.gd` now verifies styling features and brake-light state. `bca329e`, `37183f7`.
+- Additional work: tapered custom `ArrayMesh` cabin roof replaces the old rectangular mesh (`b97d94f`), preserving original `Cabin` node name. NPC overlap recovery now detects physically embedded pedestrians against the oriented vehicle footprint and searches a local collision-checked landing position rather than leaving them inside the vehicle (`ba9a5ae`).
+- New `tests/vehicle_pedestrian_recovery_test.gd` validates that local recovery, and `tests/vehicle_visuals_test.gd` checks the tapered cabin (`1e6e204`, `a34a9a2`, `6ab2413`). This improves recovery of already-overlapping actors; does not claim full rigid-body vehicle impact physics.
+- **Status: CODE COMMITTED, LOCAL GODOT VERIFICATION PENDING.** Run import, `vehicle_actor_safety_test.gd`, `vehicle_visuals_test.gd`, `player_vehicle_contact_test.gd`, `vehicle_scene_contract_test.gd`, `traffic_checkpoint_invariants_test.gd`, `world_pedestrian_checkpoint_test.gd`, and full GAME-024 gate. Confirm real Android controls and moving-car safety before release. No GitHub Actions manually triggered.
+
+
+
+### 2026-11-13 — ART-CAR-01 sedan visual replacement, no traffic changes
+- User requested the existing Civic Chaos vehicle look recognizably like a car instead of a toy-like box.
+- Inspected the actual traffic scene `scenes/traffic/vehicle_agent.tscn`, root `CivicVehicleAgent`, existing four named wheels and authoritative `CollisionBody/CollisionShape3D` (BoxShape3D 1.6×1.2×3.0). Kept the scene contract and unchanged collision, node paths, route physics and save model.
+- New `scripts/traffic/vehicle_visuals.gd` builds a sedan silhouette using lightweight BoxMesh/CylinderMesh children: reshaped low chassis, cabin, sloped glass, side windows, hood/trunk/roof, bumper, grille, headlights/taillights with emission, mirrors, handles and hubcaps. No added colliders or GPU-heavy external assets.
+- Scene now instantiates `DetailVisuals` and route configuration sets cosmetic paint from the existing first lane ID; **no new random draws**, preserving deterministic traffic spawning and replay.
+- Added `tests/vehicle_visuals_test.gd` checking scene detail parts, unchanged box collider, car movement, repeatable paint and distinct lane colors. Existing `vehicle_scene_contract_test.gd`, `vehicle_feedback_optional_test.gd`, vehicle movement/checkpoint tests still required.
+- Commits `3a29478`, `4195f1c`, `d700189`, `2c13038`. **Implementation committed, local Godot import/tests and actual screenshot/Android APK acceptance pending.**
+
+
+
+### 2026-11-13 — GAME-QA-01 screenshot: How to Play content wraps one letter per line
+- User-provided screenshot shows the How to Play modal frame at healthy width but instruction text squeezed into a narrow sliver, forcing single-character lines. Classified **P1 UI readability blocker**.
+- Root cause: the wrapping `Label` nested directly under `ScrollContainer` lacked a useful minimum content width; scrolling container vertical expansion did not guarantee text-layout width.
+- Fix in `scripts/core/menu.gd`: explicitly size the instruction label to the responsive panel width minus safe content margins/scrollbar, expand horizontally, keep vertical scroll, disable horizontal scrolling. Existing start/navigation logic is untouched.
+- Extended `tests/menu_ux_test.gd` with checks for actual text width and no horizontal overflow. Commits `33007ae`, `02242be`.
+- **LOCAL GODOT TEST AND VISUAL RECHECK PENDING.** Reopen How to Play at 1037×676 (reported image), 320×568 and 740×360; text must display words/paragraphs, not one letter per line. Later committed edits invalidate the previously accepted `88e2b10` full gate baseline.
+
+
+
+### 2026-11-13 — GAME-024 fully accepted; GAME-QA-01 gameplay/visual audit started
+- User supplied **complete GAME-024 acceptance at exactly `88e2b108066b43378a0b8385e84af37720269060`**: status `passed`, 113/113 full regression tests, 24 focused tests, independent evidence `True`, Godot import/negative-path gate passed. This is an accepted **engineering baseline**, not a claim of manual game quality or acceptance of newer commits.
+- Source audit found fixed-size mission guide offsets and potential overlap with civic HUD on narrow portrait displays. Replaced fixed guide bounds with deterministic viewport-relative `CivicMissionGuide.panel_bounds`, moved portrait HUD below the upper guide, and added `tests/game_qa_mission_guide_test.gd` covering 5 screen sizes, overlap and recovery actions.
+- How to Play now explains direct/municipal illegal-parking choice and the usable neighborhood projects, eliminating outdated onboarding.
+- Added `docs/qa/GAME_QA_01_PLAYABILITY_VISUAL_AUDIT.md` with a real player path from menu through tutorial, wrong-way, parking choices, cleanup, finale, Free Roam, support services and save/restore plus PC/mobile viewport & Android evidence matrix.
+- Commits `53a2f54`, `230e2b8`, `df65fd4`, `7155577`, `bb64fd0`, `c7dd3ae`, `499bc80` (vertical scroll), `988445c` (scroll regression).
+- **Status: Code committed; NO local Godot result yet for these edits.** Manual walkthrough, screenshots, Android tactile performance and art/audio evaluation are open. Rerun focused QA and full acceptance at exact new commit; no GitHub Actions manually triggered.
+
+
+### 2026-11-13 — Exact 113/113 suite accepted by runner; Git probe failed in independent validator
+- User supplied exact report at commit `ac46337ef44bcab57ab1eb356e3cae88ac2e8749`: **113/113 regression cases**, `full_regression_passed=True`, `source_unchanged=True`; the independent checker returned `branch=""`, `commit=""` and Git evidence issues. This is a genuine **blocked** gate, not a Godot test failure.
+- Root cause at the process level remains **unconfirmed**. `tools/check_game024_gate.py` previously swallowed exceptions/failed exit codes from **any one** of its three Git subprocess calls and replaced both otherwise-valid branch and commit with blanks. The strict runner had independently obtained a real commit.
+- Updated Git evidence probe to check branch, commit and status **separately**, keep any successful data, and include specific Git exit codes/stderr or exception types in the checker `issues` list. Existing strict commit equality, tree cleanliness, replay/negative tests and inventory checks remain enforced. Commit `4c7c215`.
+- Next: update local checkout, run `python tools/check_game024_gate.py` against the existing reports for a precise diagnostic. Since those reports were generated at an older SHA, `verification_commit_mismatch` is expected **until the full gate is rerun on the new commit**; use the Git-specific issues to locate an environment/configuration problem first. Never treat a stale report as pass.
+
+### 2026-11-13 — Independent postgate evidence validation blocked
+- User ran `tools/verify_game024.ps1` and all **24/24 focused GAME-024 tests passed**. The script then set provisional `passed`, indicating its full regression and other acceptance conditions had passed; the **final independent evidence checker blocked** and downgraded the result.
+- Exact unmet condition(s) are **not known**: the original script only printed a generic "Independent evidence validation failed" line. The source of truth is `build/game-024-verification-logs/postgate-evidence.log` or `postgate-evidence.log.stdout` on the user's Windows machine.
+- Updated `tools/verify_game024.ps1` to include the checker's specific `issues` list in the gate report and console message, retaining fail-closed behavior. Commits `399a24a`, `3495b54`; no validation flags or acceptance thresholds were weakened.
+- **No new full GAME-024 PASS is claimed.** Next inspect the already-written checker log, repair the specific evidence mismatch, and rerun acceptance on the resulting exact Git commit.
+
+### 2026-11-13 — PROG-04 remote-access fixture correction
+- User reported Godot 4.7.2 headless import **PASSED**, then `neighborhood_unlocks_test.gd` failed with `remote garden use incorrectly provided civic information`; the test loop halted before later cases. The output alone does not show a proximity bypass.
+- Review identified the fixture left its player at the last real Free Roam delivery, which can be within 3m of the garden service. Its purported "remote" attempt did not set or assert a remote position.
+- Corrected `tests/neighborhood_unlocks_test.gd`: explicitly position the player **10 metres** from the service and assert distance >3m, verify remote denial, then place the genuine player within 1.3m. Added a nearby spoofed actor check before verifying authorized service feedback. The production rule still rejects distant actors and non-player objects; no permission or safety rule was relaxed.
+- Commit `34d5004`. **TEST RE-RUN PENDING**. If still failing, inspect the next exact error before changing gameplay rules.
+
+### 2026-11-13 — PROG-02 restore failure hardening / PROG-04 service interactions
+- User ran Godot 4.7.2 import and `neighborhood_improvements_test.gd` successfully on PROG-03 source revision `65a9862`, but `neighborhood_unlocks_test.gd` stopped at "existing checkpoint could not restore unlocked support"; later tests in that loop were NOT executed. No new full gate acceptance can be inferred.
+- **Restore fix (`ef68a67`):** a rigorously validated checkpoint identical to the already-staged Free Roam state now uses a safe idempotent restore (resyncing navigation/improvements) rather than attempting to restage the exact same live evidence collider. Different checkpoints still take the existing preflight and physical restoration path; save format unchanged. Added an explicit checkpoint-valid assertion before the test's same-state load to distinguish any remaining validation error.
+- **PROG-04:** Added `CivicNeighborhoodService` E/USE targets under earned improvements only, using the existing player raycast interaction layer (16), a small stationary hitbox and no physics movement authority.
+  - Garden at 3 verified completions: inspect own validated volunteer progression.
+  - Community kiosk at 10: inspect current local civic event and destination neighborhood.
+  - Solar response point at 25: inspect the incident's real priority tier and remaining time.
+- Only proximity-checked real player interactions are answered, after revalidation of earned state; no score, mission, reward, timeout, teleport, checkpoint format or world traffic mutations. Locked services disable their interaction layer.
+- Updated `tests/neighborhood_improvements_test.gd` for the deliberate service hitbox, `tests/neighborhood_unlocks_test.gd` for verified third-completion use, spoofed/locked access, no score/reward mutation and checkpoint idempotence; added `tests/neighborhood_service_test.gd` for service lock/unlock behavior.
+- **CODE COMMITTED; NO LOCAL GODOT RESULTS YET for this revision.** Priority: Godot import + `neighborhood_unlocks_test.gd` + `neighborhood_improvements_test.gd` + `neighborhood_service_test.gd`, then Free Roam save/restart tests and full gate. Commit generated `.gd.uid` files first.
+
+### 2026-11-13 — PROG-03 district improvement projects
+- Created `scripts/world/neighborhood_improvements.gd` with three visible, **non-colliding**, simple 3D city upgrades unlocked by audited Free Roam resolutions: restored market planters (3), a community information kiosk (10), and solar-style street lighting (25). These are deliberately cosmetic props in the current Market Chowk rather than invented new accessible districts.
+- Integrated `CivicNeighborhoodImprovements` under active Free Roam; objects are placed only after source receipt validation and recomputed after each real incident resolution and checkpoint restoration. Existing traffic/collision/mission/reward and checkpoint formats remain untouched.
+- Added HUD progress readout for improvements and next project. New `tests/neighborhood_improvements_test.gd` checks tier boundaries, receipt fraud rejection, no duplicate props and JSON replay. Extended `tests/neighborhood_unlocks_test.gd` to verify the first improvement appears after **three real physical incident resolutions** and returns after checkpoint restore.
+- Commits: `31b9ebf` model, `ce11e13` integration, `5b300bf` unit regression, `c9b0729` HUD, `c6a9d26` physical integration regression.
+- **Status: CODE COMMITTED; unverified at this revision.** Run local Godot import and targeted tests, check newly generated `.gd.uid` files, and rerun the full gate on the exact revision. Visual/manual playtest and Android QA remain mandatory. No GitHub Actions manually triggered.
 
 ### 2026-11-13 — PROG-02 neighborhood support unlocks
 - User reported the PROG-01 rotating-goal focused test batch passed. No exact-revision full gate JSON was provided for that batch; the **last explicit full acceptance** remains `dd8645c` with 109/109 tests.

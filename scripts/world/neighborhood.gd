@@ -29,10 +29,10 @@ func rebuild() -> void:
     _block("SouthRoad", Vector3(0, -0.005, half * 0.5), Vector3(road_width, 0.08, half))
     _block("EastRoad", Vector3(half * 0.5, -0.012, 0), Vector3(half, 0.08, road_width))
     _block("WestRoad", Vector3(-half * 0.5, -0.012, 0), Vector3(half, 0.08, road_width))
-    for side in [-1, 1]:
-        var sign_value: float = float(side)
-        _block("SidewalkX%d" % side, Vector3(sign_value * (road_half + sidewalk_width * 0.5), 0.1, 0), Vector3(sidewalk_width, 0.2, half * 2.0))
-        _block("SidewalkZ%d" % side, Vector3(0, 0.1, sign_value * (road_half + sidewalk_width * 0.5)), Vector3(half * 2.0, 0.2, sidewalk_width))
+    # ROAD-FIX-01: walkable, solid slabs *between* intersections.
+    # Never span an east/west road with the north/south sidewalk (or vice versa).
+    # Leave a full carriageway plus 1.5 m turning clearance at each cross street.
+    _sidewalk_sections(half, road_half)
     for x in [-1, 1]:
         for z in [-1, 1]:
             var variation: int = (int(x) + 1) / 2 + (int(z) + 1)
@@ -44,6 +44,7 @@ func rebuild() -> void:
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
+    _challenge_road_markings()
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
@@ -75,6 +76,85 @@ func rebuild() -> void:
         info.name = "DistrictInfoPoint"
         info.position = Vector3(road_half + sidewalk_width + 1.0, 0.2, -12)
         add_child(info)
+
+## MAP-CHALLENGE-01: warning stripes, chevrons and roadside S-bend
+## boards match the lane graph. These are visual-only: no collider or
+## traversable road obstruction, so the past gridlock bugs stay fixed.
+func _challenge_road_markings() -> void:
+    var yellow := _material(Color(1.0, 0.73, 0.16))
+    var white := _material(Color(0.96, 0.93, 0.82))
+    var dark := _material(Color(0.15, 0.17, 0.18))
+    var index: int = 0
+    for section in CityRoadLayout.challenge_segments():
+        var start: Vector3 = section["start"]
+        var finish: Vector3 = section["end"]
+        var axis: Vector3 = (finish - start).normalized()
+        var right: Vector3 = Vector3(-axis.z, 0, axis.x)
+        var perpendicular: float = atan2(-axis.x, -axis.z)
+        var mid: Vector3 = (start + finish) * 0.5
+        # The visual arrows sit on the asphalt and indicate the REAL bend
+        # ahead. They must not create a static physical blocker.
+        for step in range(3):
+            var along: float = 0.30 + 0.20 * float(step)
+            var position: Vector3 = start.lerp(finish, along)
+            var marker: MeshInstance3D = MeshInstance3D.new()
+            marker.name = "ChicaneChevron_%d_%d" % [index, step]
+            marker.mesh = BoxMesh.new()
+            (marker.mesh as BoxMesh).size = Vector3(0.15, 0.012, 1.2)
+            marker.position = position + Vector3.UP * 0.061
+            marker.rotation.y = perpendicular + PI * 0.25 * (1.0 if step != 1 else -1.0)
+            marker.material_override = yellow
+            marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+            add_child(marker)
+        # Keep the board beyond the road's 4m half-width, with no
+        # collider: it is environmental guidance rather than a trap.
+        var board := Node3D.new()
+        board.name = "ChicaneWarning_%d" % index
+        board.position = mid + right * 6.2
+        add_child(board)
+        _facade_panel(board, "WarningPole", Vector3(0, 1.0, 0),
+            Vector3(0.12, 2.0, 0.12), dark)
+        var warning := MeshInstance3D.new()
+        warning.name = "S_Bend_Sign"
+        var sign_mesh := BoxMesh.new()
+        sign_mesh.size = Vector3(1.5, 0.95, 0.10)
+        warning.mesh = sign_mesh
+        warning.position = Vector3(0, 2.1, 0)
+        warning.rotation.y = perpendicular
+        warning.material_override = yellow
+        board.add_child(warning)
+        var turn_label := Label3D.new()
+        turn_label.name = "SharpTurnLabel"
+        turn_label.text = "S BEND"
+        turn_label.font_size = 36
+        turn_label.pixel_size = 0.005
+        turn_label.position = Vector3(0, 2.1, 0.08)
+        turn_label.rotation.y = perpendicular
+        board.add_child(turn_label)
+        index += 1
+
+func _sidewalk_sections(half: float, road_half: float) -> void:
+    var spans: Array[Vector2] = CityRoadLayout.sidewalk_intervals(half, road_half)
+    for side in [-1, 1]:
+        var offset: float = float(side) * (road_half + sidewalk_width * 0.5)
+        for index in range(spans.size()):
+            var interval: Vector2 = spans[index]
+            var length: float = interval.y - interval.x
+            var middle: float = (interval.x + interval.y) * 0.5
+            # ROAD-FOOTPATH-01: make the walking/cycling transition
+            # continuous instead of an abrupt 20 cm collision lip.
+            # The adjoining central road has top Y = 0.035. Preserve
+            # real, solid footpath support at exactly the same elevation.
+            # Decorative curb strips below have NO physics collider.
+            const WALKWAY_TOP_Y: float = 0.035
+            const WALKWAY_THICKNESS: float = 0.04
+            var walkway_center_y: float = WALKWAY_TOP_Y - WALKWAY_THICKNESS * 0.5
+            _block("SidewalkX%d_%d" % [side, index],
+                Vector3(offset, walkway_center_y, middle),
+                Vector3(sidewalk_width, WALKWAY_THICKNESS, length))
+            _block("SidewalkZ%d_%d" % [side, index],
+                Vector3(middle, walkway_center_y, offset),
+                Vector3(length, WALKWAY_THICKNESS, sidewalk_width))
 
 func _outer_blocks(half: float) -> void:
     # The 5x5 city graph drives on x/z = 0, +/-46 and +/-120. Paint *every*
@@ -136,6 +216,8 @@ func _block(block_name: String, center: Vector3, size: Vector3) -> void:
     var body := StaticBody3D.new()
     body.name = block_name
     body.position = center
+    # Sidewalk sections are actual solid pedestrian support, but their
+    # footprints never cover a traversable intersection or vehicle lane.
     add_child(body)
     var shape := CollisionShape3D.new()
     shape.name = "CollisionShape3D"
@@ -201,16 +283,22 @@ func _stop_bars(road_half: float) -> void:
             Vector3(0.24, 0.012, road_width - 0.7), paint)
 
 func _curb_accents(half: float, road_half: float) -> void:
-    # Thin raised edges add street depth without extra physics or textures.
+    # Curb accents are decorative (no physics), but must also stop at cross
+    # streets so that an open carriageway looks open in PC/Android builds.
     var curb_material := _material(Color(0.81, 0.78, 0.69))
+    var spans: Array[Vector2] = CityRoadLayout.sidewalk_intervals(half, road_half)
     for side in [-1, 1]:
-        var direction: float = float(side)
-        _facade_panel(self, "CurbNorthSouth_%d" % side,
-            Vector3(direction * (road_half + 0.08), 0.13, 0),
-            Vector3(0.16, 0.18, half * 2.0), curb_material)
-        _facade_panel(self, "CurbEastWest_%d" % side,
-            Vector3(0, 0.13, direction * (road_half + 0.08)),
-            Vector3(half * 2.0, 0.18, 0.16), curb_material)
+        var offset: float = float(side) * (road_half + 0.08)
+        for index in range(spans.size()):
+            var interval: Vector2 = spans[index]
+            var length: float = interval.y - interval.x
+            var middle: float = (interval.x + interval.y) * 0.5
+            _facade_panel(self, "CurbNorthSouth_%d_%d" % [side, index],
+                Vector3(offset, 0.13, middle),
+                Vector3(0.16, 0.18, length), curb_material)
+            _facade_panel(self, "CurbEastWest_%d_%d" % [side, index],
+                Vector3(middle, 0.13, offset),
+                Vector3(length, 0.18, 0.16), curb_material)
 
 func _decorate_building(building: Node3D, size: Vector3) -> void:
     var glass := _material(Color(0.17, 0.31, 0.40))

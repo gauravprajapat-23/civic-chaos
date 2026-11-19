@@ -161,7 +161,7 @@ func _run() -> void:
         return
     var remaining_stopped: int = 0
     for car in live.followers:
-        if car.active and car.current_route_index == 0 and live.moved_ids.has(car.get_instance_id()) and car.speed_mps < 0.35:
+        if car.active and not Live._passed_incident(car) and live.moved_ids.has(car.get_instance_id()) and car.speed_mps < 0.35:
             remaining_stopped += 1
     if remaining_stopped != live.stopped_count:
         _fail("queue telemetry was artificially cleared after offender removal")

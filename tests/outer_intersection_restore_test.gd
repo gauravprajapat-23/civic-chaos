@@ -19,9 +19,9 @@ func _run() -> void:
         var lane: CivicLaneData = graph.get_lane(id)
         if Priority.junction_for_lane(lane).distance_to(node) > 0.05:
             continue
-        if Priority.axis_for_lane(lane) == "ns" and incoming == null:
+        if Priority.approach_for_lane(lane) == "N" and incoming == null:
             incoming = lane
-        if Priority.axis_for_lane(lane) == "ew" and cross == null:
+        if Priority.approach_for_lane(lane) == "E" and cross == null:
             cross = lane
     if incoming == null or cross == null:
         _fail("perpendicular crossing unavailable")
@@ -98,7 +98,7 @@ func _run() -> void:
     if not Priority.occupies(restored_inside, graph, node):
         _fail("restored outbound clearance lost ownership")
         return
-    restored_inside.lane_distance_m = Priority.EXIT_CLEARANCE_M + 0.3
+    restored_inside.lane_distance_m = Priority.OUTBOUND_QUEUE_CLEARANCE_M + 0.3
     restored_inside._place_on_lane()
     if Priority.occupies(restored_inside, graph, node):
         _fail("crossing ownership remained after clearance")
@@ -108,16 +108,16 @@ func _run() -> void:
         return
     var lights := Lights.new() as CivicOuterTrafficLights
     next_stage.add_child(lights)
-    if lights.head_count() != 48:
+    if lights.head_count() != 96:
         _fail("outer signal heads missing at city nodes")
         return
-    for tick in [0, 119, 120, 159, 160, 279, 280, 319]:
+    for tick in [0, 119, 120, 159, 160, 279, 280, 319, 320, 439, 440, 479, 480, 599, 600, 639]:
         lights.sync_tick(tick)
-        if lights.displayed_aspect("ns") != Priority.aspect("ns", tick) or lights.displayed_aspect("ew") != Priority.aspect("ew", tick):
+        if lights.displayed_aspect("N") != Priority.aspect("N", tick) or lights.displayed_aspect("E") != Priority.aspect("E", tick) or lights.displayed_aspect("S") != Priority.aspect("S", tick) or lights.displayed_aspect("W") != Priority.aspect("W", tick):
             _fail("visual lamps diverged from junction priority on tick " + str(tick))
             return
     lights.sync_tick(int((saved as Dictionary)["current_tick"]))
-    if lights.displayed_tick != resumed.current_tick or lights.displayed_aspect("ew") != "green":
+    if lights.displayed_tick != resumed.current_tick or lights.displayed_aspect("E") != "green":
         _fail("restored clock did not recover visible signal phase")
         return
     next_stage.queue_free()

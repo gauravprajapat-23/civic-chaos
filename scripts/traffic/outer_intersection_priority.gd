@@ -7,9 +7,12 @@ extends RefCounted
 const Grid = preload("res://scripts/world/city_road_layout.gd")
 const GREEN_TICKS: int = 120
 const CLEARANCE_TICKS: int = 40
-const PERIOD_TICKS: int = 2 * (GREEN_TICKS + CLEARANCE_TICKS)
+const PERIOD_TICKS: int = 4 * (GREEN_TICKS + CLEARANCE_TICKS)
 const STOP_LINE_M: float = 5.0
 const EXIT_CLEARANCE_M: float = 7.0
+## Extra space after the conflict zone so incoming cars do not get trapped
+## behind a departing car whose rear is still near the junction.
+const OUTBOUND_QUEUE_CLEARANCE_M: float = EXIT_CLEARANCE_M + 2.0
 const COMMITTED_EPSILON_M: float = 0.05
 
 ## Position of the controlled node; a central (0,0) intersection is
@@ -42,15 +45,28 @@ static func axis_for_lane(lane: CivicLaneData) -> String:
         return ""
     return "ns" if absf(direction.z) >= absf(direction.x) else "ew"
 
-## 20 fixed ticks/s: NS 6 s, all-red 2 s, EW 6 s, all-red 2 s.
-## The two axes are NEVER simultaneously authorized. No wall-clock input.
-static func aspect(axis: String, tick: int) -> String:
-    if tick < 0 or (axis != "ns" and axis != "ew"):
+## Outer nodes now have four exclusive approach windows, each 6 seconds
+## green and 2 seconds all-red: N -> E -> S -> W. Tick-derived,
+## no per-node mutable state, so checkpoint rewinds remain deterministic.
+static func approach_for_lane(lane: CivicLaneData) -> String:
+    if lane == null or lane.centerline.size() < 2:
+        return ""
+    var vector: Vector3 = lane.centerline[-1] - lane.centerline[0]
+    if vector.length_squared() <= 0.001:
+        return ""
+    if absf(vector.z) >= absf(vector.x):
+        return "N" if vector.z > 0.0 else "S"
+    return "W" if vector.x > 0.0 else "E"
+
+static func aspect(approach: String, tick: int) -> String:
+    if tick < 0:
+        return "red"
+    var index: int = ["N", "E", "S", "W"].find(approach)
+    if index < 0:
         return "red"
     var phase: int = tick % PERIOD_TICKS
-    if axis == "ns" and phase < GREEN_TICKS:
-        return "green"
-    if axis == "ew" and phase >= GREEN_TICKS + CLEARANCE_TICKS and phase < 2 * GREEN_TICKS + CLEARANCE_TICKS:
+    var slot: int = int(phase / (GREEN_TICKS + CLEARANCE_TICKS))
+    if slot == index and phase % (GREEN_TICKS + CLEARANCE_TICKS) < GREEN_TICKS:
         return "green"
     return "red"
 
@@ -75,6 +91,27 @@ static func occupies(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, junction
     var origin: Vector3 = lane.centerline[0]
     return _same_node(origin, junction) and vehicle.lane_distance_m < EXIT_CLEARANCE_M
 
+## JUNCTION-FIX-03: Do not admit a car into a junction whose intended
+## outgoing lane is still occupied by another vehicle's departure queue.
+## This tests only actual lane/route positions, preserving deterministic
+## checkpoint replay and the original 7 m conflict-zone clearance rule.
+## A route ending at this intersection may leave the city normally.
+static func exit_available(vehicle: CivicVehicleAgent, cars: Array[CivicVehicleAgent]) -> bool:
+    if vehicle == null or not vehicle.active or vehicle.route.is_empty():
+        return false
+    var next_index: int = vehicle.current_route_index + 1
+    if next_index >= vehicle.route.size():
+        return true
+    var outgoing_id: int = vehicle.route[next_index]
+    for other in cars:
+        if other == null or other == vehicle or not other.active or other.route.is_empty():
+            continue
+        if other.current_route_index < 0 or other.current_route_index >= other.route.size():
+            continue
+        if other.route[other.current_route_index] == outgoing_id and other.lane_distance_m < OUTBOUND_QUEUE_CLEARANCE_M:
+            return false
+    return true
+
 ## The winner for a free approach is the car nearest its stop line;
 ## ties break by stable lane ID then saved fleet array order. The array is
 ## already the checkpoint's deterministic car-slot order.
@@ -91,7 +128,7 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
     var stop_line: float = maxf(0.0, lane.length_m() - STOP_LINE_M)
     if vehicle.lane_distance_m > stop_line + COMMITTED_EPSILON_M:
         return {"controlled": true, "yield": false, "reason": "already_entered"}
-    if aspect(axis_for_lane(lane), tick) != "green":
+    if aspect(approach_for_lane(lane), tick) != "green":
         return {"controlled": true, "yield": true, "reason": "red_or_clearance"}
 
     for other in cars:
@@ -99,6 +136,12 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
             continue
         if occupies(other, graph, junction):
             return {"controlled": true, "yield": true, "reason": "zone_occupied"}
+
+    # Downstream queue spillback: keep the car outside the conflict zone
+    # until its exit clears. Other green approaches with different, open
+    # exits may proceed instead of repeatedly losing to this queued car.
+    if not exit_available(vehicle, cars):
+        return {"controlled": true, "yield": true, "reason": "outbound_blocked"}
 
     var own_gap: float = stop_line - vehicle.lane_distance_m
     var own_index: int = cars.find(vehicle)
@@ -113,7 +156,9 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
         var other_lane: CivicLaneData = graph.get_lane(other.route[other.current_route_index])
         if not is_controlled(other_lane) or not _same_node(junction_for_lane(other_lane), junction):
             continue
-        if aspect(axis_for_lane(other_lane), tick) != "green":
+        if aspect(approach_for_lane(other_lane), tick) != "green":
+            continue
+        if not exit_available(other, cars):
             continue
         var other_stop: float = maxf(0.0, other_lane.length_m() - STOP_LINE_M)
         var other_gap: float = other_stop - other.lane_distance_m

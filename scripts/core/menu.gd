@@ -4,6 +4,8 @@ extends Control
 
 var guide_backdrop: ColorRect
 var guide_panel: PanelContainer
+var guide_instructions: Label
+var guide_scroll: ScrollContainer
 var guide_button: Button
 var close_guide_button: Button
 var start_button: Button
@@ -99,10 +101,14 @@ func _build_guide() -> void:
     var scroll := ScrollContainer.new()
     scroll.name = "GuideScroll"
     scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    guide_scroll = scroll
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     layout.add_child(scroll)
     var instructions := Label.new()
     instructions.name = "Instructions"
+    guide_instructions = instructions
+    instructions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     instructions.text = (
         "YOU ARE A NEIGHBORHOOD VOLUNTEER\\n"
         + "Explore Nagripur, inspect civic problems, choose safe actions and watch the city recover.\\n\\n"
@@ -115,10 +121,13 @@ func _build_guide() -> void:
         + "STORY OBJECTIVES\\n"
         + "1. Inspect the footpath tutorial.\\n"
         + "2. Report wrong-way traffic and wait for safe towing.\\n"
-        + "3. Talk to the illegal-parking owner; reclaim the sidewalk.\\n"
+        + "3. Inspect illegal parking; request the owner or municipal help.\\n"
         + "4. Clean the market and finish the district.\\n\\n"
         + "AFTER THE FINALE\\n"
         + "Continue in Free Roam. Collect litter, return fallen signs and store misplaced cones.\\n"
+        + "Earn volunteer badges and neighborhood support by resolving real incidents.\\n"
+        + "At 3, 10 and 25 completions, the market gains usable community projects.\\n"
+        + "Approach a service point and press E / USE for local guidance.\\n"
         + "Follow the objective guide and interact close to marked objects."
     ).replace("\\n", "\n")
     instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -142,6 +151,14 @@ func _layout_guide() -> void:
         minf(590.0, maxf(210.0, area.x - 24.0)),
         minf(570.0, maxf(160.0, area.y - 24.0))
     )
+    # ScrollContainer does not establish a useful minimum width for a
+    # wrapping Label; without one the text can collapse to ONE character
+    # per line despite a full-width modal. Reserve panel margins and bar.
+    if guide_instructions != null:
+        guide_instructions.custom_minimum_size.x = maxf(
+            130.0, guide_panel.custom_minimum_size.x - 76.0)
+    if guide_scroll != null:
+        guide_scroll.scroll_horizontal = 0
 
 func show_guide() -> void:
     guide_backdrop.visible = true

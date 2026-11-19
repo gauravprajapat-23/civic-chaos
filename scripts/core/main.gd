@@ -12,6 +12,12 @@ const DistrictPedestrians = preload("res://scripts/npc/district_pedestrians.gd")
 const StreetFurniture = preload("res://scripts/world/street_furniture.gd")
 const GameplaySession = preload("res://scripts/civic/gameplay_session.gd")
 const WrongWayLiveMission = preload("res://scripts/civic/wrong_way_live_mission.gd")
+const TrafficMarshalAssist = preload("res://scripts/civic/traffic_marshal_assist.gd")
+const MarshalControl = preload("res://scripts/civic/traffic_marshal_control.gd")
+const MarshalPanel = preload("res://scripts/ui/traffic_marshal_panel.gd")
+const Roadworks = preload("res://scripts/world/roadworks_detour.gd")
+const RideableBike = preload("res://scripts/world/rideable_bike.gd")
+const TrafficMarshalPost = preload("res://scripts/civic/wrong_way_report_marker.gd")
 const ParkingMission = preload("res://scripts/civic/illegal_parking_mission.gd")
 const CleanupMission = preload("res://scripts/civic/market_cleanup_mission.gd")
 const DistrictCampaign = preload("res://scripts/civic/district_campaign.gd")
@@ -19,6 +25,11 @@ const DistrictFinale = preload("res://scripts/ui/district_finale.gd")
 const FreeRoamEvents = preload("res://scripts/civic/free_roam_events.gd")
 const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
+const CityMap = preload("res://scripts/ui/civic_city_map.gd")
+const DispatchBoard = preload("res://scripts/ui/free_roam_dispatch_board.gd")
+const CallServiceResponse = preload("res://scripts/civic/call_service_response.gd")
+const LivingExploration = preload("res://scripts/world/living_city_exploration.gd")
+const VolunteerProgression = preload("res://scripts/civic/volunteer_progression.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
 const CheckpointTransaction = preload("res://scripts/core/checkpoint_transaction.gd")
 const CheckpointLoadQueue = preload("res://scripts/core/checkpoint_load_queue.gd")
@@ -36,8 +47,22 @@ var _finale_acknowledged: bool = false
 var _card_source: Node
 var incident_card: CivicIncidentDetailCard
 var mission_guide: CivicMissionGuide
+var city_map: CivicCityMap
+var exploration_world: CivicLivingCityExploration
+var dispatch_board: CivicFreeRoamDispatchBoard
+var _dispatch_open: bool = false
+var _active_call_service: CivicCallServiceResponse
+var _map_open: bool = false
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
+var _marshal_post: CivicWrongWayReportMarker
+var _marshal_panel: CivicTrafficMarshalPanel
+var _roadworks: CivicRoadworksDetour
+var _marshal_assist_pending: bool = false
+var _marshal_assist_start_tick: int = 0
+var _marshal_assist_completed: int = 0
+var _marshal_assist_stopped: int = 0
+var _marshal_assist_center_blockers: int = 0
 var _wrong_way_retry_elapsed: float = 0.0
 var _checkpoint_load_queue: CivicCheckpointLoadQueue = CheckpointLoadQueue.new()
 
@@ -71,8 +96,13 @@ func _bind_key(action: StringName, keycode: Key) -> void:
 
 func _ready() -> void:
     player.interaction_message.connect(_on_interaction_message)
+    player.riding_changed.connect(_on_player_riding_changed)
     lifecycle.lifecycle_message.connect(_on_interaction_message)
     status_label.text = "F1 pause | F5 save | F9 load | F10 restart | F12 menu"
+    # Old scene debug banner contained permanent title, keyboard commands
+    # and raw status text across the top-center. Keep its data for code
+    # compatibility, but remove the overlapping legacy presentation.
+    $CanvasLayer/HUD.visible = false
     civic_hud = StatusHUD.new()
     civic_hud.name = "CivicStatusHUD"
     $CanvasLayer.add_child(civic_hud)
@@ -84,6 +114,11 @@ func _ready() -> void:
     touch_layer = touch_script.new() as CanvasLayer
     touch_layer.name = "TouchControls"
     add_child(touch_layer)
+    # On-screen TouchScreenButton emits action state, not a keyboard event.
+    # Route Pause and USE through explicit signals; desktop shortcuts retain
+    # the original _unhandled_key_input handler without duplicate toggles.
+    (touch_layer as CivicTouchControls).pause_requested.connect(_on_mobile_pause_requested)
+    (touch_layer as CivicTouchControls).interact_requested.connect(_on_mobile_interact_requested)
     debug_overlay = DebugOverlay.new()
     debug_overlay.name = "AIDebugOverlay"
     add_child(debug_overlay)
@@ -127,10 +162,39 @@ func _ready() -> void:
     add_child(incident_card)
     incident_card.action_selected.connect(_on_incident_card_action)
     incident_card.dismissed.connect(_on_incident_card_dismissed)
+    _create_traffic_marshal_station()
+    _spawn_rideable_bikes()
+    _marshal_panel = MarshalPanel.new() as CivicTrafficMarshalPanel
+    _marshal_panel.name = "TrafficMarshalPanel"
+    add_child(_marshal_panel)
+    _marshal_panel.axis_requested.connect(_on_marshal_axis_requested)
+    _marshal_panel.metering_requested.connect(_on_marshal_meter_requested)
+    _marshal_panel.wrong_way_clearance_requested.connect(_on_marshal_wrong_way_clearance_requested)
+    _marshal_panel.roadworks_clearance_requested.connect(_on_marshal_roadworks_requested)
+    _marshal_panel.closed.connect(_on_marshal_panel_closed)
+    if junction != null:
+        _roadworks = Roadworks.new() as CivicRoadworksDetour
+        _roadworks.name = "DynamicRoadworks"
+        add_child(_roadworks)
+        if _roadworks.configure(junction.get("traffic_spawner") as CivicTrafficSpawner):
+            _roadworks.changed.connect(_on_interaction_message)
     mission_guide = MissionGuide.new() as CivicMissionGuide
     mission_guide.name = "CivicMissionGuide"
     add_child(mission_guide)
     mission_guide.recovery_action_requested.connect(_on_mission_recovery_action)
+    city_map = CityMap.new() as CivicCityMap
+    city_map.name = "CivicCityMap"
+    add_child(city_map)
+    city_map.toggle_requested.connect(_on_city_map_toggle)
+    dispatch_board = DispatchBoard.new() as CivicFreeRoamDispatchBoard
+    dispatch_board.name = "FreeRoamDispatchBoard"
+    add_child(dispatch_board)
+    dispatch_board.toggle_requested.connect(_on_dispatch_toggle)
+    dispatch_board.accept_requested.connect(_on_dispatch_accept_requested)
+    dispatch_board.service_requested.connect(_on_dispatch_service_requested)
+    dispatch_board.route_requested.connect(_on_dispatch_route_requested)
+    if junction != null:
+        city_map.set_road_graph(junction.get("road_graph") as CivicRoadGraph)
     district_finale = DistrictFinale.new() as CivicDistrictFinale
     district_finale.name = "DistrictFinale"
     add_child(district_finale)
@@ -140,8 +204,197 @@ func _ready() -> void:
     _refresh_mission_guide()
     print("CIVIC_CHAOS_MAIN_READY")
 
+## Roadside player action, independent of campaign mission progression.
+## Does not change signals, pedestrian ownership or physical road agents.
+## VEHICLE-RIDE-01: street-side motorcycles, outside 8m traffic
+## lanes and the existing central civic worksite. Interact with E/USE.
+func _on_player_riding_changed(active: bool) -> void:
+    if is_instance_valid(touch_layer) and touch_layer is CivicTouchControls:
+        (touch_layer as CivicTouchControls).set_riding(active)
+
+func _spawn_rideable_bikes() -> void:
+    for index in range(2):
+        var bike := RideableBike.new() as CivicRideableBike
+        bike.name = "PlayerBike_%d" % index
+        bike.position = Vector3(6.6, 0.16, -24.0) if index == 0 else Vector3(-6.6, 0.16, 33.0)
+        bike.rotation.y = -PI * 0.5
+        bike.add_to_group("civic_rideable_bikes")
+        add_child(bike)
+
+func _create_traffic_marshal_station() -> void:
+    _marshal_post = TrafficMarshalPost.new() as CivicWrongWayReportMarker
+    _marshal_post.name = "CivicTrafficMarshalPost"
+    _marshal_post.position = Vector3(-5.5, 0.21, -10.0)
+    add_child(_marshal_post)
+    _marshal_post.activated.connect(_on_traffic_marshal_activated)
+    var sign: Label3D = _marshal_post.get_node_or_null("WrongWaySign") as Label3D
+    if sign != null:
+        sign.text = "TRAFFIC MARSHAL\nE / USE | MANAGE QUEUE"
+
+func _set_traffic_marshal_sign(message: String) -> void:
+    if is_instance_valid(_marshal_post):
+        var sign: Label3D = _marshal_post.get_node_or_null("WrongWaySign") as Label3D
+        if sign != null:
+            sign.text = message
+
+func _on_traffic_marshal_activated(actor: Node) -> void:
+    if actor != player or gameplay_session == null or not is_instance_valid(_marshal_post):
+        return
+    if player.global_position.distance_to(_marshal_post.global_position) > 3.5:
+        _on_interaction_message("Move closer to the Traffic Marshal post.")
+        return
+    if _marshal_panel == null:
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        return
+    var signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
+    if signals == null:
+        return
+    _marshal_panel.show_panel("LIVE SIGNAL | %s. Only one approach green: N -> E -> S -> W. Request the NEXT turn after minimum green, or meter arrivals." % signals.phase_name())
+    _cancel_mobile_input()
+    player.set_physics_process(false)
+    player.set_process_unhandled_input(false)
+    _set_mobile_controls_visible(false)
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _on_marshal_panel_closed() -> void:
+    player.set_physics_process(true)
+    player.set_process_unhandled_input(true)
+    _set_mobile_controls_visible(true)
+    Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
+
+func _on_marshal_axis_requested(axis: String) -> void:
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        return
+    var signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController
+    var reservations: CivicIntersectionReservations = junction.get("intersection_reservations") as CivicIntersectionReservations
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    var mission_cars: Array[CivicVehicleAgent] = []
+    if is_instance_valid(wrong_way_world):
+        for car in wrong_way_world.followers:
+            if is_instance_valid(car) and car.active:
+                mission_cars.append(car)
+        if is_instance_valid(wrong_way_world.tow_vehicle):
+            mission_cars.append(wrong_way_world.tow_vehicle)
+    var result: Dictionary = MarshalControl.request_axis(axis, signals, reservations, spawner, mission_cars)
+    var message: String = MarshalControl.message(result)
+    if _marshal_panel != null:
+        _marshal_panel.set_status(message)
+    _on_interaction_message(message)
+
+## Player-directed civic enforcement, not signal manipulation. Report and
+## marshal arrival are compulsory; worksite collision remains authoritative.
+## Roadworks are a civic management challenge, not a teleport or a
+## signal override. Player verifies two REAL completed road journeys.
+func _on_marshal_roadworks_requested() -> void:
+    if not is_instance_valid(_roadworks):
+        _marshal_panel.set_status("Roadworks controller unavailable.")
+        return
+    var result: Dictionary = _roadworks.request_player_reopen()
+    var message: String = ""
+    if bool(result.get("accepted", false)):
+        message = "Detour verified. Roadworks street reopened."
+        if gameplay_session != null:
+            gameplay_session.metrics.apply_outcome(
+                "map_challenge_02:roadworks_verified",
+                maxi(gameplay_session.tick, gameplay_session.metrics.last_tick),
+                {"safety": 5, "efficiency": 10, "cooperation": 5},
+                "two_real_city_vehicles_finished_during_detour")
+    elif str(result.get("reason", "")) == "need_two_real_arrivals":
+        message = "Wait for two real traffic journeys to finish before signing off roadworks."
+    else:
+        message = "No active roadworks closure to reopen."
+    _marshal_panel.set_status(message)
+    _on_interaction_message(message)
+
+func _on_marshal_wrong_way_clearance_requested() -> void:
+    if not is_instance_valid(wrong_way_world):
+        _marshal_panel.set_status("No active Wrong Way incident to clear.")
+        return
+    var outcome: Dictionary = wrong_way_world.request_marshal_clearance()
+    var message: String = ""
+    if bool(outcome.get("accepted", false)):
+        message = "Marshal securing the wrong-way car. Keep the worksite clear for two seconds."
+    else:
+        match str(outcome.get("reason", "")):
+            "report_and_marshal_required":
+                message = "First inspect and report the offence at its evidence post; wait for the officer."
+            "people_or_cars_at_worksite":
+                message = "Clear nearby pedestrians or vehicles before removal."
+            "already_handled":
+                message = "Removal already underway or the obstruction is gone."
+            _:
+                message = "The vehicle is not available for authorized removal."
+    _marshal_panel.set_status(message)
+    _on_interaction_message(message)
+
+func _on_marshal_meter_requested() -> void:
+    if _marshal_assist_pending:
+        _marshal_panel.set_status("Already metering arrivals. Wait for actual traffic to clear.")
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        return
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    if spawner == null:
+        return
+    var rewarded: bool = gameplay_session.metrics.processed_events.has(TrafficMarshalAssist.EVENT_ID)
+    if rewarded:
+        _marshal_panel.set_status("Civic reward already claimed. You can still request safe directions.")
+        return
+    var pressure: Dictionary = spawner.queue_pressure()
+    if not TrafficMarshalAssist.eligible(pressure, spawner.stop_diagnostics(), rewarded):
+        _marshal_panel.set_status("Metering requires a persistent physical jam. Red light alone is not a violation.")
+        return
+    if not spawner.request_marshal_metering(TrafficMarshalAssist.METER_TICKS):
+        _marshal_panel.set_status("Unable to start traffic metering safely.")
+        return
+    _marshal_assist_pending = true
+    _marshal_assist_start_tick = spawner.current_tick
+    _marshal_assist_completed = spawner.completed_total
+    _marshal_assist_stopped = int(pressure["stopped"])
+    _marshal_assist_center_blockers = TrafficMarshalAssist.center_obstruction_count(spawner.stop_diagnostics())
+    _set_traffic_marshal_sign("MARSHAL ACTIVE\nHOLDING NEW ARRIVALS")
+    _marshal_panel.set_status("New arrivals held for 20 seconds. Traffic still obeys all signals and pedestrians.")
+    _on_interaction_message("TRAFFIC MARSHAL | Holding new arrivals for 20 seconds. Existing signals and collisions stay active.")
+
+func _update_traffic_marshal_assist() -> void:
+    if not _marshal_assist_pending or gameplay_session == null:
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    if junction == null:
+        _marshal_assist_pending = false
+        return
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner
+    if spawner == null:
+        _marshal_assist_pending = false
+        return
+    var pressure: Dictionary = spawner.queue_pressure()
+    if TrafficMarshalAssist.verified(_marshal_assist_completed, spawner.completed_total,
+            _marshal_assist_stopped, int(pressure["stopped"]),
+            _marshal_assist_center_blockers,
+            TrafficMarshalAssist.center_obstruction_count(spawner.stop_diagnostics())):
+        if gameplay_session.metrics.apply_outcome(TrafficMarshalAssist.EVENT_ID,
+                maxi(gameplay_session.tick, gameplay_session.metrics.last_tick),
+                {"safety": 10, "efficiency": 15, "cooperation": 10},
+                "player_assisted_verified_vehicle_clearance"):
+            _set_traffic_marshal_sign("TRAFFIC CLEARED\nCIVIC REPUTATION +")
+            _on_interaction_message("TRAFFIC MARSHAL COMPLETE | Two real cars exited and the queue shrank. Civic reputation earned!")
+        _marshal_assist_pending = false
+    elif spawner.current_tick - _marshal_assist_start_tick >= TrafficMarshalAssist.REVIEW_TICKS:
+        _marshal_assist_pending = false
+        _set_traffic_marshal_sign("TRAFFIC MARSHAL\nE / USE | TRY AGAIN")
+        _on_interaction_message("Traffic Marshal: No verified queue recovery yet. No reward awarded; inspect the blocker and retry.")
+
 func _unhandled_key_input(event: InputEvent) -> void:
     if not event.pressed or event.echo or (district_finale != null and district_finale.is_open()):
+        return
+    if _marshal_panel != null and _marshal_panel.is_open():
+        if event is InputEventKey and (event as InputEventKey).keycode == KEY_ESCAPE:
+            _marshal_panel.close_panel()
+            get_viewport().set_input_as_handled()
         return
     if event.is_action_pressed("district_results"):
         if free_roam_unlocked and not get_tree().paused:
@@ -179,6 +432,8 @@ func _queue_gameplay_checkpoint_load() -> bool:
     return true
 
 func _physics_process(_delta: float) -> void:
+    if is_instance_valid(_roadworks) and is_instance_valid(_roadworks.traffic):
+        _roadworks.advance_to(_roadworks.traffic.current_tick)
     if not _checkpoint_load_queue.has_pending():
         return
     var chosen: Dictionary = _checkpoint_load_queue.consume()
@@ -187,6 +442,12 @@ func _physics_process(_delta: float) -> void:
 ## GAME-014: F5/F9 saves one coherent player+civic+wrong-way document.
 ## Restore is preflighted before the live game world is changed.
 func _save_gameplay_checkpoint() -> bool:
+    # VEHICLE-RIDE-01 does not alter the existing atomic save schema.
+    # A rider must park before saving until vehicle ownership has a
+    # dedicated serialized checkpoint, rather than writing a phantom bike.
+    if is_instance_valid(player.ridden_bike):
+        _on_interaction_message("Park the bike with E / EXIT before saving.")
+        return false
     if gameplay_session == null:
         return false
     var civic: Dictionary = gameplay_session.snapshot()
@@ -232,6 +493,12 @@ func _save_gameplay_checkpoint() -> bool:
                     _on_interaction_message("Free Roam save rejected: event state disagrees with civic ledger")
                     return false
                 payload["free_roam_checkpoint"] = roaming
+                if is_instance_valid(exploration_world):
+                    var exploration: Dictionary = exploration_world.checkpoint_state()
+                    if not CivicLivingCityExploration.checkpoint_valid(exploration):
+                        _on_interaction_message("Exploration save rejected: invalid visited places")
+                        return false
+                    payload["exploration_checkpoint"] = exploration
     # GAME-019: a generation includes the background world as well as civic
     # mission actors. Reject an incoherent background tick instead of storing
     # an apparently valid player file with incomplete world state.
@@ -259,6 +526,7 @@ static func checkpoint_record_types_valid(saved: Dictionary) -> bool:
         "cleanup_checkpoint",
         "campaign_checkpoint",
         "free_roam_checkpoint",
+        "exploration_checkpoint",
         "world_checkpoint"
     ]:
         if saved.has(record) and not (saved[record] is Dictionary):
@@ -279,6 +547,7 @@ static func checkpoint_envelope_valid(saved: Dictionary) -> bool:
         "cleanup_checkpoint",
         "campaign_checkpoint",
         "free_roam_checkpoint",
+        "exploration_checkpoint",
         "world_checkpoint"
     ]:
         if saved.has(record):
@@ -297,6 +566,9 @@ static func checkpoint_selected_document(selected: Variant = null) -> Dictionary
     return {}
 
 func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
+    if is_instance_valid(player.ridden_bike):
+        _on_interaction_message("Park the bike with E / EXIT before loading a checkpoint.")
+        return false
     # F9 and mission-guide callers supply the already-read document. Never
     # select a newer file based on whether that document happens to be empty.
     var checkpoint: Dictionary = checkpoint_selected_document(selected)
@@ -326,6 +598,10 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
     var has_cleanup: bool = saved.has("cleanup_checkpoint")
     var has_finale: bool = saved.has("campaign_checkpoint")
     var has_roam: bool = saved.has("free_roam_checkpoint")
+    var has_exploration: bool = saved.has("exploration_checkpoint")
+    if has_exploration and (not has_roam or not CivicLivingCityExploration.checkpoint_valid(saved["exploration_checkpoint"])):
+        _on_interaction_message("Checkpoint rejected: invalid or orphaned neighborhood discoveries")
+        return false
     if has_roam and (not has_finale or not bool(saved["campaign_checkpoint"].get("finale_acknowledged", false))):
         _on_interaction_message("Checkpoint rejected: active Free Roam requires an acknowledged ending")
         return false
@@ -554,11 +830,24 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         _connect_wrong_way_signals(restored_world)
     restore_guard.finish()
     free_roam_unlocked = has_cleanup and is_instance_valid(restored_cleanup) and restored_cleanup.finished and _campaign_ready()
+    if is_instance_valid(_active_call_service):
+        _active_call_service.retire()
+        _active_call_service = null
+    if dispatch_board != null:
+        dispatch_board.set_available(false)
+        _dispatch_open = false
+    _sync_living_city_npcs()
     _finale_acknowledged = bool(saved["campaign_checkpoint"]["finale_acknowledged"]) if has_finale else false
     if district_finale != null:
         district_finale.set_unlocked(free_roam_unlocked)
     if free_roam_unlocked and _finale_acknowledged:
         _start_free_roam_events(saved.get("free_roam_checkpoint", {}))
+        if is_instance_valid(exploration_world):
+            if has_exploration:
+                if not exploration_world.restore_checkpoint(saved["exploration_checkpoint"]):
+                    push_warning("Validated exploration record was not restored")
+            else:
+                exploration_world.restore_checkpoint({"schema_version": 1, "visited_ids": []})
     if free_roam_unlocked and not _finale_acknowledged:
         call_deferred("_present_campaign_finale")
     if has_parking and not has_cleanup and is_instance_valid(restored_parking) and restored_parking.finished:
@@ -571,6 +860,14 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         var state: Dictionary = civic_hud.current_state()
         state.merge(wrong_way_world.hud_state(), true)
         civic_hud.render_state(state)
+    _marshal_assist_pending = false
+    if _marshal_panel != null and _marshal_panel.is_open():
+        _marshal_panel.close_panel()
+    var resumed_junction: Node = get_node_or_null("FourWayJunction")
+    if resumed_junction != null:
+        var resumed_spawner: CivicTrafficSpawner = resumed_junction.get("traffic_spawner") as CivicTrafficSpawner
+        if resumed_spawner != null:
+            resumed_spawner.clear_marshal_metering()
     _on_interaction_message("Checkpoint restored. All active civic incidents and physical actors resumed.")
     _refresh_mission_guide()
     return true
@@ -707,8 +1004,8 @@ func _present_campaign_finale() -> void:
         civic_hud.visible = false
     if mission_guide != null:
         mission_guide.visible = false
-    if touch_layer != null:
-        touch_layer.visible = false
+    _cancel_mobile_input()
+    _set_mobile_controls_visible(false)
 
 func _on_finale_continue() -> void:
     if district_finale == null or not district_finale.is_open() or not free_roam_unlocked:
@@ -721,16 +1018,29 @@ func _on_finale_continue() -> void:
         civic_hud.visible = true
     if mission_guide != null:
         mission_guide.visible = true
-    if touch_layer != null:
-        touch_layer.visible = true
+    _set_mobile_controls_visible(true)
     _refresh_mission_guide()
     _start_free_roam_events()
     _on_interaction_message("FREE ROAM UNLOCKED | Explore Market Chowk. Civic events will appear periodically.")
     call_deferred("_save_free_roam_acknowledgement")
 
+## GAME-025 must not affect the original campaign's walker behavior.
+## The same toggle applies on Free Roam entry and after checkpoint restore.
+func _sync_living_city_npcs() -> void:
+    var pedestrians: Node = get_node_or_null("DistrictPedestrians")
+    if pedestrians != null and pedestrians.has_method("set_living_city_active"):
+        pedestrians.call("set_living_city_active", free_roam_unlocked and _finale_acknowledged)
+
+func _living_city_summary() -> Dictionary:
+    var pedestrians: Node = get_node_or_null("DistrictPedestrians")
+    if pedestrians != null and pedestrians.has_method("living_city_summary"):
+        return pedestrians.call("living_city_summary")
+    return {"active": false, "walkers": 0, "activities": {}}
+
 func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
     if not free_roam_unlocked or not _finale_acknowledged or gameplay_session == null or player == null:
         return
+    _sync_living_city_npcs()
     if not is_instance_valid(free_roam_world):
         var world: CivicFreeRoamEvents = FreeRoamEvents.new() as CivicFreeRoamEvents
         world.name = "FreeRoamEvents"
@@ -746,6 +1056,27 @@ func _start_free_roam_events(saved_state: Dictionary = {}) -> void:
         world.npc_reaction_requested.connect(_on_free_roam_npc_reaction)
     if not saved_state.is_empty() and not free_roam_world.restore_checkpoint(saved_state):
         push_warning("Free Roam event state could not be rehydrated; avoid overwriting the saved checkpoint")
+    if not is_instance_valid(exploration_world):
+        var exploration := LivingExploration.new() as CivicLivingCityExploration
+        exploration.name = "LivingCityExploration"
+        add_child(exploration)
+        if exploration.configure(player):
+            exploration_world = exploration
+            exploration.zone_discovered.connect(_on_living_city_zone_discovered)
+        else:
+            exploration.queue_free()
+    if dispatch_board != null:
+        dispatch_board.set_available(true)
+        dispatch_board.update_feed(free_roam_world.dispatch_state())
+
+func _on_living_city_zone_discovered(_zone_id: String, title: String) -> void:
+    if not free_roam_unlocked or not _finale_acknowledged:
+        return
+    _on_interaction_message("NEIGHBORHOOD DISCOVERED | %s | Explore more city landmarks on MAP." % title)
+    # Queue a best-effort checkpoint after the discovery callback completes.
+    # World/civic preflight remains authoritative; failed saves are not
+    # reported as successful and no score is granted for visiting a sign.
+    call_deferred("_save_gameplay_checkpoint")
 
 func _on_free_roam_npc_reaction(at: Vector3, kind: String, phase: String, instance_id: int) -> void:
     var walkers: Node = get_node_or_null("DistrictPedestrians")
@@ -786,10 +1117,10 @@ func _show_incident_card(state: Dictionary, source: Node) -> void:
         return
     _card_source = source
     incident_card.present(state)
+    _cancel_mobile_input()
     player.set_physics_process(false)
     player.set_process_unhandled_input(false)
-    if touch_layer != null:
-        touch_layer.visible = false
+    _set_mobile_controls_visible(false)
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _on_incident_card_action(action: String) -> void:
@@ -807,8 +1138,7 @@ func _on_incident_card_dismissed() -> void:
     _card_source = null
     player.set_physics_process(true)
     player.set_process_unhandled_input(true)
-    if touch_layer != null:
-        touch_layer.visible = true
+    _set_mobile_controls_visible(true)
     Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
 
 ## GAME-015: mission directions are based on physical marker positions.
@@ -820,6 +1150,13 @@ func _refresh_mission_guide() -> void:
     if free_roam_unlocked:
         if is_instance_valid(free_roam_world):
             state = free_roam_world.guidance_state()
+            var city_activity: Dictionary = _living_city_summary()
+            if bool(city_activity.get("active", false)):
+                var activities: Dictionary = city_activity.get("activities", {})
+                state["dialogue"] = "%s\nLIVING CITY | %d residents: %d commuting, %d at market, %d resting, %d heading home." % [
+                    str(state.get("dialogue", "")), int(city_activity.get("walkers", 0)),
+                    int(activities.get("commute", 0)), int(activities.get("market", 0)),
+                    int(activities.get("break", 0)), int(activities.get("return_home", 0))]
         else:
             state = {
                 "title": "Free Roam | Market Chowk",
@@ -845,10 +1182,35 @@ func _refresh_mission_guide() -> void:
         }
     else:
         state = gameplay_session.guidance_state()
+    if free_roam_unlocked and is_instance_valid(exploration_world):
+        var visits: Dictionary = exploration_world.visit_state()
+        var recognition: Dictionary = {}
+        if is_instance_valid(free_roam_world) and gameplay_session != null:
+            recognition = VolunteerProgression.exploration_goal(
+                int(visits["count"]), free_roam_world.resolved_total,
+                gameplay_session.metrics.processed_events)
+        state["dialogue"] = "%s\nEXPLORE | %d / %d landmarks visited. %s" % [
+            str(state.get("dialogue", "")), int(visits["count"]), int(visits["total"]),
+            "Neighborhood Guide earned!" if bool(recognition.get("earned", false)) else
+            "Guide goal: 4 visits and 3 verified civic activities. Open MAP to explore."]
+    # CALLS-01: only an explicitly accepted, still-live incident owns
+    # the GPS mission target. The event itself still advances normally.
+    if dispatch_board != null and is_instance_valid(free_roam_world):
+        var live_call: Dictionary = free_roam_world.dispatch_state()
+        dispatch_board.update_feed(live_call)
+        if dispatch_board.accepted_live_call() and (
+                bool(live_call.get("has_target", false))):
+            state["title"] = "DISPATCH | " + str(live_call.get("title", "Civic call"))
+            state["objective"] = str(live_call.get("objective", "Visit incident")) + (
+                " | %ds left" % int(live_call.get("seconds_left", 0)))
+            state["target"] = live_call["target"]
+            state["has_target"] = true
     var forward: Vector3 = -player.global_transform.basis.z
     if player.camera != null:
         forward = -player.camera.global_transform.basis.z
     mission_guide.update_guide(state, player.global_position, forward)
+    if city_map != null:
+        city_map.update_position(player.global_position, -player.global_transform.basis.z, state)
 
 func _on_mission_recovery_action(action: String) -> void:
     if not is_instance_valid(wrong_way_world) or not wrong_way_world.recovery_help_needed():
@@ -863,12 +1225,190 @@ func _on_mission_recovery_action(action: String) -> void:
             # Confirmation is handled by the guide's ConfirmationDialog.
             lifecycle.restart_game()
 
+func _cancel_mobile_input() -> void:
+    if touch_layer != null and touch_layer.has_method("cancel_active_touches"):
+        touch_layer.call("cancel_active_touches")
+    if player != null:
+        player.cancel_mobile_look()
+
+func _set_mobile_controls_visible(enabled: bool) -> void:
+    if touch_layer != null and touch_layer.has_method("set_controls_active"):
+        touch_layer.call("set_controls_active", enabled)
+
+## GAME-025: the dispatch board reads actual Free Roam incidents and
+## never schedules events, updates scores or changes campaign state.
+func _on_dispatch_toggle() -> void:
+    if dispatch_board == null or not dispatch_board.enabled:
+        return
+    if not _dispatch_open:
+        if get_tree().paused or _map_open or (incident_card != null and incident_card.is_open()) or (district_finale != null and district_finale.is_open()):
+            return
+        if not is_instance_valid(free_roam_world):
+            return
+        dispatch_board.update_feed(free_roam_world.dispatch_state())
+        _cancel_mobile_input()
+        _dispatch_open = true
+        dispatch_board.set_expanded(true)
+        _set_mobile_controls_visible(false)
+        if civic_hud != null:
+            civic_hud.visible = false
+        if mission_guide != null:
+            mission_guide.visible = false
+        lifecycle.set_paused(true)
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    else:
+        _dispatch_open = false
+        dispatch_board.set_expanded(false)
+        lifecycle.set_paused(false)
+        _set_mobile_controls_visible(true)
+        if civic_hud != null:
+            civic_hud.visible = true
+        if mission_guide != null:
+            mission_guide.visible = true
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
+
+## Accept only the existing live Free Roam incident. No synthetic
+## events, timer reset, score adjustment or extra scheduler.
+func _on_dispatch_accept_requested() -> void:
+    if not _dispatch_open or dispatch_board == null or (
+            not is_instance_valid(free_roam_world)):
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    # Never accept from a cached panel snapshot: re-read the actual
+    # incident at click time, then ensure its ID still matches.
+    dispatch_board.update_feed(report)
+    if not bool(report.get("has_event", false)) or (
+            not bool(report.get("has_target", false))):
+        return
+    if dispatch_board.accept_live_call(int(report.get("call_id", -1))):
+        _refresh_mission_guide()
+        _on_interaction_message("CALL ACCEPTED | Follow the gold marker on MAP to " + (
+            str(report.get("location", "the incident"))))
+
+## One municipal responder per accepted, currently live Free Roam call.
+## Dispatch does not change incident progress, create rewards, or request
+## emergency transport for non-emergency public-space incidents.
+func _on_dispatch_service_requested() -> void:
+    if not _dispatch_open or dispatch_board == null or (
+            not is_instance_valid(free_roam_world)):
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    dispatch_board.update_feed(report)
+    if not dispatch_board.accepted_live_call() or (
+            not bool(report.get("has_target", false))):
+        return
+    var call_id: int = int(report.get("call_id", -1))
+    if call_id <= 0 or is_instance_valid(_active_call_service):
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    var graph: CivicRoadGraph = junction.get("road_graph") as CivicRoadGraph if (
+        junction != null) else null
+    if graph == null:
+        return
+    var kind: String = str(free_roam_world.active_event.get("kind", ""))
+    var service: CivicCallServiceResponse = CallServiceResponse.new() as CivicCallServiceResponse
+    service.name = "MunicipalCallService"
+    add_child(service)
+    if not service.configure(graph, call_id, kind, report["target"]):
+        service.queue_free()
+        _on_interaction_message("No safe municipal service route is available yet.")
+        return
+    _active_call_service = service
+    service.status_changed.connect(_on_dispatch_service_status)
+    dispatch_board.service_requested_for(call_id, "EN ROUTE")
+    _on_interaction_message("%s SERVICE DISPATCHED | A municipal van is traveling toward the call." % (
+        service.service_label))
+
+func _on_dispatch_service_status(value: String) -> void:
+    if not is_instance_valid(_active_call_service):
+        return
+    if dispatch_board != null:
+        dispatch_board.service_requested_for(_active_call_service.call_id, value)
+    if value == "ON SCENE":
+        _on_interaction_message("%s VEHICLE ON SCENE | Complete the civic task yourself." % (
+            _active_call_service.service_label))
+    elif value == "WAITING FOR CLEAR ROAD":
+        _on_interaction_message("MUNICIPAL SERVICE | Delayed by traffic or pedestrians.")
+    elif value == "SERVICE UNAVAILABLE":
+        _on_interaction_message("MUNICIPAL SERVICE | No safe approach. Retry after traffic clears.")
+        _active_call_service = null
+    elif value == "SERVICE CLEARED":
+        _active_call_service = null
+
+## Retire old responders when the underlying authoritative call ends or
+## changes. This never clears or resolves any live civic incident.
+func _sync_dispatch_service() -> void:
+    if not is_instance_valid(_active_call_service):
+        return
+    if not is_instance_valid(free_roam_world):
+        _active_call_service.retire()
+        _active_call_service = null
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    if not bool(report.get("has_event", false)) or (
+            int(report.get("call_id", -1)) != _active_call_service.call_id):
+        _active_call_service.retire()
+        _active_call_service = null
+
+func _on_dispatch_route_requested() -> void:
+    if not _dispatch_open or dispatch_board == null:
+        return
+    if not is_instance_valid(free_roam_world):
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    dispatch_board.update_feed(report)
+    if not dispatch_board.accepted_live_call() or (
+            not bool(report.get("has_target", false))):
+        return
+    _on_dispatch_toggle()
+    if city_map != null:
+        city_map._select_location(-1)
+        _refresh_mission_guide()
+        _on_city_map_toggle()
+
+## Map is a non-gameplay overlay. Pause simulation and cancel all held
+## controls while browsing, then resume at the exact same player position.
+func _on_city_map_toggle() -> void:
+    if not _map_open:
+        if get_tree().paused or _dispatch_open or (incident_card != null and incident_card.is_open()) or (district_finale != null and district_finale.is_open()):
+            return
+        _cancel_mobile_input()
+        _map_open = true
+        city_map.set_expanded(true)
+        _set_mobile_controls_visible(false)
+        if civic_hud != null:
+            civic_hud.visible = false
+        if mission_guide != null:
+            mission_guide.visible = false
+        lifecycle.set_paused(true)
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    else:
+        _map_open = false
+        city_map.set_expanded(false)
+        lifecycle.set_paused(false)
+        _set_mobile_controls_visible(true)
+        if civic_hud != null:
+            civic_hud.visible = true
+        if mission_guide != null:
+            mission_guide.visible = true
+        Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if OS.has_feature("mobile") else Input.MOUSE_MODE_CAPTURED
+
+func _on_mobile_pause_requested() -> void:
+    if not get_tree().paused:
+        _toggle_pause()
+
+func _on_mobile_interact_requested() -> void:
+    if not get_tree().paused and (incident_card == null or not incident_card.is_open()) and (district_finale == null or not district_finale.is_open()):
+        player.try_interact()
+
 func _toggle_pause() -> void:
     if district_finale != null and district_finale.is_open():
         return
     if incident_card != null and incident_card.is_open():
         incident_card.dismiss()
+    _cancel_mobile_input()
     lifecycle.set_paused(not get_tree().paused)
+    _set_mobile_controls_visible(not get_tree().paused)
     pause_panel.visible = get_tree().paused
     if civic_hud != null:
         civic_hud.visible = not get_tree().paused
@@ -876,7 +1416,9 @@ func _toggle_pause() -> void:
         mission_guide.visible = not get_tree().paused
 
 func _on_resume_pressed() -> void:
+    _cancel_mobile_input()
     lifecycle.set_paused(false)
+    _set_mobile_controls_visible(true)
     pause_panel.visible = false
     if civic_hud != null:
         civic_hud.visible = true
@@ -908,6 +1450,8 @@ func _process(delta: float) -> void:
     if _traffic_display_elapsed < 0.5 or civic_hud == null:
         return
     _traffic_display_elapsed = 0.0
+    _sync_dispatch_service()
+    _update_traffic_marshal_assist()
     _refresh_mission_guide()
     var junction := get_node_or_null("FourWayJunction")
     if junction == null:
@@ -941,6 +1485,12 @@ func _process(delta: float) -> void:
         if is_instance_valid(free_roam_world):
             var roam_metrics: Dictionary = free_roam_world.hud_state()
             state.merge(roam_metrics, true)
+            state["living_city"] = _living_city_summary()
+            if is_instance_valid(exploration_world):
+                state["city_discoveries"] = exploration_world.visit_state()
+                state["exploration_goal"] = VolunteerProgression.exploration_goal(
+                    int(state["city_discoveries"]["count"]), free_roam_world.resolved_total,
+                    gameplay_session.metrics.processed_events)
             state["incidents"] = 1 if not free_roam_world.active_event.is_empty() else 0
             state["scores"] = gameplay_session.metrics.scores.duplicate(true)
             state["reputation"] = gameplay_session.metrics.reputation()

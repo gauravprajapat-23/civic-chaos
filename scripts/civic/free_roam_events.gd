@@ -10,6 +10,7 @@ signal npc_reaction_requested(position: Vector3, kind: String, phase: String, in
 const Target = preload("res://scripts/civic/cleanup_target.gd")
 const Challenges = preload("res://scripts/civic/free_roam_challenges.gd")
 const Progression = preload("res://scripts/civic/volunteer_progression.gd")
+const Improvements = preload("res://scripts/world/neighborhood_improvements.gd")
 const CHECKPOINT_VERSION: int = 2
 const SEED: int = 23077
 const COOLDOWN_TICKS: int = 20
@@ -38,6 +39,7 @@ var receiver: CivicCleanupTarget
 ## A non-colliding visual aid, reconstructed from audited receipts on load.
 ## It never grants physical access, changes deadlines, or enters checkpoints.
 var support_beacon: MeshInstance3D
+var neighborhood_improvements: CivicNeighborhoodImprovements
 var feedback: String = "Free Roam | Keep an eye out for civic issues around Market Chowk."
 
 func _init() -> void:
@@ -69,6 +71,11 @@ func configure(actor: Node3D, civic: CivicGameplaySession) -> bool:
         return false
     tick = maxi(civic.tick, maxi(civic.incidents.current_tick, civic.metrics.last_tick))
     next_spawn_tick = tick + 3
+    neighborhood_improvements = Improvements.new() as CivicNeighborhoodImprovements
+    neighborhood_improvements.name = "NeighborhoodImprovements"
+    add_child(neighborhood_improvements)
+    neighborhood_improvements.service_requested.connect(_on_neighborhood_service_requested)
+    _sync_improvements()
     return true
 
 func _physics_process(delta: float) -> void:
@@ -188,6 +195,50 @@ func _notify_witness(phase: String) -> void:
     if not site.is_empty():
         npc_reaction_requested.emit(to_global(site["source"]),
             str(active_event["kind"]), phase, int(active_event["instance"]))
+
+func _on_neighborhood_service_requested(index: int, actor: Node) -> void:
+    # E/USE must originate from the actual player at the real service desk.
+    # The station grants information, not physical authority or score credits.
+    if actor != player or not is_instance_valid(neighborhood_improvements):
+        return
+    if not neighborhood_improvements.project_visible(index):
+        return
+    var station: Node3D = neighborhood_improvements.get_node_or_null(
+        "Improvement_%d/ServicePoint" % index) as Node3D
+    if station == null or player.global_position.distance_to(station.global_position) > 3.0:
+        return
+    var progress: Dictionary = Progression.overview(
+        session.metrics.reputation(), resolved_total, session.metrics.processed_events)
+    if progress.is_empty():
+        return
+    match index:
+        0:
+            _say("MARKET GARDEN | %d verified civic activities. Next volunteer badge: %s." % [
+                resolved_total, str(progress.get("next_title", "All badges earned"))])
+        1:
+            if active_event.is_empty():
+                _say("COMMUNITY KIOSK | No current civic call. Explore the streets for new reports.")
+            else:
+                var site: Dictionary = Challenges.site(
+                    str(active_event["site_id"]), str(active_event["kind"]))
+                _say("COMMUNITY KIOSK | Active incident: %s. Location: %s." % [
+                    str(active_event["kind"]).replace("_", " ").capitalize(),
+                    str(site.get("label", "Market Chowk"))])
+        2:
+            if active_event.is_empty():
+                _say("SOLAR RESPONSE POINT | All clear. Priority monitoring is available.")
+            else:
+                var seconds_left: int = maxi(0, int(active_event["deadline_tick"]) - tick)
+                var urgency: String = "PRIORITY" if str(active_event["tier"]) == "priority" else "ROUTINE"
+                _say("SOLAR RESPONSE POINT | %s civic call, %ds remaining." % [
+                    urgency, seconds_left])
+func _sync_improvements() -> void:
+    if not is_instance_valid(neighborhood_improvements) or session == null:
+        return
+    # Called only after a verified physical completion or checkpoint restore.
+    # False/forged progress fails closed without displaying new projects.
+    neighborhood_improvements.update_from_receipts(
+        session.metrics.reputation(), resolved_total, session.metrics.processed_events)
 
 func _sync_support_beacon() -> void:
     if is_instance_valid(support_beacon):
@@ -340,6 +391,7 @@ func _resolve_event() -> bool:
     director.resolve_instance(instance, tick)
     _notify_witness("resolved")
     resolved_total += 1
+    _sync_improvements()
     active_event = {}
     next_spawn_tick = tick + COOLDOWN_TICKS
     _clear_targets()
@@ -381,6 +433,48 @@ func guidance_state() -> Dictionary:
         "dialogue": feedback, "target": target, "has_target": available,
         "recovery_available": false}
 
+## GAME-025-02: read-only dispatch feed. No event scheduling, reward,
+## incident transitions or mission selection can be triggered by this data.
+func dispatch_state() -> Dictionary:
+    var result: Dictionary = {
+        "unlocked": director != null and session != null,
+        "has_event": false,
+        "call_id": -1,
+        "service_type": "",
+        "title": "No active civic call",
+        "location": "Market Chowk",
+        "priority": false,
+        "seconds_left": 0,
+        "seconds_until_next": maxi(0, next_spawn_tick - tick),
+        "stage": 0,
+        "objective": "Explore the city while municipal dispatch monitors new calls.",
+        "has_target": false,
+        "target": Vector3.ZERO,
+        "resolved": resolved_total,
+        "expired": expired_total
+    }
+    if active_event.is_empty():
+        return result
+    var kind: String = str(active_event.get("kind", ""))
+    var info: Dictionary = Challenges.details(kind)
+    var site: Dictionary = Challenges.site(str(active_event.get("site_id", "")), kind)
+    if info.is_empty() or site.is_empty():
+        return result
+    var stage: int = int(active_event.get("stage", 0))
+    result["has_event"] = true
+    result["call_id"] = int(active_event.get("incident_id", -1))
+    result["service_type"] = str({"civic_litter": "SANITATION", "fallen_public_sign": "MAINTENANCE", "misplaced_safety_cone": "ROAD SAFETY"}.get(kind, ""))
+    result["title"] = str(info["title"])
+    result["location"] = str(site["label"])
+    result["priority"] = str(active_event.get("tier", "")) == "priority"
+    result["seconds_left"] = maxi(0, int(active_event.get("deadline_tick", tick)) - tick)
+    result["stage"] = stage
+    result["objective"] = str(info["inspect_goal"]) if stage == 0 else (
+        str(info["collect_goal"]) if stage == 1 else str(info["deposit_goal"]))
+    result["target"] = site["source"] if stage < 2 else site["destination"]
+    result["has_target"] = true
+    return result
+
 func hud_state() -> Dictionary:
     var result: Dictionary = {"free_roam_resolved": resolved_total, "free_roam_expired": expired_total,
         "free_roam_event": str(active_event.get("kind", "")),
@@ -389,6 +483,8 @@ func hud_state() -> Dictionary:
     if session != null:
         result["volunteer_progress"] = Progression.overview(
             session.metrics.reputation(), resolved_total, session.metrics.processed_events)
+    if is_instance_valid(neighborhood_improvements):
+        result["neighborhood_projects"] = neighborhood_improvements.project_state()
     return result
 
 func checkpoint_state() -> Dictionary:
@@ -494,6 +590,13 @@ func restore_checkpoint(raw: Variant) -> bool:
     if director == null or session == null or not checkpoint_valid(raw, session.snapshot()):
         return false
     var data: Dictionary = raw
+    # Idempotent load: the same already-staged checkpoint must not be
+    # rejected by its own active evidence colliders, or respawn duplicates.
+    # Static civic/checkpoint validation above still runs before this path.
+    if data == checkpoint_state():
+        _sync_improvements()
+        _sync_support_beacon()
+        return true
     var proposed: Dictionary = data["active_event"].duplicate(true)
     var new_last: String = str(data.get("last_location_id", ""))
     if int(data["schema_version"]) == 1 and not proposed.is_empty():
@@ -517,6 +620,7 @@ func restore_checkpoint(raw: Variant) -> bool:
     next_spawn_tick = int(data["next_spawn_tick"])
     resolved_total = int(data["resolved_total"])
     expired_total = int(data["expired_total"])
+    _sync_improvements()
     active_event = proposed
     last_location_id = new_last
     if not active_event.is_empty() and int(active_event["stage"]) >= 2:

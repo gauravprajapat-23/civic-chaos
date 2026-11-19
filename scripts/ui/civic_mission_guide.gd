@@ -13,30 +13,68 @@ var reload_button: Button
 var restart_button: Button
 var confirmation: ConfirmationDialog
 var _state: Dictionary = {}
+var guide_frame: MarginContainer
+
+## QA-01: fit the mission guide inside small phone viewports.
+## On narrow displays use a compact upper-right strip above the touch controls.
+static func panel_bounds(viewport: Vector2) -> Rect2:
+    if not viewport.is_finite() or viewport.x < 240.0 or viewport.y < 240.0:
+        return Rect2()
+    var margin: float = 8.0 if viewport.x < 700.0 else 14.0
+    var width: float = minf(356.0, maxf(0.0, viewport.x - margin * 2.0))
+    var top: float = 8.0
+    var height: float = minf(138.0, maxf(0.0, viewport.y * 0.33))
+    return Rect2(Vector2(viewport.x - margin - width, top),
+        Vector2(width, height))
+
+func _fit() -> void:
+    if guide_frame == null:
+        return
+    var bounds: Rect2 = panel_bounds(get_viewport().get_visible_rect().size)
+    if bounds.size == Vector2.ZERO:
+        guide_frame.visible = false
+        return
+    guide_frame.visible = true
+    guide_frame.offset_left = bounds.position.x - get_viewport().get_visible_rect().size.x
+    guide_frame.offset_right = bounds.end.x - get_viewport().get_visible_rect().size.x
+    guide_frame.offset_top = bounds.position.y
+    guide_frame.offset_bottom = bounds.end.y
+
 
 func _ready() -> void:
     layer = 12 # Under the incident card, above the world/HUD.
-    var frame := MarginContainer.new()
-    frame.name = "GuideFrame"
-    frame.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-    frame.offset_left = -370.0
-    frame.offset_right = -14.0
-    frame.offset_top = 12.0
-    frame.offset_bottom = 238.0
-    frame.mouse_filter = Control.MOUSE_FILTER_PASS
-    add_child(frame)
+    guide_frame = MarginContainer.new()
+    guide_frame.name = "GuideFrame"
+    guide_frame.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+    guide_frame.mouse_filter = Control.MOUSE_FILTER_PASS
+    add_child(guide_frame)
+    get_viewport().size_changed.connect(_fit)
+    _fit()
     var panel := PanelContainer.new()
     panel.name = "GuidePanel"
     panel.mouse_filter = Control.MOUSE_FILTER_PASS
-    frame.add_child(panel)
+    guide_frame.add_child(panel)
+    var scroll := ScrollContainer.new()
+    scroll.name = "MissionGuideScroll"
+    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    panel.add_child(scroll)
     var stack := VBoxContainer.new()
+    stack.name = "GuideContent"
+    stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     stack.add_theme_constant_override("separation", 6)
-    panel.add_child(stack)
+    scroll.add_child(stack)
     mission_label = _line(stack, "MissionTitle", 18)
     objective_label = _line(stack, "NextObjective", 16)
     waypoint_label = _line(stack, "Waypoint", 15)
     dialogue_label = _line(stack, "Dialogue", 14)
+    # Dialogue remains in current_state/label text for mission logic and
+    # accessibility, but no longer repeats radio chatter over gameplay.
+    dialogue_label.visible = false
     help_label = _line(stack, "RecoveryHint", 14)
+    objective_label.max_lines_visible = 2
+    mission_label.max_lines_visible = 1
+    waypoint_label.max_lines_visible = 1
     var actions := HBoxContainer.new()
     actions.name = "RecoveryActions"
     stack.add_child(actions)

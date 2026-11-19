@@ -1,8 +1,10 @@
 class_name CivicNeighborhoodImprovements
 extends Node3D
+signal service_requested(index: int, actor: Node)
 ## PROG-03: persistent-looking city improvements reconstructed solely from
 ## audited Free Roam receipts. Visual only: no colliders, scores, or save fields.
 const Progression = preload("res://scripts/civic/volunteer_progression.gd")
+const Service = preload("res://scripts/world/neighborhood_service.gd")
 const MILESTONES: Array[int] = [3, 10, 25]
 const PROJECT_NAMES: Array[String] = [
     "Market planters restored",
@@ -25,8 +27,19 @@ func _ready() -> void:
         project.position = POSITIONS[index]
         add_child(project)
         _assemble_project(project, index)
+        var station: CivicNeighborhoodService = Service.new() as CivicNeighborhoodService
+        station.name = "ServicePoint"
+        station.position = Vector3(0.0, 0.0, 1.7)
+        station.setup(index, "E / USE | Community Service")
+        project.add_child(station)
+        station.set_available(false)
+        station.activated.connect(_on_service_activated)
         project.visible = false
         _projects.append(project)
+
+func _on_service_activated(actor: Node, index: int) -> void:
+    if project_visible(index):
+        service_requested.emit(index, actor)
 
 func _piece(parent: Node3D, name: String, position: Vector3,
         size: Vector3, color: Color) -> void:
@@ -73,7 +86,10 @@ func update_from_receipts(reputation: int, resolved: int, receipts: Dictionary) 
         return false
     _verified_count = resolved
     for index in range(MILESTONES.size()):
-        _projects[index].visible = resolved >= MILESTONES[index]
+        var earned: bool = resolved >= MILESTONES[index]
+        _projects[index].visible = earned
+        var station: CivicNeighborhoodService = _projects[index].get_node("ServicePoint") as CivicNeighborhoodService
+        station.set_available(earned)
     return true
 
 func project_state() -> Dictionary:

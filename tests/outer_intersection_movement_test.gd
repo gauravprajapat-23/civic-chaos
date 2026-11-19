@@ -22,9 +22,9 @@ func _run() -> void:
         var lane: CivicLaneData = graph.get_lane(lane_id)
         if Priority.junction_for_lane(lane).distance_to(junction) > 0.05:
             continue
-        if Priority.axis_for_lane(lane) == "ns" and north_lane == null:
+        if Priority.approach_for_lane(lane) == "N" and north_lane == null:
             north_lane = lane
-        elif Priority.axis_for_lane(lane) == "ew" and east_lane == null:
+        elif Priority.approach_for_lane(lane) == "E" and east_lane == null:
             east_lane = lane
     if north_lane == null or east_lane == null:
         _fail("missing perpendicular outer approaches")

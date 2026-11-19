@@ -10,6 +10,7 @@ signal mission_completed
 
 const VehicleScene = preload("res://scenes/traffic/vehicle_agent.tscn")
 const VehicleProfile = preload("res://scripts/traffic/vehicle_profile.gd")
+const CharacterArt = preload("res://scripts/rendering/low_poly_character.gd")
 const ReportPoint = preload("res://scripts/civic/wrong_way_report_marker.gd")
 const MISSION_ID: String = "market_wrong_way_live"
 const OFFENDER_DISTANCE: float = 28.0
@@ -22,6 +23,16 @@ const RECOVERY_FRAMES: int = 12
 const TOW_GAP_M: float = 6.5
 const TOW_SPEED_MPS: float = 7.0
 const TOW_SWEEP_STEP_M: float = 0.30
+const SERVICE_RECOVERY_SECONDS: float = 2.0
+const SERVICE_HOLD_BEFORE_RECOVERY_FRAMES: int = 180
+## Two full N/E/S/W cycles before considering authorized on-site service.
+const STARVATION_MIN_SECONDS: float = 136.0
+## The actual queued cars are spaced ~3.02m apart, with 3m bodies.
+## A broad 2.25m probe would permanently detect a *lawful* follower
+## even while the tow/offender worksite itself is physically clear.
+const SERVICE_CLEARANCE_RADIUS_M: float = 1.0
+## An authorized on-road collection takes a short visible stationary
+## interval; it NEVER applies vertical translation to vehicle bodies.
 const CHECKPOINT_VERSION: int = 1
 const CHECKPOINT_DISTANCE_EPS_M: float = 0.02
 const RECOVERY_STALL_TICKS: int = 1800 # Diagnostic prompt only; never auto-fail the mission.
@@ -40,6 +51,8 @@ var offender_distance_m: float = OFFENDER_DISTANCE + 3.0
 var tow_started: bool = false
 var tow_completed: bool = false
 var followers: Array[CivicVehicleAgent] = []
+## Runtime-only, per-follower collision evidence; never saved or used for progress.
+var _follower_hold_ticks: Dictionary = {}
 var approach_lane_id: int = -1
 var exit_lane_id: int = -1
 var incident_id: int = -1
@@ -60,6 +73,17 @@ var feedback: String = "Spot the wrong-way car and the actual queue."
 var _last_progress_tick: int = -1
 var _last_progress_signature: String = ""
 var _stalled: bool = false
+var _tow_hold_reason: String = ""
+var _tow_hold_frames: int = 0
+var _tow_stationary_seconds: float = 0.0
+var _tow_last_diagnostic_seconds: float = 0.0
+var service_recovery_seconds: float = 0.0
+var service_recovery_active: bool = false
+var tow_recovered_on_site: bool = false
+## Runtime-only marshal order; checkpoints during the short operation
+## safely resume before the operation so the player can request it again.
+var marshal_clearance_active: bool = false
+var marshal_clearance_seconds: float = 0.0
 
 func _init() -> void:
     process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -86,6 +110,12 @@ func configure(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_sessio
     if not bool(created.get("ok", false)):
         return false
     incident_id = int(created["id"])
+    # Separate mission simulation, shared physical road: register the
+    # followers for central occupancy and car-following observations.
+    if traffic_system != null:
+        for follower in followers:
+            traffic_system.register_road_user(follower)
+        traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
     if not session.missions.register_mission({"id": MISSION_ID, "reward": 100, "objectives": [
         {"event": "congestion_observed", "target": 1},
         {"event": "incident_reported", "target": 1},
@@ -179,9 +209,14 @@ func _clear_staging() -> void:
     followers.clear()
 
 func _physics_process(delta: float) -> void:
-    if incident_id < 0 or finished:
+    if incident_id < 0 or delta <= 0.0:
         return
-    if delta <= 0.0:
+    # Mission completion must NOT freeze remaining collision-bearing cars
+    # in the active street. Continue their real fixed-step route movement
+    # until route_completed deactivates them and retires their colliders.
+    # Only campaign/civic progression stops when finished.
+    if finished:
+        _advance_cars(delta)
         return
     tick += 1
     if is_instance_valid(offender) and reported_tick < 0:
@@ -192,8 +227,13 @@ func _physics_process(delta: float) -> void:
     peak_stopped = maxi(peak_stopped, stopped_count)
     if reported_tick >= 0:
         _advance_marshal(delta)
-    if tow_started and not tow_completed:
-        _advance_tow_convoy(delta)
+    if marshal_clearance_active:
+        _advance_marshal_clearance(delta)
+    elif tow_started and not tow_completed:
+        if service_recovery_active:
+            _advance_ground_recovery(delta)
+        else:
+            _advance_tow_convoy(delta)
     if blocker_removed:
         _measure_recovery()
     _update_recovery_watchdog()
@@ -202,12 +242,23 @@ func _physics_process(delta: float) -> void:
     if tick % 45 == 0:
         feedback_changed.emit(feedback)
 
+func _exit_tree() -> void:
+    if traffic_system != null and is_instance_valid(traffic_system):
+        traffic_system.clear_central_recovery()
+        traffic_system.clear_central_service_priority()
+        traffic_system.clear_incident_route_closure(MISSION_ID)
+        for follower in followers:
+            traffic_system.unregister_road_user(follower)
+        if is_instance_valid(tow_vehicle):
+            traffic_system.unregister_road_user(tow_vehicle)
+
 func _advance_cars(delta: float) -> void:
     # Probe all leads before advancing any follower, like CivicTrafficSpawner.
     var observations: Dictionary = {}
+    var road_users: Array[CivicVehicleAgent] = traffic_system.traffic_road_users() if traffic_system != null else followers
     for car in followers:
         if is_instance_valid(car) and car.active:
-            observations[car.get_instance_id()] = CivicTrafficSensor.nearest_lead(car, followers)
+            observations[car.get_instance_id()] = CivicTrafficSensor.nearest_lead(car, road_users)
     for car in followers:
         if not is_instance_valid(car) or not car.active:
             continue
@@ -219,14 +270,60 @@ func _advance_cars(delta: float) -> void:
         else:
             car.clear_lead_observation()
         car.advance_fixed(delta)
+        # A completed route is no longer part of live traffic. Keep the
+        # follower record for exact checkpoint reconstruction, but retire
+        # its collider and visuals. An inactive stranded StaticBody3D was
+        # previously left on the live street indefinitely.
+        _sync_follower_presence(car)
+        _record_follower_hold(car, obs)
         if car.speed_mps > 0.8 and car.lane_distance_m > float(starting_distances.get(car.get_instance_id(), 0.0)) + 0.6:
             moved_ids[car.get_instance_id()] = true
         # Count real vehicles that pass the *former* blockage while the
         # towed offender is already clear of it. Waiting until the tow has
         # fully left the district would miss cars that finished their route.
         var old_obstruction_clear: bool = tow_started and (tow_progress_m - TOW_GAP_M) >= OFFENDER_DISTANCE + 6.0
-        if (blocker_removed or old_obstruction_clear) and car.speed_mps > 0.8 and (car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 4.0):
+        # A car that has actually passed the incident is released even if it
+        # subsequently brakes for the normal junction light or ends its route.
+        # Movement before passing is required; never manufacture a release.
+        if (blocker_removed or old_obstruction_clear) and moved_ids.has(car.get_instance_id()) and _passed_incident(car):
             released_ids[car.get_instance_id()] = true
+
+## A live queued follower can be the *physical blocker* of normal cars.
+## Report the follower's own reason too so we can diagnose both ends of a
+## reciprocal jam instead of weakening traffic collisions.
+func _record_follower_hold(car: CivicVehicleAgent, observation: Dictionary) -> void:
+    var id: int = car.get_instance_id()
+    if not car.active or car.speed_mps >= 0.2:
+        _follower_hold_ticks.erase(id)
+        return
+    var held: int = int(_follower_hold_ticks.get(id, 0)) + 1
+    _follower_hold_ticks[id] = held
+    if held < 120 or held % 120 != 0:
+        return
+    var reason: String = car.last_physics_hold_reason
+    if reason == "":
+        reason = "lead_or_stopline" if bool(observation.get("detected", false)) else "unknown"
+    var lane_id: int = car.route[car.current_route_index] if not car.route.is_empty() else -1
+    var signal_phase: String = "none"
+    if traffic_system != null and traffic_system.traffic_signals != null:
+        signal_phase = traffic_system.traffic_signals.phase_name()
+    print("CIVIC_MISSION_CAR_HOLD car=%s tick=%d lane=%d step=%d distance=%.2f speed=%.2f reason=%s gap=%.2f phase=%s blocker=%s" % [
+        car.name, tick, lane_id, car.current_route_index, car.lane_distance_m,
+        car.speed_mps, reason, float(observation.get("gap_m", -1.0)),
+        signal_phase, car.last_physics_blocker])
+
+## Preserve logical actor records for checkpoint validation while removing
+## only cars that have *actually* completed their road-graph route.
+## This is never used to clear a living/blocked vehicle or manufacture
+## a completed civic objective.
+static func _sync_follower_presence(car: CivicVehicleAgent) -> void:
+    if not is_instance_valid(car):
+        return
+    car.visible = car.active
+    var collision_body: StaticBody3D = car.get_node_or_null("CollisionBody") as StaticBody3D
+    if collision_body != null:
+        collision_body.collision_layer = 4 if car.active else 0
+        collision_body.collision_mask = 0
 
 func _actual_stopped_count() -> int:
     # Never report a zero queue just because the obstruction vanished.
@@ -237,9 +334,17 @@ func _actual_stopped_count() -> int:
             continue
         # Queues must be measured from physical motion, never spawn-at-rest.
         var id: int = car.get_instance_id()
-        if moved_ids.has(id) and car.current_route_index == 0 and car.speed_mps < 0.35:
+        if moved_ids.has(id) and not _passed_incident(car) and car.speed_mps < 0.35:
             count += 1
     return count
+
+## Distinguish the incident's upstream queue from ordinary vehicles waiting
+## at the downstream traffic light. Normal signal stops must never prevent
+## the sustained-recovery objective after the obstruction is gone.
+static func _passed_incident(car: CivicVehicleAgent) -> bool:
+    if car == null:
+        return false
+    return car.current_route_index > 0 or car.lane_distance_m > OFFENDER_DISTANCE + 6.0
 
 func _on_marker_activated(actor: Node) -> void:
     if not _can_interact(actor):
@@ -260,6 +365,8 @@ func incident_card_state() -> Dictionary:
         status = "Traffic restored"
     elif blocker_removed:
         status = "Tow complete; verifying traffic flow"
+    elif marshal_clearance_active:
+        status = "Marshal securing the offending vehicle at the roadside"
     elif tow_started:
         status = "Municipal tow convoy clearing the legal route"
     elif intervention_tick >= 0:
@@ -311,6 +418,75 @@ func perform_incident_action(actor: Node, action: String) -> bool:
     _announce("Report received. Marshal dispatched to remove the obstruction safely.")
     return true
 
+## TRAFFIC-FIX-12: the player's actual report and arriving marshal may
+## order LOCAL removal. Do not force a municipal truck across a jam.
+## No deletion occurs on button press, and the incident cannot be claimed
+## before the follower cars demonstrate physical recovery.
+func request_marshal_clearance() -> Dictionary:
+    if finished or blocker_removed or marshal_clearance_active:
+        return {"accepted": false, "reason": "already_handled"}
+    if reported_tick < 0 or intervention_tick < 0 or not inspected or (
+            not is_instance_valid(marshal) or session == null or incident_id < 0):
+        return {"accepted": false, "reason": "report_and_marshal_required"}
+    if session.incidents.incidents[incident_id]["state"] != CivicIncidentManager.INTERVENTION:
+        return {"accepted": false, "reason": "intervention_not_authorized"}
+    if not is_instance_valid(offender):
+        return {"accepted": false, "reason": "offender_unavailable"}
+    if not _marshal_roadside_clear():
+        return {"accepted": false, "reason": "people_or_cars_at_worksite"}
+    marshal_clearance_active = true
+    marshal_clearance_seconds = 0.0
+    print("CIVIC_MARSHAL_CLEARANCE phase=requested tick=%d incident=%d" % [tick, incident_id])
+    _announce("Marshal authorized local removal. Keep the offender's worksite clear.")
+    return {"accepted": true, "reason": "marshal_removing"}
+
+## The only geometry touched by manual removal is the actual offender
+## (and tow if one exists), never a follower, background car or pedestrian.
+func _marshal_roadside_clear() -> bool:
+    if not is_inside_tree() or not is_instance_valid(offender):
+        return false
+    var sphere := SphereShape3D.new()
+    sphere.radius = SERVICE_CLEARANCE_RADIUS_M
+    var query := PhysicsShapeQueryParameters3D.new()
+    query.shape = sphere
+    query.collision_mask = 2 | 4 | 8
+    query.collide_with_bodies = true
+    var exclude: Array[RID] = []
+    for car in [offender, tow_vehicle]:
+        if is_instance_valid(car):
+            var body := car.get_node_or_null("CollisionBody") as CollisionObject3D
+            if body != null:
+                exclude.append(body.get_rid())
+    query.exclude = exclude
+    var locations: Array[Vector3] = [offender.global_position]
+    if is_instance_valid(tow_vehicle):
+        # A tow already inside the protected intersection must also
+        # respect live crossing reservations before it can be retired.
+        if traffic_system != null and CivicCentralIntersectionPriority.occupies(tow_vehicle, city_graph) and _tow_crossing_occupied():
+            return false
+        locations.append(tow_vehicle.global_position)
+    for location in locations:
+        query.transform = Transform3D(Basis.IDENTITY, location + Vector3.UP * 0.7)
+        if not get_world_3d().direct_space_state.intersect_shape(query, 16).is_empty():
+            return false
+    return true
+
+func _advance_marshal_clearance(delta: float) -> void:
+    # A person entering the worksite pauses service; no forced collision
+    # suppression, vehicle teleportation or instant objective payout.
+    if not _marshal_roadside_clear():
+        return
+    marshal_clearance_seconds += delta
+    if marshal_clearance_seconds < SERVICE_RECOVERY_SECONDS:
+        return
+    marshal_clearance_active = false
+    marshal_clearance_seconds = 0.0
+    tow_started = true
+    tow_recovered_on_site = true
+    tow_progress_m = maxf(tow_progress_m, OFFENDER_DISTANCE + TOW_GAP_M)
+    print("CIVIC_MARSHAL_CLEARANCE phase=completed tick=%d incident=%d" % [tick, incident_id])
+    _finish_tow_convoy()
+
 func _advance_marshal(delta: float) -> void:
     if intervention_tick < 0 and tick - reported_tick >= MARSHAL_DISPATCH_TICKS:
         if not is_instance_valid(marshal):
@@ -322,7 +498,7 @@ func _advance_marshal(delta: float) -> void:
                 intervention_tick = tick
                 session.missions.record_event(MISSION_ID, "marshal_intervened")
                 _announce("Marshal arrived. The driver is being directed out of the lane.")
-    if intervention_tick >= 0 and not tow_started and tick - intervention_tick >= MARSHAL_SERVICE_TICKS:
+    if intervention_tick >= 0 and not tow_started and not marshal_clearance_active and tick - intervention_tick >= MARSHAL_SERVICE_TICKS:
         if _start_tow_convoy():
             _announce("City tow service connected. The wrong-way car is being moved along a legal lane.")
 
@@ -359,7 +535,12 @@ func _start_tow_convoy(restore_progress: float = -1.0) -> bool:
         truck.queue_free()
         return false
     tow_vehicle = truck
+    if traffic_system != null:
+        traffic_system.register_road_user(truck)
+        traffic_system.set_central_service_priority(truck)
     tow_progress_m = initial_progress
+    _tow_stationary_seconds = 0.0
+    _tow_last_diagnostic_seconds = 0.0
     var paint := StandardMaterial3D.new()
     paint.albedo_color = Color(1.0, 0.68, 0.08)
     var visual := truck.get_node_or_null("Visual") as MeshInstance3D
@@ -431,13 +612,21 @@ func _advance_tow_convoy(delta: float) -> void:
     var travel: float = minf(TOW_SPEED_MPS * delta, remaining)
     # A convoy obeys the central signal and the pedestrian crossing.
     if traffic_system != null:
-        var signal_observation: Dictionary = traffic_system.apply_stop_line_observation(
-            tow_vehicle, {"detected": false})
+        # Scripted tow vehicles are not in the background fleet. Using
+        # ordinary fleet-slot arbitration here can make the convoy lose
+        # every green to stopped cars it is supposed to clear.
+        var signal_observation: Dictionary = traffic_system.municipal_service_observation(
+            tow_vehicle)
         if bool(signal_observation.get("detected", false)):
             var stop_gap: float = maxf(0.0, float(signal_observation["gap_m"]) - tow_vehicle.minimum_gap_m)
             travel = minf(travel, stop_gap)
     if travel <= 0.0001:
-        tow_vehicle.speed_mps = 0.0
+        var hold_reason: String = "physical traffic clearance"
+        if traffic_system != null:
+            var gate_reason: String = traffic_system.municipal_service_hold_reason(tow_vehicle)
+            if gate_reason != "":
+                hold_reason = gate_reason
+        _record_tow_stalled_frame(delta, hold_reason)
         return
     # Probe several intermediate footprints, including corners, BEFORE
     # advancing either collision body; nothing may overlap an actor or prop.
@@ -446,13 +635,30 @@ func _advance_tow_convoy(delta: float) -> void:
         var candidate_progress: float = tow_progress_m + travel * float(index) / float(samples)
         var tow_pose: Transform3D = _tow_pose(candidate_progress, false)
         var offender_pose: Transform3D = _tow_pose(candidate_progress - TOW_GAP_M, true)
-        if tow_vehicle.footprint_blocked_at(tow_pose) or offender.footprint_blocked_at(offender_pose):
-            tow_vehicle.speed_mps = 0.0
+        if tow_vehicle.footprint_blocked_at(tow_pose):
+            _record_tow_stalled_frame(delta, "tow-truck route physically occupied")
             return
+        if offender.footprint_blocked_at(offender_pose):
+            _record_tow_stalled_frame(delta, "offender route physically occupied")
+            return
+    _tow_stationary_seconds = 0.0
+    _tow_last_diagnostic_seconds = 0.0
+    _tow_hold_frames = 0
+    _tow_hold_reason = ""
+    var heading_before: float = tow_vehicle.rotation.y
     tow_progress_m += travel
     tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
     offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
     offender_distance_m = tow_progress_m - TOW_GAP_M
+    # The convoy bypasses regular VehicleAgent.advance_fixed(), so drive
+    # wheel visuals directly from the *actual* accepted tow displacement.
+    var tow_details: CivicVehicleVisuals = tow_vehicle.get_node_or_null("DetailVisuals") as CivicVehicleVisuals
+    if tow_details != null:
+        tow_details.update_motion_visuals(travel,
+            wrapf(tow_vehicle.rotation.y - heading_before, -PI, PI))
+    var offender_details: CivicVehicleVisuals = offender.get_node_or_null("DetailVisuals") as CivicVehicleVisuals
+    if offender_details != null:
+        offender_details.update_motion_visuals(travel, 0.0)
     var inbound_length: float = city_graph.get_lane(approach_lane_id).length_m()
     if tow_progress_m >= inbound_length:
         tow_vehicle.current_route_index = 1
@@ -464,6 +670,157 @@ func _advance_tow_convoy(delta: float) -> void:
     _update_tow_link()
     # Only declare physical clearance once the whole convoy reaches the exit.
     if tow_progress_m >= _tow_route_length() - 0.01:
+        _finish_tow_convoy()
+
+## All reasons for zero displacement contribute to the SAME progress clock.
+## Alternating red/physical/pedestrian causes must not reset starvation.
+func _record_tow_stalled_frame(delta: float, reason: String) -> void:
+    _tow_stationary_seconds += maxf(0.0, delta)
+    if _tow_stationary_seconds - _tow_last_diagnostic_seconds >= 6.0:
+        _tow_last_diagnostic_seconds = _tow_stationary_seconds
+        print("CIVIC_TOW_GATE %s" % str(_tow_gate_snapshot()))
+    if _tow_can_begin_starvation_recovery():
+        service_recovery_active = true
+        service_recovery_seconds = 0.0
+        tow_vehicle.speed_mps = 0.0
+        _announce("Municipal crew starting authorized roadside collection after prolonged traffic starvation.")
+        return
+    _note_tow_hold(reason)
+    tow_vehicle.speed_mps = 0.0
+
+## Read-only diagnostics of exact service direction, lights and occupants.
+func _tow_gate_snapshot() -> Dictionary:
+    var details: Dictionary = {
+        "tick": tick, "progress": snappedf(tow_progress_m, 0.01),
+        "stationary_seconds": snappedf(_tow_stationary_seconds, 0.1),
+        "authorized": reported_tick >= 0 and intervention_tick >= 0,
+        "reason": _tow_hold_reason, "approach": "", "aspect": "unknown",
+        "next_green_seconds": -1.0, "crossing_ns_owner": -1,
+        "crossing_ew_owner": -1, "central_occupant": false
+    }
+    if traffic_system == null or not is_instance_valid(tow_vehicle):
+        return details
+    var lane: CivicLaneData = city_graph.get_lane(approach_lane_id) if city_graph != null else null
+    if lane != null:
+        var direction: String = traffic_system.signal_approach_for_lane(lane, true)
+        details["approach"] = direction
+        if traffic_system.traffic_signals != null:
+            details["aspect"] = traffic_system.traffic_signals.aspect_for_approach(direction)
+            details["next_green_seconds"] = snappedf(
+                traffic_system.traffic_signals.seconds_until_green(direction), 0.1)
+    if traffic_system.crossing_reservations != null:
+        details["crossing_ns_owner"] = traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns")
+        details["crossing_ew_owner"] = traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew")
+    for other in traffic_system.traffic_road_users():
+        if other != tow_vehicle and CivicCentralIntersectionPriority.occupies(other, city_graph):
+            details["central_occupant"] = true
+            break
+    return details
+
+## Requires authorized intervention and long verified absence of progress.
+## This never grants a green, teleports a car, or awards mission completion.
+## Reuse safety and authorization for physical-roadblock and signal
+## starvation recovery. One path must never bypass the other's checks.
+func _tow_service_authorized() -> bool:
+    if not tow_started or tow_completed or service_recovery_active:
+        return false
+    if reported_tick < 0 or intervention_tick < 0 or (
+            not is_instance_valid(tow_vehicle) or not is_instance_valid(offender)):
+        return false
+    if session == null or incident_id < 0:
+        return false
+    return session.incidents.incidents[incident_id]["state"] == CivicIncidentManager.INTERVENTION
+
+func _tow_crossing_occupied() -> bool:
+    return traffic_system != null and traffic_system.crossing_reservations != null and (
+        traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or
+        traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew") >= 0)
+
+func _tow_can_begin_starvation_recovery() -> bool:
+    if not _tow_service_authorized():
+        return false
+    var minimum: float = STARVATION_MIN_SECONDS
+    if traffic_system != null and traffic_system.traffic_signals != null:
+        var signals: CivicTrafficSignalController = traffic_system.traffic_signals
+        minimum = maxf(minimum, 2.0 * 4.0 * (
+            signals.green_seconds + signals.amber_seconds + signals.clearance_seconds))
+    if _tow_stationary_seconds < minimum:
+        return false
+    if traffic_system != null:
+        if traffic_system.crossing_reservations != null and (
+                traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or
+                traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew") >= 0):
+            return false
+        for other in traffic_system.traffic_road_users():
+            if other != tow_vehicle and CivicCentralIntersectionPriority.occupies(other, city_graph):
+                return false
+    return _tow_service_worksite_clear()
+
+## Inspect stationary worksite only. Do not disable collision bodies.
+func _tow_service_worksite_clear() -> bool:
+    if not is_inside_tree() or not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
+        return false
+    var probe: SphereShape3D = SphereShape3D.new()
+    probe.radius = SERVICE_CLEARANCE_RADIUS_M
+    var query: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
+    query.shape = probe
+    query.collision_mask = 2 | 4 | 8
+    query.collide_with_bodies = true
+    var excluded: Array[RID] = []
+    for actor in [tow_vehicle, offender]:
+        var own_collider: CollisionObject3D = actor.get_node_or_null("CollisionBody") as CollisionObject3D
+        if own_collider != null:
+            excluded.append(own_collider.get_rid())
+    query.exclude = excluded
+    for position in [tow_vehicle.global_position, offender.global_position]:
+        query.transform = Transform3D(Basis.IDENTITY, position + Vector3.UP * 0.7)
+        if not get_world_3d().direct_space_state.intersect_shape(query, 16).is_empty():
+            return false
+    return true
+
+## Keep collision and signal rules authoritative, but identify what
+## actually prevents service movement rather than silently waiting forever.
+func _note_tow_hold(reason: String) -> void:
+    if _tow_hold_reason != reason:
+        _tow_hold_reason = reason
+        _tow_hold_frames = 0
+    _tow_hold_frames += 1
+    # A persistent physical obstruction cannot be solved by driving the
+    # convoy through other cars. Start an on-site collection while grounded.
+    # Red lights alone must NOT trigger an emergency recovery.
+    if reason.find("physically occupied") >= 0 and _tow_hold_frames >= SERVICE_HOLD_BEFORE_RECOVERY_FRAMES:
+        if _tow_service_authorized() and _tow_service_worksite_clear() and (
+                traffic_system == null or not _tow_crossing_occupied()):
+            service_recovery_active = true
+            service_recovery_seconds = 0.0
+            tow_vehicle.speed_mps = 0.0
+            _announce("Tow route blocked. Municipal crew securing vehicles for roadside collection.")
+            return
+    if _tow_hold_frames == 180 or (_tow_hold_frames > 180 and _tow_hold_frames % 600 == 0):
+        _announce("Tow delayed: %s. Keep the route and crossing clear." % reason)
+        print("CIVIC_TOW_HOLD reason=%s progress=%.2f/%.2f queue=%d released=%d tick=%d" % [
+            reason, tow_progress_m, _tow_route_length(), stopped_count, released_ids.size(), tick])
+
+## Last-resort service stage. Both vehicles remain at road level and
+## stationary during collection. Only after the short observed service
+## interval are their physical bodies released from the lane; actual traffic
+## must still resume before the civic mission may complete.
+func _advance_ground_recovery(delta: float) -> void:
+    if not is_instance_valid(tow_vehicle) or not is_instance_valid(offender):
+        return
+    tow_vehicle.speed_mps = 0.0
+    # Roadside collection is suspended if a real person/vehicle steps into
+    # the worksite. No progress or reward can be made during that interval.
+    if not _tow_service_worksite_clear():
+        return
+    if traffic_system != null and traffic_system.crossing_reservations != null and (
+            traffic_system.crossing_reservations.occupant("pedestrian_crossing_ns") >= 0 or
+            traffic_system.crossing_reservations.occupant("pedestrian_crossing_ew") >= 0):
+        return
+    service_recovery_seconds = minf(SERVICE_RECOVERY_SECONDS,
+        service_recovery_seconds + delta)
+    if service_recovery_seconds >= SERVICE_RECOVERY_SECONDS:
+        tow_recovered_on_site = true
         _finish_tow_convoy()
 
 func _update_tow_link() -> void:
@@ -482,38 +839,40 @@ func _update_tow_link() -> void:
 func _finish_tow_convoy() -> void:
     if tow_completed or not tow_started:
         return
-    if tow_progress_m < _tow_route_length() - 0.01:
+    marshal_clearance_active = false
+    marshal_clearance_seconds = 0.0
+    if not tow_recovered_on_site and tow_progress_m < _tow_route_length() - 0.01:
         return
     # Store the canonical route endpoint, not the last incremental floating
     # point sample. Towing can end within 1 cm of that endpoint.
-    tow_progress_m = _tow_route_length()
+    if not tow_recovered_on_site:
+        tow_progress_m = _tow_route_length()
     offender_distance_m = tow_progress_m - TOW_GAP_M
     tow_completed = true
     blocker_removed = true
+    if traffic_system != null:
+        traffic_system.clear_central_service_priority(tow_vehicle)
+        traffic_system.clear_incident_route_closure(MISSION_ID)
+        # Reserve a bounded ordinary-traffic admission window so the
+        # REAL queued followers can leave the former obstruction.
+        # They still must earn their green and clear pedestrians/cars.
+        traffic_system.start_central_recovery(followers)
+    service_recovery_active = false
     if is_instance_valid(tow_vehicle):
         tow_vehicle.queue_free()
     if is_instance_valid(offender):
         offender.queue_free()
     if is_instance_valid(tow_cable):
         tow_cable.queue_free()
-    _announce("Municipal tow reached the legal exit. Watch actual traffic recover.")
+    _announce("Municipal roadside service removed the obstruction. Watch actual traffic recover." if tow_recovered_on_site else "Municipal tow reached the legal exit. Watch actual traffic recover.")
 
 func _create_marshal() -> void:
     marshal = Node3D.new()
     marshal.name = "TrafficMarshal"
     marshal.position = Vector3(-19.5, 0.0, -8.0)
     add_child(marshal)
-    var actor := MeshInstance3D.new()
-    actor.name = "MarshalUniform"
-    actor.position.y = 0.95
-    var mesh := CapsuleMesh.new()
-    mesh.radius = 0.38
-    mesh.height = 1.9
-    actor.mesh = mesh
-    var material := StandardMaterial3D.new()
-    material.albedo_color = Color(0.88, 0.72, 0.22)
-    actor.material_override = material
-    marshal.add_child(actor)
+    CharacterArt.build(marshal, Color(0.82, 0.64, 0.20), Color(0.68, 0.46, 0.32),
+        Color(0.19, 0.25, 0.30), Color(0.16, 0.20, 0.22))
     var caption := Label3D.new()
     caption.text = "TRAFFIC MARSHAL"
     caption.position.y = 2.1
@@ -541,6 +900,8 @@ func _measure_recovery() -> void:
             {"safety": 20, "efficiency": 30, "cooperation": 10}, "measured_congestion_recovery")
         var reward: int = session.missions.claim_reward(MISSION_ID)
         finished = true
+        if traffic_system != null:
+            traffic_system.clear_central_recovery()
         if is_instance_valid(marker):
             marker.queue_free()
         _announce("Wrong-way mission complete! %d cars resumed; civic reward +%d." % [released_ids.size(), reward])
@@ -597,13 +958,17 @@ func guidance_state() -> Dictionary:
         objective = "Watch for actual cars to resume; recovery is not confirmed yet."
         has_target = false
         speaker = "Traffic Marshal"
-    elif tow_started:
-        objective = "Keep the road clear as the municipal tow convoy reaches the legal exit."
+    elif marshal_clearance_active:
+        objective = "Stay clear while the marshal removes the offending car."
         has_target = false
         speaker = "Traffic Marshal"
+    elif tow_started:
+        objective = "Use Traffic Marshal station to remove the wrong-way car on site."
+        has_target = true
+        speaker = "Traffic Marshal"
     elif intervention_tick >= 0:
-        objective = "Wait on the sidewalk while the marshal arranges vehicle removal."
-        has_target = false
+        objective = "At Traffic Marshal station, choose Clear Wrong-Way Vehicle."
+        has_target = true
         speaker = "Traffic Marshal"
     elif reported_tick >= 0:
         objective = "Report received. Wait safely for the marshal to arrive."
@@ -615,7 +980,8 @@ func guidance_state() -> Dictionary:
     return {
         "title": "Wrong Way, Wrong Day",
         "objective": objective,
-        "target": marker.global_position if is_instance_valid(marker) else Vector3.ZERO,
+        "target": Vector3(-5.5, 0.21, -10.0) if intervention_tick >= 0 and not blocker_removed else (
+            marker.global_position if is_instance_valid(marker) else Vector3.ZERO),
         "has_target": has_target and is_instance_valid(marker),
         "speaker": speaker,
         "dialogue": feedback,
@@ -670,6 +1036,9 @@ func snapshot() -> Dictionary:
         "offender_distance": offender_distance_m,
         "tow_started": tow_started,
         "tow_completed": tow_completed,
+        "tow_recovered_on_site": tow_recovered_on_site,
+        "service_recovery_active": service_recovery_active,
+        "service_recovery_seconds": service_recovery_seconds,
         "tow_progress": tow_progress_m,
         "blocker_removed": blocker_removed,
         "finished": finished,
@@ -737,10 +1106,26 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
         return _checkpoint_rejected("CKP-21: if bool(data[\"blocker_removed\"]) != bool(data[\"tow_completed\"]):", failures)
     if bool(data["finished"]) and not bool(data["tow_completed"]):
         return _checkpoint_rejected("CKP-22: if bool(data[\"finished\"]) and not bool(data[\"tow_completed\"]):", failures)
+    if not (data.get("tow_recovered_on_site", false) is bool):
+        return _checkpoint_rejected("invalid_recovery_flag", failures)
+    # Legacy saves from the temporary vertical-lift implementation may
+    # still be loaded; they are resumed at road level instead of in the sky.
+    if not _finite_range(data.get("service_lift_height", 0.0), 0.0, 4.0):
+        return _checkpoint_rejected("invalid_legacy_lift_height", failures)
+    if not (data.get("service_recovery_active", false) is bool):
+        return _checkpoint_rejected("invalid_service_recovery_flag", failures)
+    if not _finite_range(data.get("service_recovery_seconds", 0.0), 0.0, SERVICE_RECOVERY_SECONDS):
+        return _checkpoint_rejected("invalid_service_recovery_time", failures)
+    var recovering: bool = bool(data.get("service_recovery_active", false)) or (
+        float(data.get("service_lift_height", 0.0)) > 0.0 and not bool(data["tow_completed"]))
+    if recovering and (not bool(data["tow_started"]) or bool(data["tow_completed"])):
+        return _checkpoint_rejected("invalid_service_recovery_stage", failures)
+    if bool(data.get("tow_recovered_on_site", false)) and not bool(data["tow_completed"]):
+        return _checkpoint_rejected("recovery_without_completed_tow", failures)
     if bool(data["tow_started"]):
         if float(data["tow_progress"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data["tow_progress"]) > total_length + CHECKPOINT_DISTANCE_EPS_M:
             return _checkpoint_rejected("CKP-23: if float(data[\"tow_progress\"]) < OFFENDER_DISTANCE + TOW_GAP_M or float(data[\"tow_progress\"]) > total_length:", failures)
-        if bool(data["tow_completed"]) and float(data["tow_progress"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:
+        if bool(data["tow_completed"]) and not bool(data.get("tow_recovered_on_site", false)) and float(data["tow_progress"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:
             return _checkpoint_rejected("CKP-24: if bool(data[\"tow_completed\"]) and float(data[\"tow_progress\"]) < total_length - CHECKPOINT_DISTANCE_EPS_M:", failures)
     elif float(data["tow_progress"]) != 0.0:
         return _checkpoint_rejected("CKP-25: elif float(data[\"tow_progress\"]) != 0.0:", failures)
@@ -806,7 +1191,7 @@ static func checkpoint_valid(raw: Variant, graph: CivicRoadGraph, civic: Variant
             return _checkpoint_rejected("CKP-46: if bool(item[\"released\"]) and not bool(item[\"moved\"]):", failures)
         if not bool(item["active"]) and float(item["speed"]) != 0.0:
             return _checkpoint_rejected("CKP-47: if not bool(item[\"active\"]) and float(item[\"speed\"]) != 0.0:", failures)
-        if bool(item["active"]) and bool(item["moved"]) and int(item["route_index"]) == 0 and float(item["speed"]) < 0.35:
+        if bool(item["active"]) and bool(item["moved"]) and int(item["route_index"]) == 0 and float(item["distance"]) <= OFFENDER_DISTANCE + 6.0 and float(item["speed"]) < 0.35:
             calculated_stops += 1
     if calculated_stops > int(data["peak_stopped"]):
         return _checkpoint_rejected("CKP-48: if calculated_stops > int(data[\"peak_stopped\"]):", failures)
@@ -842,6 +1227,10 @@ func prepare_restore(world: Node3D, actor: Node3D, graph: CivicRoadGraph, civic_
     if not _find_approach() or not _stage_vehicles():
         _clear_staging()
         return false
+    if traffic_system != null:
+        traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
+        for follower in followers:
+            traffic_system.register_road_user(follower)
     marker = ReportPoint.new() as CivicWrongWayReportMarker
     marker.name = "WrongWayEvidencePoint"
     marker.position = Vector3(-20.0, 0.2, -5.3)
@@ -865,12 +1254,24 @@ func restore(raw: Variant) -> bool:
         # A completed scene cannot be rewound in place after its collider
         # was deleted. Reject before mutating missions or actor positions.
         return false
+    marshal_clearance_active = false
+    marshal_clearance_seconds = 0.0
     tick = int(data["tick"])
     incident_id = int(data["incident_id"])
     inspected = data["inspected"]
     reported_tick = int(data["reported_tick"])
     intervention_tick = int(data["intervention_tick"])
     peak_stopped = int(data["peak_stopped"])
+    tow_recovered_on_site = bool(data.get("tow_recovered_on_site", false))
+    service_recovery_active = bool(data.get("service_recovery_active", false))
+    service_recovery_seconds = float(data.get("service_recovery_seconds", 0.0))
+    # Migrate a checkpoint written mid-air by the previous workaround.
+    # The convoy is reconstructed at its normal ground-level tow poses.
+    var legacy_lift: float = float(data.get("service_lift_height", 0.0))
+    if legacy_lift > 0.0 and not bool(data.get("tow_completed", false)):
+        service_recovery_active = true
+        service_recovery_seconds = clampf(legacy_lift / 4.0 * SERVICE_RECOVERY_SECONDS,
+            0.0, SERVICE_RECOVERY_SECONDS - 0.01)
     recovery_streak = int(data["recovery_streak"])
     feedback = data["feedback"]
     moved_ids.clear()
@@ -884,6 +1285,7 @@ func restore(raw: Variant) -> bool:
         car.speed_mps = float(record["speed"])
         car.target_speed_mps = float(record["target_speed"])
         car.active = bool(record["active"])
+        _sync_follower_presence(car)
         car.clear_lead_observation()
         car._place_on_lane()
         var id: int = car.get_instance_id()
@@ -903,6 +1305,10 @@ func restore(raw: Variant) -> bool:
     tow_started = false
     tow_completed = false
     blocker_removed = false
+    _tow_stationary_seconds = 0.0
+    _tow_last_diagnostic_seconds = 0.0
+    if traffic_system != null:
+        traffic_system.clear_central_service_priority()
     if is_instance_valid(tow_vehicle):
         remove_child(tow_vehicle)
         tow_vehicle.queue_free()
@@ -924,6 +1330,11 @@ func restore(raw: Variant) -> bool:
         else:
             if not _start_tow_convoy(float(data["tow_progress"])):
                 return false
+            # The tow truck and offender stay on the road; never restore
+            # the obsolete vertical offset from an older checkpoint.
+            tow_vehicle.global_transform = _tow_pose(tow_progress_m, false)
+            offender.global_transform = _tow_pose(tow_progress_m - TOW_GAP_M, true)
+            _update_tow_link()
     else:
         if is_instance_valid(offender):
             _place_offender(float(data["offender_distance"]))
@@ -931,6 +1342,16 @@ func restore(raw: Variant) -> bool:
             # Finished worlds cannot be rewound into an unsafe active phase
             # without a new scene; this is the only rejected rewind case.
             return false
+    # Temporary traffic priorities are derived from actual restored
+    # mission actors. Never persist a stale reference from the old scene.
+    if traffic_system != null:
+        traffic_system.clear_central_recovery()
+        if blocker_removed:
+            traffic_system.clear_incident_route_closure(MISSION_ID)
+            if not bool(data["finished"]):
+                traffic_system.start_central_recovery(followers)
+        else:
+            traffic_system.set_incident_route_closure(MISSION_ID, approach_lane_id)
     finished = bool(data["finished"])
     if finished and is_instance_valid(marker):
         marker.queue_free()

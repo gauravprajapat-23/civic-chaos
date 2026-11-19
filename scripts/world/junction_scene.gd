@@ -34,6 +34,9 @@ func _ready() -> void:
         push_error("Could not initialize traffic spawner")
         return
     traffic_signals = SignalController.new()
+    if expanded_city:
+        # Player-requested junction rule: exactly one approach green.
+        traffic_signals.enable_single_approach_mode()
     intersection_reservations = Reservations.new()
     traffic_spawner.configure_intersection(traffic_signals, intersection_reservations)
     if expanded_city:
@@ -49,6 +52,12 @@ func _on_simulation_tick(_tick_index: int, fixed_delta: float) -> void:
     intersection_reservations.advance_to(_tick_index)
     if is_instance_valid(traffic_spawner):
         traffic_spawner.advance_fixed(_tick_index, fixed_delta)
+        # CAR-ART-05E: update render-only fleet LOD twice per second.
+        # A headless scene without a camera keeps all detail by default.
+        if _tick_index % 10 == 0:
+            var camera: Camera3D = get_viewport().get_camera_3d()
+            if is_instance_valid(camera):
+                traffic_spawner.update_fleet_visual_lod(camera.global_position)
     if is_instance_valid(outer_lights):
         outer_lights.sync_tick(_tick_index)
 

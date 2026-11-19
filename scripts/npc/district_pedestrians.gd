@@ -22,6 +22,7 @@ const CROSSING_CLEARANCE: float = 1.3
 const VEHICLE_CLEARANCE: float = 1.5
 const PERSONAL_SPACE: float = 1.4
 const HARD_SEPARATION: float = 0.72 # Wider than two 0.32m collision radii.
+const CharacterArt = preload("res://scripts/rendering/low_poly_character.gd")
 const FreeRoamChallenges = preload("res://scripts/civic/free_roam_challenges.gd")
 const NpcPersonality = preload("res://scripts/npc/npc_personality.gd")
 const NpcBlackboard = preload("res://scripts/npc/npc_blackboard.gd")
@@ -98,12 +99,13 @@ func _ready() -> void:
         walker.name = "Pedestrian_%02d" % index
         add_child(walker)
         var color: Color = shirt_colors[index % shirt_colors.size()]
-        _part(walker, "Torso", Vector3(0, 1.18, 0), Vector3(0.42, 0.62, 0.26), color)
-        _part(walker, "Head", Vector3(0, 1.72, 0), Vector3(0.31, 0.33, 0.31), Color(0.70, 0.46, 0.31))
-        var left_arm := _part(walker, "LeftArm", Vector3(-0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
-        var right_arm := _part(walker, "RightArm", Vector3(0.31, 1.13, 0), Vector3(0.15, 0.59, 0.18), color)
-        var left_leg := _part(walker, "LeftLeg", Vector3(-0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
-        var right_leg := _part(walker, "RightLeg", Vector3(0.12, 0.45, 0), Vector3(0.17, 0.78, 0.19), Color(0.17, 0.21, 0.28))
+        var parts: Dictionary = CharacterArt.build(walker, color,
+            Color(0.70, 0.46, 0.31), Color(0.17, 0.21, 0.28),
+            Color(0.93, 0.80, 0.55))
+        var left_arm: Node3D = parts["LeftArm"]
+        var right_arm: Node3D = parts["RightArm"]
+        var left_leg: Node3D = parts["LeftLeg"]
+        var right_leg: Node3D = parts["RightLeg"]
         # Search an unoccupied start; overlapping capsules cannot resolve
         # themselves through simple stop-on-obstacle avoidance.
         var spawn_progress: float = float(index) * 5.0
@@ -338,6 +340,21 @@ func _routine_help_is_clear(index: int) -> bool:
     # it runs only inside the pedestrian physics update.
     return not _swept_path_blocked(index, walker.position, walker.position, true)
 
+## GAME-025: activate ambient schedules only after the full campaign.
+## No checkpoint schema or street/crossing authority changes.
+func set_living_city_active(enabled: bool) -> void:
+    daily_routines_enabled = enabled
+
+func living_city_summary() -> Dictionary:
+    var counts: Dictionary = {"commute": 0, "market": 0, "break": 0,
+        "return_home": 0, "offer_help": 0}
+    if not daily_routines_enabled:
+        return {"active": false, "walkers": _walkers.size(), "activities": counts}
+    for activity in _routine_activity:
+        if counts.has(activity):
+            counts[activity] = int(counts[activity]) + 1
+    return {"active": true, "walkers": _walkers.size(), "activities": counts}
+
 func routine_activity(index: int) -> String:
     if index < 0 or index >= _routine_activity.size():
         return ""
@@ -368,6 +385,22 @@ func _resolve_actor_overlap(index: int, _delta: float) -> bool:
         if ratio < 1.0 and ratio < closest_ratio:
             closest_ratio = ratio
             closest = other.position
+    # A checkpoint/initial placement can leave a walker *inside* a car.
+    # Relative distances alone miss the corners of a long vehicle; evaluate
+    # the existing rectangular vehicle footprint in its rotated local space.
+    # Only the current car's location is used, never a made-up escape point.
+    if _traffic_spawner != null:
+        for car in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(car) or not car.active:
+                continue
+            var relative: Vector3 = car.to_local(walker.global_position)
+            if absf(relative.y) > 2.2:
+                continue
+            var overlap_ratio: float = maxf(absf(relative.x) / 1.20,
+                absf(relative.z) / 1.85)
+            if overlap_ratio < 1.0 and overlap_ratio < closest_ratio:
+                closest_ratio = overlap_ratio
+                closest = to_local(car.global_position)
     if closest_ratio == INF:
         return false
 
@@ -486,6 +519,16 @@ func _spawn_is_clear(candidate: Vector3) -> bool:
         offset.y = 0.0
         if offset.length_squared() < PLAYER_CLEARANCE * PLAYER_CLEARANCE:
             return false
+    # _ready() may run outside the physics tick: do not query the physics
+    # space here. Broad-phase against real traffic positions if connected.
+    if _traffic_spawner != null:
+        for vehicle in _traffic_spawner.active_vehicles:
+            if not is_instance_valid(vehicle) or not vehicle.active:
+                continue
+            var gap: Vector3 = vehicle.global_position - to_global(candidate)
+            gap.y = 0.0
+            if gap.length_squared() < VEHICLE_CLEARANCE * VEHICLE_CLEARANCE:
+                return false
     return true
 
 ## The lane-relative right side is opposite for opposing walkers; deterministic
@@ -727,7 +770,21 @@ func _can_cross(side: int) -> bool:
         return true
     # Pedestrians cross only while the parallel vehicle axis is stopped.
     var approach: String = "E" if side < 2 else "N"
-    if _signal_controller.aspect_for_approach(approach) != "red":
+    var opposing: String = "W" if side < 2 else "S"
+    # With four one-way greens, BOTH opposing directions must be red
+    # before a pedestrian starts across their common conflict area.
+    if _signal_controller.aspect_for_approach(approach) != "red" or (
+            _signal_controller.aspect_for_approach(opposing) != "red"):
+        return false
+    # A walker requires roughly 12 m of actual travel through this
+    # crossing. Do not let them ENTER right before opposing traffic green:
+    # the previous policy could occupy the conflict zone for almost the
+    # entire next vehicle green, starving every approach for many cycles.
+    # Existing occupied crossings are still released only when physically
+    # clear; this check is for NEW entries only.
+    const MIN_ENTRY_RED_WINDOW_SECONDS: float = 13.0
+    if minf(_signal_controller.seconds_until_green(approach),
+            _signal_controller.seconds_until_green(opposing)) < MIN_ENTRY_RED_WINDOW_SECONDS:
         return false
     if _traffic_spawner == null:
         return true

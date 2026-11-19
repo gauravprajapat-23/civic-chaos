@@ -31,7 +31,7 @@ func _run() -> void:
     spawner.active_vehicles.append(vehicle)
     for tick in range(1, 161):
         spawner.advance_fixed(tick, 0.05)
-        if vehicle.current_route_index != 0 or vehicle.lane_distance_m > 15.001:
+        if vehicle.current_route_index != 0 or vehicle.lane_distance_m > graph.get_lane(1).length_m() - 5.0 + 0.001:
             _fail(spawner, "vehicle crossed red stop line")
             return
     if vehicle.lane_distance_m < 10.0 or vehicle.speed_mps > 0.25:

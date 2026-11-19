@@ -17,6 +17,7 @@ func configure(target_kind: String, target_slot: int, display_name: String) -> v
         caption.text = display_name
 
 func _ready() -> void:
+    add_to_group("civic_cleanup_targets")
     collision_layer = 16
     collision_mask = 0
     var shape := CollisionShape3D.new()
