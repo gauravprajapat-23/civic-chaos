@@ -1327,6 +1327,13 @@ func _on_dispatch_service_status(value: String) -> void:
     if value == "ON SCENE":
         _on_interaction_message("%s VEHICLE ON SCENE | Complete the civic task yourself." % (
             _active_call_service.service_label))
+    elif value == "WAITING FOR CLEAR ROAD":
+        _on_interaction_message("MUNICIPAL SERVICE | Delayed by traffic or pedestrians.")
+    elif value == "SERVICE UNAVAILABLE":
+        _on_interaction_message("MUNICIPAL SERVICE | No safe approach. Retry after traffic clears.")
+        _active_call_service = null
+    elif value == "SERVICE CLEARED":
+        _active_call_service = null
 
 ## Retire old responders when the underlying authoritative call ends or
 ## changes. This never clears or resolves any live civic incident.
