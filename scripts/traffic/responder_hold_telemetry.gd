@@ -20,6 +20,8 @@ const MAX_TICK: int = 1000000000
 var _samples: Array[Dictionary] = []
 var _last_reason: String = "no_adapter"
 var _last_allowed: bool = false
+var _last_adapter_present: bool = false
+var _last_context_valid: bool = false
 var _last_sample_tick: int = -SAMPLE_PERIOD_TICKS
 var _observed_steps: int = 0
 var _denied_steps: int = 0
@@ -31,13 +33,14 @@ var _denied_steps: int = 0
 func evaluate(adapter: CivicResponderStepPermission,
         from_position: Vector3, to_position: Vector3, traffic_tick: int) -> bool:
     var usable: bool = adapter != null and is_instance_valid(adapter)
+    var context_valid: bool = usable and adapter._context_valid
     var allowed: bool = usable and adapter.allows_step(from_position, to_position)
     _observed_steps = mini(_observed_steps + 1, MAX_TICK)
     if not allowed:
         _denied_steps = mini(_denied_steps + 1, MAX_TICK)
     # No expensive classification on every physics frame. But always sample
     # a change between permitted and held immediately for responsive UI.
-    var due: bool = _samples.is_empty() or allowed != _last_allowed or (
+    var due: bool = _samples.is_empty() or allowed != _last_allowed or (\n        usable != _last_adapter_present) or (context_valid != _last_context_valid) or (
         traffic_tick >= _last_sample_tick + SAMPLE_PERIOD_TICKS)
     if due:
         var reason: String = "clear" if allowed else _classify(adapter, from_position, to_position)
@@ -47,6 +50,8 @@ func evaluate(adapter: CivicResponderStepPermission,
         _last_reason = reason
         _last_sample_tick = maxi(0, traffic_tick)
     _last_allowed = allowed
+    _last_adapter_present = usable
+    _last_context_valid = context_valid
     return allowed
 
 func _classify(adapter: CivicResponderStepPermission,
@@ -114,6 +119,8 @@ func reset() -> void:
     _samples.clear()
     _last_reason = "no_adapter"
     _last_allowed = false
+    _last_adapter_present = false
+    _last_context_valid = false
     _last_sample_tick = -SAMPLE_PERIOD_TICKS
     _observed_steps = 0
     _denied_steps = 0
