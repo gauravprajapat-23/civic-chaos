@@ -337,6 +337,8 @@ func retire() -> void:
     if not active:
         return
     active = false
+    if response_status != "SERVICE UNAVAILABLE" and response_status != "SERVICE CLEARED":
+        _set_status("SERVICE WITHDRAWN")
     _terminal_status = response_status
     lifecycle_finished.emit(call_id, _terminal_status)
     if _traffic_adapter != null:
