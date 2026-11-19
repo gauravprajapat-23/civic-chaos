@@ -66,6 +66,8 @@ var _bike_heading: float = 0.0
 var _bike_guard: BoxShape3D
 var _mount_camera_length: float = 4.0
 var _mount_camera_height: float = 1.5
+var _bike_camera_recovering: bool = false
+var _bike_dismount_height_blend: float = 0.0
 
 func _ready() -> void:
     CharacterArt.build(visual, Color(0.15, 0.39, 0.74), Color(0.72, 0.48, 0.33),
@@ -176,14 +178,24 @@ func _physics_process(delta: float) -> void:
     # vehicle roofs are intentionally not CharacterBody3D floors. Recover
     # to the nearest tested perimeter point before the next physics tick.
     _recover_vehicle_descent_overlap()
-    if _bike_pose_blend > 0.0:
-        # Art-only dismount: lower the seated sprite back to standing.
-        # CharacterBody stays at its real, physically checked position.
-        _bike_pose_blend = maxf(0.0, _bike_pose_blend - delta / BIKE_MOUNT_ANIMATION_S)
-        visual.position.y = lerpf(0.9, 1.33, _bike_pose_blend)
-        _set_bike_pose(true)
-    else:
-        _animate_walk(delta)
+    # Rejoin walking animation immediately after a safe side exit. Never
+    # reapply the seated pose to a now-visible on-foot character.
+    if _bike_dismount_height_blend > 0.0:
+        _bike_dismount_height_blend = maxf(0.0,
+            _bike_dismount_height_blend - delta / BIKE_MOUNT_ANIMATION_S)
+        visual.position.y = lerpf(0.9, 1.33, _bike_dismount_height_blend)
+    _animate_walk(delta)
+    if _bike_camera_recovering:
+        var easing: float = minf(1.0, delta * 14.0)
+        spring_arm.spring_length = lerpf(spring_arm.spring_length,
+            _mount_camera_length, easing)
+        camera_pivot.position.y = lerpf(camera_pivot.position.y,
+            _mount_camera_height, easing)
+        if absf(spring_arm.spring_length - _mount_camera_length) < 0.005 and (
+                absf(camera_pivot.position.y - _mount_camera_height) < 0.005):
+            spring_arm.spring_length = _mount_camera_length
+            camera_pivot.position.y = _mount_camera_height
+            _bike_camera_recovering = false
     if direction.length_squared() > 0.01:
         visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 12.0 * delta))
 
@@ -218,6 +230,8 @@ func mount_bike(bike: CivicRideableBike) -> bool:
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
     _bike_pose_blend = 0.0
+    _bike_dismount_height_blend = 0.0
+    _bike_camera_recovering = false
     _bike_heading = parked_heading
     ridden_bike.global_rotation.y = _bike_heading
     visual.rotation.y = _bike_heading - global_rotation.y
@@ -263,10 +277,12 @@ func dismount_bike() -> bool:
     ridden_bike = null
     _bike_speed = 0.0
     _bike_exit_cooldown = BIKE_EXIT_COOLDOWN_S
-    _bike_pose_blend = 1.0
+    _bike_pose_blend = 0.0
+    _bike_dismount_height_blend = 1.0
+    _bike_camera_recovering = true
     visual.visible = true
-    spring_arm.spring_length = _mount_camera_length
-    camera_pivot.position.y = _mount_camera_height
+    # Recover camera distance/height across walking physics ticks rather
+    # than snapping the high-speed chase view at the moment of exit.
     visual.rotation.z = 0.0
     # Restore the on-foot limb pose; mounted rig is already detached.
     _set_bike_pose(false)

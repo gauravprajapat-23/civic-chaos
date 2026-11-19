@@ -46,8 +46,15 @@ func _run() -> void:
     if not player.dismount_bike():
         _fail("grounded bike exit failed")
         return
-    if not is_equal_approx(player.spring_arm.spring_length, 4.0):
-        _fail("chase camera did not restore walking distance")
+    if not player._bike_camera_recovering:
+        _fail("camera recovery was not scheduled after dismount")
+        return
+    player.set_physics_process(true)
+    for frame in range(90):
+        await physics_frame
+    if not is_equal_approx(player.spring_arm.spring_length, 4.0) or (
+            not is_equal_approx(player.camera_pivot.position.y, 1.5)):
+        _fail("chase camera failed to settle to original walking view")
         return
     var interaction := bike.get_node("InteractionShape") as CollisionShape3D
     var original: Transform3D = interaction.transform
