@@ -4,6 +4,13 @@ extends Node3D
 ## city road graph. This is NOT incident completion, traffic priority,
 ## an ambulance, or an instant-spawn reward.
 signal status_changed(status: String)
+signal lifecycle_finished(call_id: int, final_status: String)
+
+## Optional Traffic-owned permission gate. A false response holds the van;
+## this worker never grants signal priority or changes junction phases.
+var traffic_step_permission: Callable = Callable()
+var _traffic_gate_configured: bool = false
+var _terminal_status: String = ""
 
 const Routes = preload("res://scripts/ui/civic_map_routes.gd")
 const SERVICE_SPEED_MPS: float = 5.5
@@ -214,6 +221,23 @@ func _space_clear(at: Vector3, spawning: bool = false) -> bool:
     query.margin = 0.03
     return get_world_3d().direct_space_state.intersect_shape(query, 12).is_empty()
 
+## Traffic may supply a callable (from_position, to_position) -> bool.
+## A never-configured gate preserves CALLS-02 compatibility. Once configured,
+## invalidation of Traffic's owner must never become an implicit green light.
+## Traffic owns lane/intersection resolution; this callable is not authoritative
+## until TRF-002 supplies its fail-closed route/lane mapping.
+func set_traffic_step_permission(permission: Callable) -> void:
+    _traffic_gate_configured = true
+    traffic_step_permission = permission
+
+func lifecycle_state() -> Dictionary:
+    return {"call_id": call_id, "active": active, "arrived": arrived,
+        "status": response_status, "terminal_status": _terminal_status,
+        "position": position, "stop_point": stop_point,
+        "route_index": route_index, "route_size": route.size(),
+        "traffic_gate_configured": _traffic_gate_configured,
+        "traffic_gate_available": traffic_step_permission.is_valid()}
+
 func _finish_on_scene() -> void:
     arrived = true
     _on_scene_seconds = 0.0
@@ -253,7 +277,10 @@ func _physics_process(delta: float) -> void:
     var movement: Vector3 = remaining.normalized() * minf(
         remaining.length(), SERVICE_SPEED_MPS * minf(delta, 0.10))
     var next: Vector3 = position + movement
-    if not _step_is_clear(position, next):
+    var traffic_permitted: bool = true
+    if _traffic_gate_configured:
+        traffic_permitted = traffic_step_permission.is_valid() and bool(traffic_step_permission.call(position, next))
+    if not traffic_permitted or not _step_is_clear(position, next):
         _blocked_seconds += delta
         if _blocked_seconds >= ABORT_BLOCKED_S:
             _set_status("SERVICE UNAVAILABLE")
@@ -274,5 +301,12 @@ func _physics_process(delta: float) -> void:
         _finish_on_scene()
 
 func retire() -> void:
+    if not active:
+        return
     active = false
+    _terminal_status = response_status
+    lifecycle_finished.emit(call_id, _terminal_status)
+    if is_instance_valid(_van):
+        _van.collision_layer = 0
+        _van.collision_mask = 0
     queue_free()
