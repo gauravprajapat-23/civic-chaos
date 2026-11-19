@@ -56,7 +56,7 @@ func _classify(adapter: CivicResponderStepPermission,
     if not adapter._context_valid or not is_instance_valid(adapter._spawner) or adapter._spawner.road_graph == null:
         return "stale_route_context"
     if not from_position.is_finite() or not to_position.is_finite() or (
-            from_position.distance_to(to_position) > adapter.MAX_PROPOSED_STEP_M):
+            from_position.distance_to(to_position) > CivicResponderStepPermission.MAX_PROPOSED_STEP_M):
         return "invalid_motion"
     if adapter._index < 0 or adapter._index >= adapter._route.size():
         return "stale_route_context"
@@ -64,16 +64,16 @@ func _classify(adapter: CivicResponderStepPermission,
     var lane: CivicLaneData = graph.get_lane(adapter._route[adapter._index])
     if lane == null:
         return "stale_route_context"
-    var projection: Dictionary = adapter._project(lane, from_position)
-    if float(projection["lateral_m"]) > adapter.POSITION_TOLERANCE_M or (
-            absf(float(projection["distance_m"]) - adapter._distance_m) > adapter.PROGRESS_TOLERANCE_M):
+    var projection: Dictionary = CivicResponderStepPermission._project(lane, from_position)
+    if float(projection["lateral_m"]) > CivicResponderStepPermission.POSITION_TOLERANCE_M or (
+            absf(float(projection["distance_m"]) - adapter._distance_m) > CivicResponderStepPermission.PROGRESS_TOLERANCE_M):
         return "stale_route_context"
     if not CentralPriority.is_inbound(lane):
         return "invalid_motion"
     var stop_distance: float = maxf(0.0, lane.length_m() - CentralPriority.STOP_LINE_M)
-    var finish: Dictionary = adapter._project(lane, to_position)
+    var finish: Dictionary = CivicResponderStepPermission._project(lane, to_position)
     if float(projection["distance_m"]) > stop_distance + 0.01 or (
-            float(finish["distance_m"]) < stop_distance - adapter.STOP_APPROACH_WINDOW_M):
+            float(finish["distance_m"]) < stop_distance - CivicResponderStepPermission.STOP_APPROACH_WINDOW_M):
         return "invalid_motion"
     var spawner: CivicTrafficSpawner = adapter._spawner
     var approach: String = spawner.signal_approach_for_lane(lane, spawner.city_mode)
