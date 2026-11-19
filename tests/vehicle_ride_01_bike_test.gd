@@ -156,15 +156,15 @@ func _run() -> void:
     if player.ridden_bike != null or bike.get_parent() != world or bike.collision_layer != 16 or bike.rider != null:
         _fail("parking did not return bike to world and restore USE")
         return
-    if player.collision_mask != 1 or not is_equal_approx(player.spring_arm.spring_length, 4.0):
-        _fail("bike changed default player collision or permanently altered camera")
+    if player.collision_mask != 1 or not player._bike_camera_recovering:
+        _fail("bike changed default player collision or failed to begin camera recovery")
         return
     if player.mount_bike(bike):
         _fail("rapid repeated USE remounted bike during dismount transition")
         return
     for frame in range(30):
         await physics_frame
-    if player._bike_pose_blend > 0.001 or not is_equal_approx(player.visual.position.y, 0.9):
+    if player._bike_pose_blend > 0.001 or not is_equal_approx(player.visual.position.y, 0.9) or not is_equal_approx(player.spring_arm.spring_length, 4.0):
         _fail("dismount animation did not return the rider to standing")
         return
     if not player.mount_bike(bike):
