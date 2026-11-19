@@ -6,6 +6,7 @@ const Response = preload("res://scripts/civic/call_service_response.gd")
 const Signals = preload("res://scripts/traffic/traffic_signal_controller.gd")
 const Reservations = preload("res://scripts/traffic/intersection_reservations.gd")
 const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
+const Priority = preload("res://scripts/traffic/central_intersection_priority.gd")
 var failures: int = 0
 
 func _initialize() -> void:
@@ -53,6 +54,51 @@ func _run() -> void:
     root.add_child(response)
     _check(response.configure_traffic(spawner), "traffic adapter did not bind")
     _check(response.lifecycle_state()["traffic_gate_available"], "callback not available")
+    # Exercise the responder-owned Traffic callback at a real stop line.
+    var check_distance: float = lane_a.length_m() - 6.5
+    var before: Vector3 = Routes._point_at(lane_a, check_distance)
+    var after: Vector3 = Routes._point_at(lane_a, check_distance + 0.7)
+    var gate: CivicResponderStepPermission = response._traffic_adapter
+    _check(gate.set_route_context(ids, 0, check_distance), "responder route context invalid")
+    _check(gate.allows_step(before, after), "green signal denied safe entry")
+    signals.advance_fixed(12.0)
+    _check(not gate.allows_step(before, after), "amber bypassed")
+    signals.advance_fixed(3.0)
+    _check(not gate.allows_step(before, after), "all-red bypassed")
+    signals.advance_fixed(2.0)
+    var approach: String = Spawner.signal_approach_for_lane(lane_a, false)
+    for i in range(4):
+        if signals.aspect_for_approach(approach) == "green":
+            break
+        signals.advance_fixed(17.0)
+    _check(signals.aspect_for_approach(approach) == "green", "green cycle recovery")
+    var zone: String = Spawner.crossing_conflict_zone(approach)
+    _check(bool(reservations.request(501, PackedStringArray([zone]), 0, 100).get("granted", false)),
+        "crossing reservation failed")
+    _check(reservations.occupy(501, zone), "crossing occupancy failed")
+    _check(not gate.allows_step(before, after), "occupied pedestrian crossing bypassed")
+    reservations.release(501, zone)
+    reservations.cancel(501)
+    var downstream := CivicVehicleAgent.new()
+    downstream.route = PackedInt32Array([4])
+    downstream.current_route_index = 0
+    downstream.lane_distance_m = Priority.OUTBOUND_QUEUE_CLEARANCE_M - 0.5
+    downstream.active = true
+    spawner.register_road_user(downstream)
+    _check(not gate.allows_step(before, after), "blocked outbound lane bypassed")
+    downstream.lane_distance_m = Priority.OUTBOUND_QUEUE_CLEARANCE_M + 0.5
+    _check(gate.allows_step(before, after), "downstream recovery remained blocked")
+    downstream.route = ids
+    downstream.current_route_index = 0
+    downstream.lane_distance_m = lane_a.length_m() - 3.0
+    _check(not gate.allows_step(before, after), "committed central car bypassed")
+    spawner.unregister_road_user(downstream)
+    downstream.free()
+    _check(gate.allows_step(before, after), "cleared central junction remained held")
+    # Preserve red for responder movement simulation below.
+    signals.advance_fixed(12.0)
+    signals.advance_fixed(3.0)
+    signals.advance_fixed(2.0)
     response.route = points
     response._lane_ids = ids
     response._route_lane_indices = indices
