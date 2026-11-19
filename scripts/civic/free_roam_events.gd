@@ -440,6 +440,7 @@ func dispatch_state() -> Dictionary:
         "unlocked": director != null and session != null,
         "has_event": false,
         "call_id": -1,
+        "service_type": "",
         "title": "No active civic call",
         "location": "Market Chowk",
         "priority": false,
@@ -462,6 +463,7 @@ func dispatch_state() -> Dictionary:
     var stage: int = int(active_event.get("stage", 0))
     result["has_event"] = true
     result["call_id"] = int(active_event.get("incident_id", -1))
+    result["service_type"] = str({"civic_litter": "SANITATION", "fallen_public_sign": "MAINTENANCE", "misplaced_safety_cone": "ROAD SAFETY"}.get(kind, ""))
     result["title"] = str(info["title"])
     result["location"] = str(site["label"])
     result["priority"] = str(active_event.get("tier", "")) == "priority"
