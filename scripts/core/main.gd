@@ -27,6 +27,7 @@ const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const CityMap = preload("res://scripts/ui/civic_city_map.gd")
 const DispatchBoard = preload("res://scripts/ui/free_roam_dispatch_board.gd")
+const CallServiceResponse = preload("res://scripts/civic/call_service_response.gd")
 const LivingExploration = preload("res://scripts/world/living_city_exploration.gd")
 const VolunteerProgression = preload("res://scripts/civic/volunteer_progression.gd")
 const SaveRepo = preload("res://scripts/core/save_repository.gd")
@@ -50,6 +51,7 @@ var city_map: CivicCityMap
 var exploration_world: CivicLivingCityExploration
 var dispatch_board: CivicFreeRoamDispatchBoard
 var _dispatch_open: bool = false
+var _active_call_service: CivicCallServiceResponse
 var _map_open: bool = false
 var touch_layer: CanvasLayer
 var _traffic_display_elapsed: float = 0.0
@@ -189,6 +191,7 @@ func _ready() -> void:
     add_child(dispatch_board)
     dispatch_board.toggle_requested.connect(_on_dispatch_toggle)
     dispatch_board.accept_requested.connect(_on_dispatch_accept_requested)
+    dispatch_board.service_requested.connect(_on_dispatch_service_requested)
     dispatch_board.route_requested.connect(_on_dispatch_route_requested)
     if junction != null:
         city_map.set_road_graph(junction.get("road_graph") as CivicRoadGraph)
@@ -827,6 +830,9 @@ func _load_gameplay_checkpoint(selected: Variant = null) -> bool:
         _connect_wrong_way_signals(restored_world)
     restore_guard.finish()
     free_roam_unlocked = has_cleanup and is_instance_valid(restored_cleanup) and restored_cleanup.finished and _campaign_ready()
+    if is_instance_valid(_active_call_service):
+        _active_call_service.retire()
+        _active_call_service = null
     if dispatch_board != null:
         dispatch_board.set_available(false)
         _dispatch_open = false
@@ -1279,6 +1285,64 @@ func _on_dispatch_accept_requested() -> void:
         _on_interaction_message("CALL ACCEPTED | Follow the gold marker on MAP to " + (
             str(report.get("location", "the incident"))))
 
+## One municipal responder per accepted, currently live Free Roam call.
+## Dispatch does not change incident progress, create rewards, or request
+## emergency transport for non-emergency public-space incidents.
+func _on_dispatch_service_requested() -> void:
+    if not _dispatch_open or dispatch_board == null or (
+            not is_instance_valid(free_roam_world)):
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    dispatch_board.update_feed(report)
+    if not dispatch_board.accepted_live_call() or (
+            not bool(report.get("has_target", false))):
+        return
+    var call_id: int = int(report.get("call_id", -1))
+    if call_id <= 0 or is_instance_valid(_active_call_service):
+        return
+    var junction: Node = get_node_or_null("FourWayJunction")
+    var graph: CivicRoadGraph = junction.get("road_graph") as CivicRoadGraph if (
+        junction != null) else null
+    if graph == null:
+        return
+    var kind: String = str(free_roam_world.active_event.get("kind", ""))
+    var service: CivicCallServiceResponse = CallServiceResponse.new() as CivicCallServiceResponse
+    service.name = "MunicipalCallService"
+    add_child(service)
+    if not service.configure(graph, call_id, kind, report["target"]):
+        service.queue_free()
+        _on_interaction_message("No safe municipal service route is available yet.")
+        return
+    _active_call_service = service
+    service.status_changed.connect(_on_dispatch_service_status)
+    dispatch_board.service_requested_for(call_id, "EN ROUTE")
+    _on_interaction_message("%s SERVICE DISPATCHED | A municipal van is traveling toward the call." % (
+        service.service_label))
+
+func _on_dispatch_service_status(value: String) -> void:
+    if not is_instance_valid(_active_call_service):
+        return
+    if dispatch_board != null:
+        dispatch_board.service_requested_for(_active_call_service.call_id, value)
+    if value == "ON SCENE":
+        _on_interaction_message("%s VEHICLE ON SCENE | Complete the civic task yourself." % (
+            _active_call_service.service_label))
+
+## Retire old responders when the underlying authoritative call ends or
+## changes. This never clears or resolves any live civic incident.
+func _sync_dispatch_service() -> void:
+    if not is_instance_valid(_active_call_service):
+        return
+    if not is_instance_valid(free_roam_world):
+        _active_call_service.retire()
+        _active_call_service = null
+        return
+    var report: Dictionary = free_roam_world.dispatch_state()
+    if not bool(report.get("has_event", false)) or (
+            int(report.get("call_id", -1)) != _active_call_service.call_id):
+        _active_call_service.retire()
+        _active_call_service = null
+
 func _on_dispatch_route_requested() -> void:
     if not _dispatch_open or dispatch_board == null:
         return
@@ -1379,6 +1443,7 @@ func _process(delta: float) -> void:
     if _traffic_display_elapsed < 0.5 or civic_hud == null:
         return
     _traffic_display_elapsed = 0.0
+    _sync_dispatch_service()
     _update_traffic_marshal_assist()
     _refresh_mission_guide()
     var junction := get_node_or_null("FourWayJunction")
