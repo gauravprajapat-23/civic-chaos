@@ -4,6 +4,7 @@ extends CanvasLayer
 ## This UI never spawns/finishes activities or edits the incident scheduler.
 signal toggle_requested
 signal accept_requested
+signal service_requested
 signal route_requested
 
 var enabled: bool = false
@@ -16,9 +17,13 @@ var details: Label
 var history: Label
 var accept_button: Button
 var route_button: Button
+var service_button: Button
+var service_status: Label
 var close_button: Button
 var _feed: Dictionary = {}
 var accepted_call_id: int = -1
+var service_call_id: int = -1
+var response_status: String = ""
 
 func _ready() -> void:
     layer = 23
@@ -76,6 +81,16 @@ func _ready() -> void:
     route_button.custom_minimum_size = Vector2(210, 50)
     route_button.pressed.connect(func() -> void: route_requested.emit())
     stack.add_child(route_button)
+    service_button = Button.new()
+    service_button.name = "RequestService"
+    service_button.text = "REQUEST MUNICIPAL SERVICE"
+    service_button.custom_minimum_size = Vector2(210, 48)
+    service_button.pressed.connect(func() -> void: service_requested.emit())
+    stack.add_child(service_button)
+    service_status = Label.new()
+    service_status.name = "ServiceStatus"
+    service_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    stack.add_child(service_status)
     history = Label.new()
     history.name = "DispatchHistory"
     history.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -98,6 +113,8 @@ func set_available(value: bool) -> void:
     if not value:
         expanded = false
         accepted_call_id = -1
+        service_call_id = -1
+        response_status = ""
     _sync_visibility()
 
 func set_expanded(value: bool) -> void:
@@ -120,6 +137,9 @@ func update_feed(value: Dictionary) -> void:
     var current_id: int = int(_feed.get("call_id", -1))
     if not active or current_id <= 0 or accepted_call_id != current_id:
         accepted_call_id = -1
+    if not active or current_id != service_call_id:
+        service_call_id = -1
+        response_status = ""
     if active:
         status.text = "%s  |  %s" % [
             "PRIORITY CALL" if bool(_feed.get("priority", false)) else "ROUTINE CALL",
@@ -134,6 +154,15 @@ func update_feed(value: Dictionary) -> void:
     accept_button.disabled = not active or current_id <= 0 or accepted
     accept_button.text = "CALL ACCEPTED - TRACKING" if accepted else "ACCEPT CALL"
     route_button.disabled = not accepted or not bool(_feed.get("has_target", false))
+    var service_type: String = str(_feed.get("service_type", ""))
+    service_button.visible = not service_type.is_empty() and active
+    service_button.disabled = not accepted or service_type.is_empty() or (
+        service_call_id == current_id)
+    service_button.text = "REQUEST " + service_type
+    service_status.text = "%s | %s" % [service_type, response_status] if (
+        accepted and service_call_id == current_id) else (
+        "Accept this call before requesting municipal assistance." if (
+            active and not service_type.is_empty()) else "")
     history.text = "VERIFIED ACTIVITIES | %d completed  •  %d expired\nComplete real activities to grow your volunteer record." % [
         int(_feed.get("resolved", 0)), int(_feed.get("expired", 0))]
 
@@ -153,6 +182,14 @@ func accepted_live_call() -> bool:
         accepted_call_id == int(_feed.get("call_id", -1))) and (
         bool(_feed.get("has_event", false))) and bool(_feed.get("has_target", false))
 
+## Informational assistance state, tied to the accepted, actual incident.
+func service_requested_for(call_id: int, status: String) -> void:
+    if call_id <= 0 or not accepted_live_call() or accepted_call_id != call_id:
+        return
+    service_call_id = call_id
+    response_status = status
+    update_feed(_feed)
+
 func _fit() -> void:
     if panel == null:
         return
@@ -161,4 +198,4 @@ func _fit() -> void:
     button.size = Vector2(92, 44)
     panel.position = Vector2(maxf(8.0, (viewport.x - minf(530.0, viewport.x - 16.0)) * 0.5),
         maxf(12.0, viewport.y * 0.12))
-    panel.size = Vector2(minf(530.0, viewport.x - 16.0), minf(520.0, viewport.y * 0.84))
+    panel.size = Vector2(minf(530.0, viewport.x - 16.0), minf(580.0, viewport.y * 0.86))
