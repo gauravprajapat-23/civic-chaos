@@ -25,6 +25,19 @@ func _run() -> void:
     _assert(not response.configure(null, 1, "civic_litter", Vector3.ZERO), "invalid graph rejected")
     response.set_traffic_step_permission(Callable(self, "_deny"))
     _assert(response.traffic_step_permission.is_valid(), "Traffic permission gate registered")
+    _assert(response.lifecycle_state()["traffic_gate_configured"], "Traffic gate cannot silently revert to legacy")
+    response.set_traffic_step_permission(Callable())
+    _assert(not response.lifecycle_state()["traffic_gate_available"], "invalid Traffic gate is observable")
+    response.route = PackedVector3Array([Vector3.ZERO, Vector3(0, 0, -5)])
+    response.route_index = 1
+    response.position = Vector3.ZERO
+    response.active = true
+    response._physics_process(0.1)
+    _assert(response.position == Vector3.ZERO, "missing configured Traffic gate must deny movement")
+    _assert(response._blocked_seconds > 0.0, "denial counts toward bounded withdrawal")
+    response.active = false
+    response.set_traffic_step_permission(Callable(self, "_deny"))
+    response._blocked_seconds = 0.0
     var finished: Array = []
     response.lifecycle_finished.connect(func(id: int, status: String) -> void:
         finished.append({"id": id, "status": status}))
