@@ -7,7 +7,10 @@ signal status_changed(status: String)
 
 const Routes = preload("res://scripts/ui/civic_map_routes.gd")
 const SERVICE_SPEED_MPS: float = 5.5
-const ARRIVAL_DISTANCE_M: float = 2.5
+const ARRIVAL_DISTANCE_M: float = 0.5
+const BLOCKED_NOTICE_S: float = 2.5
+const ABORT_BLOCKED_S: float = 18.0
+const ON_SCENE_HOLD_S: float = 9.0
 const SERVICE_ORIGIN: Vector3 = Vector3(-46.0, 0.0, -46.0)
 const VALID_SERVICES: Dictionary = {
     "civic_litter": "SANITATION",
@@ -23,6 +26,10 @@ var arrived: bool = false
 var route: PackedVector3Array = PackedVector3Array()
 var route_index: int = 1
 var _van: StaticBody3D
+var stop_point: Vector3 = Vector3.ZERO
+var _blocked_seconds: float = 0.0
+var _on_scene_seconds: float = 0.0
+var response_status: String = ""
 var _probe: BoxShape3D
 
 func _init() -> void:
@@ -30,6 +37,58 @@ func _init() -> void:
 
 static func service_for(kind: String) -> String:
     return str(VALID_SERVICES.get(kind, ""))
+
+## Choose a real-road shoulder from the lane geometry. Never use the
+## incident object itself as a vehicle destination: it may be on a
+## footpath or beside a building. Search nearby lane segments and sample
+## curb-side offsets *within* the city's 8m road width.
+static func roadside_candidates(graph: CivicRoadGraph, incident: Vector3) -> Array[Vector3]:
+    var ranked: Array[Dictionary] = []
+    if graph == null or not incident.is_finite():
+        return []
+    for lane_id in graph.sorted_lane_ids():
+        var lane: CivicLaneData = graph.get_lane(lane_id)
+        if lane == null or lane.is_wrong_way_connector:
+            continue
+        for i in range(1, lane.centerline.size()):
+            var a: Vector3 = lane.centerline[i - 1]
+            var b: Vector3 = lane.centerline[i]
+            var along: Vector3 = b - a
+            along.y = 0.0
+            if along.length_squared() < 0.01:
+                continue
+            var lateral := Vector3(-along.z, 0.0, along.x).normalized()
+            for t in [0.25, 0.5, 0.75]:
+                var mid: Vector3 = a.lerp(b, t)
+                for shift in [-1.65, 1.65, -2.2, 2.2]:
+                    var candidate: Vector3 = mid + lateral * shift
+                    candidate.y = 0.12
+                    var distance: float = Vector2(candidate.x - incident.x,
+                        candidate.z - incident.z).length()
+                    if distance < 3.0 or distance > 18.0:
+                        continue
+                    ranked.append({"point": candidate, "distance": distance})
+    ranked.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+        return float(a["distance"]) < float(b["distance"]))
+    var output: Array[Vector3] = []
+    for item in ranked:
+        var point: Vector3 = item["point"]
+        var duplicate: bool = false
+        for existing in output:
+            if existing.distance_to(point) < 1.5:
+                duplicate = true
+                break
+        if not duplicate:
+            output.append(point)
+        if output.size() >= 18:
+            break
+    return output
+
+func _set_status(value: String) -> void:
+    if response_status == value:
+        return
+    response_status = value
+    status_changed.emit(value)
 
 func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
         at: Vector3) -> bool:
@@ -39,39 +98,48 @@ func configure(graph: CivicRoadGraph, incident_id: int, kind: String,
         return false
     _probe = BoxShape3D.new()
     _probe.size = Vector3(1.1, 1.15, 1.9)
-    # Public roads may be temporarily occupied. Look for a safe depot
-    # departure along existing road nodes, never spawn inside another car.
+    # Reject full road occupation at both ends, then choose the
+    # nearest physically clear shoulder for the real incident.
     var candidate_origins: Array[Vector3] = [
         SERVICE_ORIGIN, Vector3(-46, 0, 0),
         Vector3(0, 0, -46), Vector3(46, 0, -46)
     ]
     var points := PackedVector3Array()
     var spawn := Vector3.ZERO
-    for depot in candidate_origins:
-        var candidate := Vector3(depot.x, 0.12, depot.z)
-        if not _space_clear(candidate, true):
+    var selected_stop := Vector3.ZERO
+    var stops: Array[Vector3] = roadside_candidates(graph, at)
+    for roadside in stops:
+        if not _space_clear(roadside, true):
             continue
-        var proposed: Dictionary = Routes.plan(graph, depot, at)
-        if not bool(proposed.get("ok", false)):
-            continue
-        var proposed_points: PackedVector3Array = proposed.get(
-            "points", PackedVector3Array())
-        if proposed_points.size() < 2 or depot.distance_to(at) < ARRIVAL_DISTANCE_M:
-            continue
-        spawn = candidate
-        points = proposed_points
-        break
+        for depot in candidate_origins:
+            var candidate := Vector3(depot.x, 0.12, depot.z)
+            if candidate.distance_to(roadside) < 3.0 or not _space_clear(candidate, true):
+                continue
+            var proposed: Dictionary = Routes.plan(graph, depot, roadside)
+            if not bool(proposed.get("ok", false)):
+                continue
+            var proposed_points: PackedVector3Array = proposed.get(
+                "points", PackedVector3Array())
+            if proposed_points.size() < 2:
+                continue
+            spawn = candidate
+            selected_stop = roadside
+            points = proposed_points
+            break
+        if points.size() >= 2:
+            break
     if points.size() < 2:
         return false
     call_id = incident_id
     service_label = service_for(kind)
     target = at
+    stop_point = selected_stop
     route = points
     route_index = 1
     position = spawn
     _build_visual()
     active = true
-    status_changed.emit("EN ROUTE")
+    _set_status("EN ROUTE")
     return true
 
 func _build_visual() -> void:
@@ -146,28 +214,64 @@ func _space_clear(at: Vector3, spawning: bool = false) -> bool:
     query.margin = 0.03
     return get_world_3d().direct_space_state.intersect_shape(query, 12).is_empty()
 
+func _finish_on_scene() -> void:
+    arrived = true
+    _on_scene_seconds = 0.0
+    _set_status("ON SCENE")
+
+## Validate the complete swept trajectory (not just the endpoint) so a
+## larger physics delta cannot tunnel a responder through a pedestrian.
+func _step_is_clear(start: Vector3, finish: Vector3) -> bool:
+    var gap: Vector3 = finish - start
+    var steps: int = maxi(1, int(ceil(gap.length() / 0.20)))
+    for i in range(1, steps + 1):
+        if not _space_clear(start.lerp(finish, float(i) / float(steps))):
+            return false
+    return true
+
 func _physics_process(delta: float) -> void:
-    if not active or arrived or delta <= 0.0 or route_index >= route.size():
+    if not active or delta <= 0.0:
+        return
+    if arrived:
+        _on_scene_seconds += delta
+        if _on_scene_seconds >= ON_SCENE_HOLD_S:
+            # Do not leave a permanent parked vehicle to cause gridlock.
+            _set_status("SERVICE CLEARED")
+            retire()
+        return
+    if route_index >= route.size():
+        _finish_on_scene()
         return
     var waypoint: Vector3 = route[route_index]
-    var remaining: Vector3 = Vector3(waypoint.x - position.x, 0,
+    var remaining := Vector3(waypoint.x - position.x, 0,
         waypoint.z - position.z)
     if remaining.length() < 0.20:
         route_index += 1
         if route_index >= route.size():
-            arrived = true
-            status_changed.emit("ON SCENE")
+            _finish_on_scene()
         return
     var movement: Vector3 = remaining.normalized() * minf(
-        remaining.length(), SERVICE_SPEED_MPS * delta)
+        remaining.length(), SERVICE_SPEED_MPS * minf(delta, 0.10))
     var next: Vector3 = position + movement
-    if not _space_clear(next):
-        return # Traffic and pedestrians retain right of way.
+    if not _step_is_clear(position, next):
+        _blocked_seconds += delta
+        if _blocked_seconds >= ABORT_BLOCKED_S:
+            _set_status("SERVICE UNAVAILABLE")
+            retire()
+        elif _blocked_seconds >= BLOCKED_NOTICE_S:
+            _set_status("WAITING FOR CLEAR ROAD")
+        return
+    _blocked_seconds = 0.0
+    if response_status == "WAITING FOR CLEAR ROAD":
+        _set_status("EN ROUTE")
     position = next
     rotation.y = atan2(-movement.x, -movement.z)
-    if Vector2(position.x - target.x, position.z - target.z).length() <= ARRIVAL_DISTANCE_M:
-        arrived = true
-        status_changed.emit("ON SCENE")
+    # Nearness to the incident never counts as arrival. The actual van
+    # must reach its validated roadside stopping point.
+    if route_index == route.size() - 1 and (
+            Vector2(position.x - stop_point.x,
+            position.z - stop_point.z).length() <= ARRIVAL_DISTANCE_M):
+        _finish_on_scene()
 
 func retire() -> void:
     active = false
