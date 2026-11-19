@@ -544,7 +544,13 @@ func municipal_service_hold_reason(vehicle: CivicVehicleAgent) -> String:
 		return "red_signal"
 	if crossing_blocks_approach(crossing_reservations, signal_approach_for_lane(lane, city_mode)):
 		return "pedestrian_crossing"
-	for car in traffic_road_users():
+	# Service vehicles must not enter an intersection without a usable exit.
+	# Apply the same downstream spillback rule as background traffic; this
+	# prevents a tow convoy from blocking the cross street indefinitely.
+	var road_users: Array[CivicVehicleAgent] = traffic_road_users()
+	if not CentralPriority.exit_available(vehicle, road_users):
+		return "central_outbound_blocked"
+	for car in road_users:
 		if car != vehicle and CentralPriority.occupies(car, road_graph):
 			return "central_zone_occupied"
 	return ""
