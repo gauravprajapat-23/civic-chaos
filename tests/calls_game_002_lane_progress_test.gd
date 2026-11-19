@@ -83,6 +83,20 @@ func _run() -> void:
     response.retire()
     _check(completed.size() == 1 and not response.active, "replacement retirement was not idempotent")
     _check(not response.lifecycle_state()["traffic_gate_available"], "retired van retained permission callback")
+    var replaced := Response.new()
+    root.add_child(replaced)
+    var expired_events: Array = []
+    replaced.lifecycle_finished.connect(func(id: int, status: String) -> void:
+        expired_events.append({"id": id, "status": status}))
+    replaced.call_id = 92
+    replaced.active = true
+    replaced._set_status("WAITING FOR CLEAR ROAD")
+    replaced.retire()
+    replaced.retire()
+    _check(expired_events.size() == 1, "expired call emitted repeated lifecycle events")
+    _check(expired_events[0]["id"] == 92 and expired_events[0]["status"] == "SERVICE WITHDRAWN",
+        "expired/replaced call did not receive terminal withdrawal")
+    _check(not replaced.arrived and not replaced.active, "expired call falsely arrived")
     spawner.queue_free()
     if failures == 0:
         print("CIVIC_CHAOS_CALLS_GAME_002_LANE_PROGRESS_PASS")
