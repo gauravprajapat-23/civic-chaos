@@ -43,6 +43,14 @@ func _run() -> void:
     if not board.service_status.text.contains("ON SCENE"):
         _fail("service arrival not reflected on dispatch board")
         return
+    board.service_requested_for(50101, "SERVICE UNAVAILABLE")
+    if board.service_button.disabled or not board.service_button.text.contains("RETRY"):
+        _fail("unreachable responder did not unlock safe manual retry")
+        return
+    board.service_requested_for(50101, "EN ROUTE")
+    if not board.service_button.disabled:
+        _fail("retry failed to relock duplicate service request")
+        return
     report["call_id"] = 50102
     board.update_feed(report)
     if board.accepted_live_call() or board.service_call_id != -1 or (
