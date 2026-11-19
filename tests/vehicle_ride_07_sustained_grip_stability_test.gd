@@ -64,7 +64,8 @@ func _run() -> void:
     if bike.find_children("MountedRiderRig", "Node3D", true, false).size() != 1:
         _fail("multiple rider rigs after remount")
         return
-    root.queue_free()
+    bike.queue_free()
+    anchor.queue_free()
     print("CIVIC_CHAOS_VEHICLE_RIDE_07_GRIP_STABILITY_PASS")
     quit(0)
 
