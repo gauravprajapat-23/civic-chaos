@@ -83,17 +83,21 @@ func _ready() -> void:
     large_frame.visible = false
     large_frame.mouse_filter = Control.MOUSE_FILTER_STOP
     add_child(large_frame)
-    # UI-003: PanelContainer sizes itself to its child's minimum. Without a
-    # scroll viewport, several rows of map actions can expand FullCityMap past
-    # the safe bounds on short landscape screens, even after _fit() clamps it.
-    # Keep the panel bounded and let its content scroll instead.
+    # UI-002 contract: FullCityMap's direct child remains a VBoxContainer.
+    # UI-003: nest scrolling INSIDE that outer box, so rows of controls
+    # cannot expand the PanelContainer beyond the safe viewport bounds.
+    var outer := VBoxContainer.new()
+    outer.name = "FullCityMapLayout"
+    outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    outer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    large_frame.add_child(outer)
     var scroll := ScrollContainer.new()
     scroll.name = "FullCityMapScroll"
     scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
     scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
     scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-    large_frame.add_child(scroll)
+    outer.add_child(scroll)
     var stack := VBoxContainer.new()
     stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
