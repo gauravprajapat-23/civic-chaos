@@ -13,7 +13,8 @@ const GAP_EPS: float = 0.0001
 ## Unknown locations remain managed by the existing outer policy.
 static func classification(at: Vector3) -> String:
     for node in Network.nodes():
-        if (node["position"] as Vector3).distance_to(at) <= 0.05:
+        var location: Vector3 = node["position"]
+        if location.distance_to(at) <= 0.05:
             return str(node.get("junction_type", LEGACY_SIGNAL))
     return ""
 
