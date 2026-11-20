@@ -5,6 +5,7 @@ extends SceneTree
 const Network = preload("res://scripts/world/city_network_definition.gd")
 const Builder = preload("res://scripts/world/junction_builder.gd")
 const Layout = preload("res://scripts/world/city_road_layout.gd")
+var failures: int = 0
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -72,10 +73,13 @@ func _run() -> void:
     duplicate[1]["lane_forward"] = int(roads[0]["lane_forward"])
     _require(not Network.validate(nodes, duplicate).is_empty(),
         "duplicate lane IDs accepted")
-    print("CIVIC_CHAOS_WORLD_001A_NETWORK_PASS")
-    quit(0)
+    if failures == 0:
+        print("CIVIC_CHAOS_WORLD_001A_NETWORK_PASS")
+    else:
+        print("CIVIC_CHAOS_WORLD_001A_NETWORK_FAIL %d" % failures)
+    quit(0 if failures == 0 else 1)
 
 func _require(ok: bool, reason: String) -> void:
     if not ok:
+        failures += 1
         push_error("WORLD-001A: " + reason)
-        quit(1)
