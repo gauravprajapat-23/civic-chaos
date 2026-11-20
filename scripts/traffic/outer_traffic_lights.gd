@@ -4,6 +4,7 @@ extends Node3D
 ## A presentation node: no physics bodies, persisted data, or traffic authority.
 const Grid = preload("res://scripts/world/city_road_layout.gd")
 const Policy = preload("res://scripts/traffic/outer_intersection_priority.gd")
+const LocalRules = preload("res://scripts/traffic/junction_priority_rules.gd")
 
 var _lamps: Array[Dictionary] = []
 var displayed_tick: int = -1
@@ -31,6 +32,10 @@ func _build() -> void:
             if absf(x) < 0.01 and absf(z) < 0.01:
                 continue
             var node := Vector3(x, 0.0, z)
+            # An explicitly classified T-junction has GIVE WAY geometry,
+            # not decorative traffic lights that contradict traffic rules.
+            if LocalRules.is_priority_t(node):
+                continue
             # Separate axis-specific heads at each outer city intersection.
             # Never add colliders to traffic signage: this fixes visibility
             # without blocking vehicles or pedestrians.

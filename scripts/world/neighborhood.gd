@@ -4,6 +4,8 @@ extends Node3D
 ## Reusable deterministic district around the existing four-way junction.
 ## The playable traffic graph and district roads share one set of city axes.
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
+const OrganicRoad = preload("res://scripts/world/organic_road_geometry.gd")
+const Details = preload("res://scripts/world/neighborhood_details.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -41,10 +43,14 @@ func rebuild() -> void:
             var center := Vector3(float(x) * (road_half + 9.0), height * 0.5, float(z) * (road_half + 9.0))
             _block("Building_%d_%d" % [x, z], center, Vector3(width, height, width))
     _outer_blocks(half)
+    _organic_road_pilot()
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
     _challenge_road_markings()
+    # Purely visual neighborhood identity; roads, curb collision and saved
+    # mission anchors stay owned by their existing systems.
+    Details.build(self)
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
@@ -167,8 +173,20 @@ func _outer_blocks(half: float) -> void:
             continue # Existing North/South/East/West roads form axis zero.
         var side: int = -1 if axis < 0.0 else 1
         var category: String = "PerimeterRoad" if CityRoadLayout.is_perimeter_axis(axis) else "SecondaryRoad"
-        _block("%s_NS_%d" % [category, side],
-            Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, span))
+        if is_equal_approx(axis, -CityRoadLayout.EXTENT_M):
+            # Organic pilot replaces just z=-120..-46; avoid leaving the
+            # original straight asphalt/collider across the new bend.
+            var continuing_start: float = -CityRoadLayout.SECONDARY_M
+            var continuing_end: float = CityRoadLayout.EXTENT_M + road_width * 0.5
+            _block("%s_NS_%d" % [category, side],
+                Vector3(axis, -0.018, (continuing_start + continuing_end) * 0.5),
+                Vector3(road_width, 0.08, continuing_end - continuing_start))
+            _block("PerimeterRoad_PilotCap", Vector3(axis, -0.018,
+                -CityRoadLayout.EXTENT_M - road_width * 0.25),
+                Vector3(road_width, 0.08, road_width * 0.5))
+        else:
+            _block("%s_NS_%d" % [category, side],
+                Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, span))
         _block("%s_EW_%d" % [category, side],
             Vector3(0, -0.026, axis), Vector3(span, 0.08, road_width))
     var coordinates := [-72.0, -24.0, 24.0, 72.0]
@@ -186,6 +204,43 @@ func _outer_blocks(half: float) -> void:
             else:
                 _block("OuterBuilding_%d_%d" % [row, column],
                     Vector3(x, height * 0.5, z), Vector3(width, height, width))
+
+## Shared pilot asphalt, using the exact polyline that generates both
+## traffic directions. A real trimesh static collider supports foot/bike/
+## vehicle contact; it adds no obstacles outside the paved road ribbon.
+func _organic_road_pilot() -> void:
+    var points: PackedVector3Array = OrganicRoad.centerline()
+    var asphalt: ArrayMesh = OrganicRoad.surface_mesh(points, road_width)
+    var body := StaticBody3D.new()
+    body.name = "OrganicWestRoad"
+    add_child(body)
+    var mesh := MeshInstance3D.new()
+    mesh.name = "Asphalt"
+    mesh.mesh = asphalt
+    mesh.material_override = _material(Color(0.15, 0.18, 0.21))
+    body.add_child(mesh)
+    var collider := CollisionShape3D.new()
+    collider.name = "CollisionShape3D"
+    collider.shape = asphalt.create_trimesh_shape()
+    body.add_child(collider)
+    # The north endpoint joins an EXISTING, already connected three-arm
+    # perimeter junction. Mark its form without adding a fake signal or
+    # bypassing its current safe priority controller.
+    var sign := Node3D.new()
+    sign.name = "OrganicWestTJunctionMarker"
+    sign.position = Vector3(-110.0, 0.0, -40.0)
+    add_child(sign)
+    _facade_panel(sign, "SignPost", Vector3(0, 1.0, 0),
+        Vector3(0.10, 2.0, 0.10), _material(Color(0.25, 0.30, 0.32)))
+    _facade_panel(sign, "SignFace", Vector3(0, 2.05, 0),
+        Vector3(1.7, 0.7, 0.12), _material(Color(0.89, 0.85, 0.65)))
+    var caption := Label3D.new()
+    caption.name = "TJunctionCaption"
+    caption.text = "GIVE WAY"
+    caption.font_size = 34
+    caption.pixel_size = 0.004
+    caption.position = Vector3(0, 2.04, 0.075)
+    sign.add_child(caption)
 
 func _park_block(center: Vector3) -> void:
     _block("CommunityPark", center + Vector3(0, -0.06, 0), Vector3(24.0, 0.12, 24.0))

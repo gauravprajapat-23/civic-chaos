@@ -10,6 +10,7 @@ var hud_safe_area: Rect2 = Rect2()
 var hud_exclusions: Array[Rect2] = []
 
 const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
+const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
 const LivingZones = preload("res://scripts/world/living_city_zones.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
@@ -477,17 +478,19 @@ func _draw_small() -> void:
     if area.size.x <= 0.0 or area.size.y <= 0.0:
         return
     map_surface.draw_rect(area, MAP_BACKGROUND, true)
-    var world_edges: Array[float] = RoadLayout.coordinates()
-    var road_width: float = maxf(3.0, area.size.x * RoadLayout.ROAD_WIDTH_M / (MINI_RADIUS_M * 2.0))
-    for coordinate in world_edges:
-        var vertical_a: Vector2 = minimap_project(Vector3(coordinate, 0, -EXTENT), player_position, player_forward, area)
-        var vertical_b: Vector2 = minimap_project(Vector3(coordinate, 0, EXTENT), player_position, player_forward, area)
-        var horizontal_a: Vector2 = minimap_project(Vector3(-EXTENT, 0, coordinate), player_position, player_forward, area)
-        var horizontal_b: Vector2 = minimap_project(Vector3(EXTENT, 0, coordinate), player_position, player_forward, area)
-        map_surface.draw_line(vertical_a, vertical_b, ROAD_EDGE, road_width + 2.0)
-        map_surface.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, road_width + 2.0)
-        map_surface.draw_line(vertical_a, vertical_b, ROAD, road_width)
-        map_surface.draw_line(horizontal_a, horizontal_b, ROAD, road_width)
+    # Draw exactly the canonical network used by drivable road geometry.
+    # Each road centerline is sampled, not replaced by grid-axis chords.
+    for road in CityNetwork.roads():
+        var points: PackedVector3Array = road["centerline"]
+        var road_width: float = maxf(3.0, area.size.x *
+            float(road["width_m"]) / (MINI_RADIUS_M * 2.0))
+        for i in range(1, points.size()):
+            var a: Vector2 = minimap_project(points[i - 1],
+                player_position, player_forward, area)
+            var b: Vector2 = minimap_project(points[i],
+                player_position, player_forward, area)
+            map_surface.draw_line(a, b, ROAD_EDGE, road_width + 2.0)
+            map_surface.draw_line(a, b, ROAD, road_width)
     _draw_challenge_indicators(map_surface, area, true)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
@@ -534,16 +537,19 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     var area := Rect2(requested.position + (requested.size - Vector2.ONE * size) * 0.5,
         Vector2.ONE * size)
     canvas.draw_rect(area, MAP_BACKGROUND, true)
-    var width: float = maxf(2.0, size * RoadLayout.ROAD_WIDTH_M / (EXTENT * 2.0) * map_zoom)
-    for coordinate in RoadLayout.coordinates():
-        var vertical_a := full_view_project(Vector3(coordinate, 0, -EXTENT), area, map_center, map_zoom)
-        var vertical_b := full_view_project(Vector3(coordinate, 0, EXTENT), area, map_center, map_zoom)
-        var horizontal_a := full_view_project(Vector3(-EXTENT, 0, coordinate), area, map_center, map_zoom)
-        var horizontal_b := full_view_project(Vector3(EXTENT, 0, coordinate), area, map_center, map_zoom)
-        canvas.draw_line(vertical_a, vertical_b, ROAD_EDGE, width + 2.0)
-        canvas.draw_line(horizontal_a, horizontal_b, ROAD_EDGE, width + 2.0)
-        canvas.draw_line(vertical_a, vertical_b, ROAD, width)
-        canvas.draw_line(horizontal_a, horizontal_b, ROAD, width)
+    # Same source-of-truth as the vehicle graph and physical curved asphalt:
+    # no invented straight roads between the canonical street nodes.
+    for road in CityNetwork.roads():
+        var points: PackedVector3Array = road["centerline"]
+        var width: float = maxf(2.0, size * float(road["width_m"]) /
+            (EXTENT * 2.0) * map_zoom)
+        for i in range(1, points.size()):
+            var a: Vector2 = full_view_project(points[i - 1], area,
+                map_center, map_zoom)
+            var b: Vector2 = full_view_project(points[i], area,
+                map_center, map_zoom)
+            canvas.draw_line(a, b, ROAD_EDGE, width + 2.0)
+            canvas.draw_line(a, b, ROAD, width)
     _draw_full_challenge_indicators(canvas, area)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]

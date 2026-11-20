@@ -5,6 +5,8 @@ extends RefCounted
 const Lane = preload("res://scripts/traffic/lane_data.gd")
 const Graph = preload("res://scripts/traffic/road_graph.gd")
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
+const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
+const Organic = preload("res://scripts/world/organic_road_geometry.gd")
 
 static func make_test_graph() -> CivicRoadGraph:
     var graph := Graph.new()
@@ -49,43 +51,35 @@ static func make_road_visuals(parent: Node3D) -> void:
 ## Road segments are routed through intersections; no U-turns are permitted.
 static func make_city_graph() -> CivicRoadGraph:
     var graph := Graph.new()
-    var coordinates: Array[float] = CityRoadLayout.coordinates()
-    var lane_id := 100
     var arrivals: Dictionary = {}
     var departures: Dictionary = {}
-    for x_index in range(coordinates.size()):
-        for z_index in range(coordinates.size()):
-            var here := Vector3(coordinates[x_index], 0.0, coordinates[z_index])
-            var key := "%d:%d" % [x_index, z_index]
-            if not arrivals.has(key):
-                arrivals[key] = []
-                departures[key] = []
-            for neighbor in [Vector2i(x_index + 1, z_index), Vector2i(x_index, z_index + 1)]:
-                if neighbor.x >= coordinates.size() or neighbor.y >= coordinates.size():
-                    continue
-                var there := Vector3(coordinates[neighbor.x], 0.0, coordinates[neighbor.y])
-                var target_key := "%d:%d" % [neighbor.x, neighbor.y]
-                if not arrivals.has(target_key):
-                    arrivals[target_key] = []
-                    departures[target_key] = []
-                for direction in range(2):
-                    var lane := Lane.new()
-                    lane.lane_id = lane_id
-                    lane_id += 1
-                    var origin: Vector3 = here if direction == 0 else there
-                    var destination: Vector3 = there if direction == 0 else here
-                    lane.centerline = _city_left_side_centerline(origin, destination)
-                    if CivicCityRoadLayout.is_challenge_segment(origin, destination):
-                        lane.centerline = _city_chicane_centerline(origin, destination)
-                        # A gentle physical S-bend must be negotiated slowly.
-                        lane.speed_limit_mps = 5.5
-                    else:
-                        lane.speed_limit_mps = 8.0
-                    graph.add_lane(lane)
-                    var source_key: String = key if direction == 0 else target_key
-                    var destination_key: String = target_key if direction == 0 else key
-                    departures[source_key].append(lane.lane_id)
-                    arrivals[destination_key].append(lane.lane_id)
+    # Use the canonical WORLD-001A fixture, preserving old edge traversal
+    # and lane IDs exactly. Later WORLD-001B can introduce non-grid segments
+    # by updating the network, not creating a competing traffic graph.
+    for node in CityNetwork.nodes():
+        var key: String = str(node["id"])
+        arrivals[key] = []
+        departures[key] = []
+    for road in CityNetwork.roads():
+        var here: Vector3 = road["start"]
+        var there: Vector3 = road["end"]
+        for direction in range(2):
+            var lane := Lane.new()
+            lane.lane_id = int(road["lane_forward"]) if direction == 0 else int(road["lane_reverse"])
+            var origin: Vector3 = here if direction == 0 else there
+            var destination: Vector3 = there if direction == 0 else here
+            if bool(road.get("organic_pilot", false)):
+                lane.centerline = Organic.driving_lane(origin, destination)
+            elif bool(road["challenge"]):
+                lane.centerline = _city_chicane_centerline(origin, destination)
+            else:
+                lane.centerline = _city_left_side_centerline(origin, destination)
+            lane.speed_limit_mps = float(road["speed_limit_mps"])
+            graph.add_lane(lane)
+            var source_key: String = str(road["from_node"]) if direction == 0 else str(road["to_node"])
+            var destination_key: String = str(road["to_node"]) if direction == 0 else str(road["from_node"])
+            departures[source_key].append(lane.lane_id)
+            arrivals[destination_key].append(lane.lane_id)
     for intersection_key in arrivals.keys():
         for incoming_id in arrivals[intersection_key]:
             var incoming: CivicLaneData = graph.get_lane(incoming_id)

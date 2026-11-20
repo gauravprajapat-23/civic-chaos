@@ -5,6 +5,7 @@ extends RefCounted
 ## A single vehicle may commit to a node's conflict zone at a time.
 ## Existing vehicle footprint sweeps still handle physical collision.
 const Grid = preload("res://scripts/world/city_road_layout.gd")
+const LocalRules = preload("res://scripts/traffic/junction_priority_rules.gd")
 const GREEN_TICKS: int = 120
 const CLEARANCE_TICKS: int = 40
 const PERIOD_TICKS: int = 4 * (GREEN_TICKS + CLEARANCE_TICKS)
@@ -128,7 +129,10 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
     var stop_line: float = maxf(0.0, lane.length_m() - STOP_LINE_M)
     if vehicle.lane_distance_m > stop_line + COMMITTED_EPSILON_M:
         return {"controlled": true, "yield": false, "reason": "already_entered"}
-    if aspect(approach_for_lane(lane), tick) != "green":
+    var priority_t: bool = LocalRules.is_priority_t(junction)
+    # The selected residential three-arm node has a yield sign, not a
+    # clock-controlled signal. All other nodes retain existing red phases.
+    if not priority_t and aspect(approach_for_lane(lane), tick) != "green":
         return {"controlled": true, "yield": true, "reason": "red_or_clearance"}
 
     for other in cars:
@@ -142,6 +146,10 @@ static func disposition(vehicle: CivicVehicleAgent, graph: CivicRoadGraph, cars:
     # exits may proceed instead of repeatedly losing to this queued car.
     if not exit_available(vehicle, cars):
         return {"controlled": true, "yield": true, "reason": "outbound_blocked"}
+    if priority_t:
+        if not LocalRules.first_entrant(vehicle, lane, cars, graph, junction):
+            return {"controlled": true, "yield": true, "reason": "priority_t_yield"}
+        return {"controlled": true, "yield": false, "reason": "priority_t_granted"}
 
     var own_gap: float = stop_line - vehicle.lane_distance_m
     var own_index: int = cars.find(vehicle)

@@ -13,6 +13,7 @@ extends RefCounted
 ## directed, legal sequence of real graph lane IDs. Unconfigured/stale
 ## context fails closed. Do not bind an always-allow callback.
 const CentralPriority = preload("res://scripts/traffic/central_intersection_priority.gd")
+const OuterPriority = preload("res://scripts/traffic/outer_intersection_priority.gd")
 const POSITION_TOLERANCE_M: float = 2.5
 const PROGRESS_TOLERANCE_M: float = 2.5
 const STOP_APPROACH_WINDOW_M: float = 2.0
@@ -113,6 +114,25 @@ func allows_step(from_position: Vector3, to_position: Vector3) -> bool:
                 return false
             var approach: String = _spawner.signal_approach_for_lane(lane, _spawner.city_mode)
             if approach.is_empty() or _spawner.traffic_signals.aspect_for_approach(approach) != "green":
+                return false
+    elif _spawner.city_mode and OuterPriority.is_controlled(lane):
+        # A responder has no signal priority or traffic bypass at outer
+        # nodes. Reuse the same occupancy, spillback and priority policy
+        # as civilian traffic, with the actual route context.
+        var stop_distance: float = maxf(0.0, lane.length_m() - OuterPriority.STOP_LINE_M)
+        if float(start["distance_m"]) <= stop_distance + 0.01 and (
+                finish_distance >= stop_distance - STOP_APPROACH_WINDOW_M):
+            var service := CivicVehicleAgent.new()
+            service.route = _route.duplicate()
+            service.current_route_index = _index
+            service.lane_distance_m = minf(float(start["distance_m"]), stop_distance)
+            service.active = true
+            var hold: Dictionary = OuterPriority.disposition(service, graph,
+                _spawner.traffic_road_users(), _spawner.current_tick)
+            service.free()
+            if not bool(hold.get("controlled", false)) or bool(hold.get("yield", true)):
+                return false
+            if _spawner._outer_pedestrian_occupied(OuterPriority.junction_for_lane(lane)):
                 return false
     return true
 
