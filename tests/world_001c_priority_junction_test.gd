@@ -87,9 +87,19 @@ func _run() -> void:
     var outgoing: CivicLaneData = graph.get_lane(106)
     var downstream: CivicVehicleAgent = _car(outgoing, 1.0)
     fleet.append(downstream)
+    # 1m along the outgoing lane is still INSIDE the protected 7m
+    # intersection conflict zone. This must report zone_occupied, not
+    # outbound_blocked; the original fixture mislabeled a safe rejection.
+    var zone_block: Dictionary = Outer.disposition(branch_car, graph, fleet, 0)
+    _check(zone_block.get("yield", false) and zone_block.get("reason", "") == "zone_occupied",
+        "vehicle inside intersection failed to block a new entrant")
+    # Between 7m exit clearance and 9m queue clearance, the conflict zone
+    # is free but the departure queue is still too close for safe entry.
+    downstream.lane_distance_m = 8.0
     var spillback: Dictionary = Outer.disposition(branch_car, graph, fleet, 0)
     _check(spillback.get("yield", false) and spillback.get("reason", "") == "outbound_blocked",
         "T junction permitted downstream gridlock")
+    downstream.active = false
 
     # Other outer junctions must still honor their old timed red phases.
     var unaffected: CivicLaneData = graph.get_lane(100)
