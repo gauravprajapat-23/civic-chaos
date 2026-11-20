@@ -144,6 +144,18 @@ A believable **fictional Indian-inspired Nagripur district**: imperfect, walkabl
 - **Scope:** One pilot, not all city intersections. Multi-node signal removal, new drivable T-branches, and checkpoint migration remain later tasks. WORLD-001E still needs honest curved-road display on MAP/minimap.
 - **Acceptance gate:** import + native WORLD-001A/B/C, existing outer priority, stop-line, one-green, central spillback, CALLS permission, saved-world tests and real manual driving + pedestrian/collision. Do not merge PR #88 before evidence. No manual GitHub Actions.
 
+## WORLD-001C regression correction and WORLD-001D neighborhood identity — November 20, 2026
+
+**Developer Windows Godot 4.7.2 evidence:** WORLD-001A and WORLD-001B emitted PASS. WORLD-001C test stopped at `T junction permitted downstream gridlock` (line 91); other tests were not run in that attempt.
+
+**Root cause of test failure:** The fake downstream car was placed 1 m along the outgoing lane. `CivicOuterIntersectionPriority.occupies()` correctly classifies the car as physically **inside the reserved junction**, because the committed conflict zone extends 7 m beyond the lane boundary. The test incorrectly required `outbound_blocked` rather than `zone_occupied` and failed although the car was held. Corrected test now asserts `zone_occupied` at 1 m, moves the car to 8 m (past 7 m conflict-zone exit, below the 9 m outbound queue clearance), and asserts `outbound_blocked`. No signal or right-of-way logic was relaxed. Test must be rerun; no new PASS claimed.
+
+**WORLD-001D source:** New `scripts/world/neighborhood_details.gd` builds deterministic, low-poly, visual-only neighborhood identity. Features include four named shop signs/awnings attached to existing procedural buildings, an Old Bus Stop shelter and bench, a marked parking courtyard, four park trees, and four simple street lamp fixtures. Live `CivicNeighborhood.rebuild()` installs them via `Details.build(self)`, keeping all existing collision bodies, road geometry, mission markers, traffic lane IDs, save schema and player spawn unchanged. These props are intentionally non-colliding; future physical walkable/shopping interactions require independent acceptance.
+
+New `tests/world_001d_neighborhood_identity_test.gd` checks that all visual locations exist, bus stop/parking decorations are non-blocking, the original road collider and info point survive, repeated `rebuild()` does not duplicate physics bodies, and traffic topology remains identical.
+
+**Pending:** rerun Godot 4.7.2 import and WORLD-001C, WORLD-001D, existing traffic/pedestrian/save tests; visually inspect the actual live game on Windows/Android. Do not merge draft PR #88 yet. WORLD-001E map parity remains outstanding.
+
 ## First PR scope
 
 **Start only WORLD-001A**: canonical road-network schema + compatibility fixture + tests. No central traffic signal replacement, no existing mission relocation, no new giant map and no rewriting `scripts/core/main.gd`. Implement organic roads in later PRs **after** the architecture and regression contract pass.
