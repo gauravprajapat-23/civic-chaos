@@ -23,8 +23,13 @@ static func nodes() -> Array[Dictionary]:
     for xi in range(axes.size()):
         for zi in range(axes.size()):
             var key := "%d:%d" % [xi, zi]
+            var boundary_axes: int = int(xi == 0 or xi == axes.size() - 1) + int(
+                zi == 0 or zi == axes.size() - 1)
+            var form: String = "corner" if boundary_axes == 2 else (
+                "t" if boundary_axes == 1 else "cross")
             result.append({"id": key,
                 "position": Vector3(axes[xi], 0.0, axes[zi]),
+                "junction_form": form,
                 "junction_type": SIGNALIZED if key == MAIN_JUNCTION_ID else LEGACY_OUTER})
     return result
 
