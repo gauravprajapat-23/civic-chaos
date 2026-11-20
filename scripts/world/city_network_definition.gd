@@ -13,6 +13,7 @@ const FUTURE_LANE_BASE: int = 1000
 const MAIN_JUNCTION_ID: String = "2:2"
 const SIGNALIZED: String = "signalized"
 const LEGACY_OUTER: String = "legacy_outer_controlled"
+const PRIORITY_T: String = "priority_t"
 const COLLECTOR: String = "collector"
 const MARKET: String = "market"
 
@@ -30,7 +31,8 @@ static func nodes() -> Array[Dictionary]:
             result.append({"id": key,
                 "position": Vector3(axes[xi], 0.0, axes[zi]),
                 "junction_form": form,
-                "junction_type": SIGNALIZED if key == MAIN_JUNCTION_ID else LEGACY_OUTER})
+                "junction_type": SIGNALIZED if key == MAIN_JUNCTION_ID else (
+                    PRIORITY_T if key == "0:1" else LEGACY_OUTER)})
     return result
 
 ## Each edge is an undirected physical street with TWO directed lane IDs.
