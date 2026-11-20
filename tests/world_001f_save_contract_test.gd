@@ -39,6 +39,9 @@ func _run() -> void:
         quit(1)
         return
     var car := CivicVehicleAgent.new()
+    # configure() applies the lane position using global_position;
+    # the fixture must attach the vehicle just like the live spawner.
+    spawner.add_child(car)
     var route := PackedInt32Array([102, possible[0]])
     _check(car.configure(graph, route, Profile.new()),
         "unable to configure existing saved lane route")
