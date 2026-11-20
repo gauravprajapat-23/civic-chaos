@@ -47,8 +47,9 @@ static func plan(viewport: Vector2, safe: Rect2, touch_device: bool) -> Dictiona
         else:
             # If touch geometry is invalid, never place launchers on an
             # unknown touch region. Desktop keyboard shortcuts remain intact.
-            return {"safe": safe, "map_reserved": [usable],
-                "calls_reserved": [usable], "map_rect": Rect2(),
+            var blocked: Array[Rect2] = [usable]
+            return {"safe": safe, "map_reserved": blocked,
+                "calls_reserved": blocked.duplicate(), "map_rect": Rect2(),
                 "calls_rect": Rect2()}
     var map_rect: Rect2 = SafeLayout.minimap(viewport, safe, reserved)
     var calls_reserved: Array[Rect2] = reserved.duplicate()
