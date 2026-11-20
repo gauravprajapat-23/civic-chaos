@@ -4,8 +4,8 @@ extends RefCounted
 ## The pilot replaces only the (-120,-120) -> (-120,-46) segment.
 ## The next milestone will introduce new *drivable* T-junction branches
 ## with their own priority contracts; no optimistic access is granted here.
-const PILOT_FROM := Vector3(-120, 0, -120)
-const PILOT_TO := Vector3(-120, 0, -46)
+const PILOT_FROM: Vector3 = Vector3(-120, 0, -120)
+const PILOT_TO: Vector3 = Vector3(-120, 0, -46)
 const PILOT_WIDTH: float = 8.0
 const PILOT_SHIFT: float = 2.25
 const SAMPLE_COUNT: int = 24
@@ -44,7 +44,6 @@ static func driving_lane(start: Vector3, finish: Vector3, shoulder: float = 1.25
             continue
         var tangent: Vector3 = (points[index + 1] - points[index - 1]).normalized()
         var left := Vector3(tangent.z, 0, -tangent.x)
-        var elapsed: float = 1.0 - absf(2.0 * float(index) / float(points.size() - 1) - 1.0)
         var ramp: float = minf(1.0, (float(index) * (PILOT_TO - PILOT_FROM).length() /
             float(points.size() - 1)) / 4.0)
         var back_ramp: float = minf(1.0, (float(points.size() - 1 - index) *
@@ -71,7 +70,7 @@ static func surface_mesh(points: PackedVector3Array, width: float = PILOT_WIDTH)
         else:
             tangent = (points[i + 1] - points[i - 1]).normalized()
         var sideways := Vector3(tangent.z, 0, -tangent.x)
-        var center: Vector3 = points[i] + Vector3.UP * 0.06
+        var center: Vector3 = points[i] + Vector3.UP * 0.022
         vertices.append(center - sideways * width * 0.5)
         vertices.append(center + sideways * width * 0.5)
         normals.append(Vector3.UP)
