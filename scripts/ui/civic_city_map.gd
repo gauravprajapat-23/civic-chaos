@@ -550,6 +550,16 @@ func _draw_small() -> void:
     # Orientation remains player-up; never label the top edge as north.
     map_surface.draw_string(ThemeDB.fallback_font, area.position + Vector2(6, 14),
         "LOCAL", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.75, 0.84, 0.86))
+    if bool(route_state.get("ok", false)):
+        var guide: Dictionary = NavGuide.guidance(route_state, player_position)
+        var hint: String = str(guide.get("instruction", ""))
+        # The driving minimap stays readable; detailed guidance remains
+        # in the expandable map, not a large overlapping HUD banner.
+        map_surface.draw_rect(Rect2(area.position.x + 2, area.end.y - 21,
+            area.size.x - 4, 19), MapStyle.ROUTE_HALO, true)
+        map_surface.draw_string(ThemeDB.fallback_font,
+            Vector2(area.position.x + 7, area.end.y - 7),
+            hint, HORIZONTAL_ALIGNMENT_LEFT, int(area.size.x - 14), 10, ROUTE_COLOR)
 
 ## MAP-002B map overlays: non-colliding filled blocks remain BEHIND
 ## canonical streets. Both projections use the same original world poses.
@@ -670,8 +680,9 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     var marker: Variant = mission_state.get("target", null)
     if bool(mission_state.get("has_target", false)) and marker is Vector3:
         var point := full_view_project(marker, area, map_center, map_zoom)
-        canvas.draw_circle(point, 9.0 if detailed else 5.5, TARGET)
-        canvas.draw_arc(point, 13.0 if detailed else 8.0, 0, TAU, 32, TARGET, 2.0)
+        var mission_color: Color = NavGuide.marker_color("mission")
+        canvas.draw_circle(point, 9.0 if detailed else 5.5, mission_color)
+        canvas.draw_arc(point, 13.0 if detailed else 8.0, 0, TAU, 32, mission_color, 2.0)
     var position: Vector2 = full_view_project(player_position, area, map_center, map_zoom)
     var facing := Vector2(player_forward.x, player_forward.z)
     if facing.length_squared() < 0.0001:
