@@ -126,18 +126,44 @@ function Invoke-WorldProcess {
   }
   Write-Host "PASS $Name" -ForegroundColor Green
 }
-# Godot 4.7 may create untracked .gd.uid files on a fresh checkout.
-# These are source-adjacent generated identifiers, not gameplay changes.
-# Reject every other untracked file and every tracked-file modification.
+# Fresh Godot 4.7 imports can generate untracked script UID sidecars.
+# Keep an exact commit source gate: no tracked changes or arbitrary new files.
 function Assert-WorldSourceClean {
   param([string]$Phase)
   $entries = @(& git status --porcelain --untracked-files=all -- . ":(exclude)build")
-  $exit = $LASTEXITCODE
-  if ($exit -ne 0) { throw "Cannot inspect source status during $Phase" }
+  if ($LASTEXITCODE -ne 0) { throw "Could not inspect source during $Phase" }
   $generated = @()
-  $seenUids = @{}
+  $uids = @{}
   foreach ($entry in $entries) {
-    if ($entry -notmatch '^\\?\\? (scripts/[A-Za-z0-9_./-]+\\.gd\\.uid)
+    if ($entry -notmatch '^\?\? (scripts/[a-zA-Z0-9_./-]+\.gd\.uid)$') {
+      throw "Unexpected source change during phase $Phase : $entry"
+    }
+    $relative = $Matches[1]
+    if ($relative.Contains("..")) { throw "Unsafe UID path: $relative" }
+    $uidFile = Join-Path $root $relative
+    $sourceFile = Join-Path $root $relative.Substring(0, $relative.Length - 4)
+    if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $uidFile -PathType Leaf)) {
+      throw "UID sidecar has no matching script: $relative"
+    }
+    $uidValue = (Get-Content -LiteralPath $uidFile -Raw).Trim()
+    if ($uidValue -cnotmatch '^uid://[a-z0-9]+$') {
+      throw "Invalid Godot UID sidecar: $relative"
+    }
+    if ($uids.ContainsKey($uidValue)) {
+      throw "Duplicate generated Godot UID: $relative"
+    }
+    $uids[$uidValue] = $relative
+    $generated += $relative
+  }
+  $report.generated_uid_sidecars = $generated
+  Save-Report
+  if ($generated.Count -gt 0) {
+    Write-Host "Validated $($generated.Count) untracked Godot UID sidecars ($Phase)." -ForegroundColor Yellow
+  }
+}
+Push-Location $root
+try {
   if ($TimeoutSeconds -lt 15) { throw "TimeoutSeconds must be at least 15" }
   if (-not (Test-Path -LiteralPath $Godot)) { throw "Godot not found: $Godot" }
   $head = (& git rev-parse HEAD | Out-String).Trim()
@@ -178,176 +204,6 @@ function Assert-WorldSourceClean {
     }
   }
   Assert-WorldSourceClean "after_tests"
-  if ($BuildApk) {
-    $apkDir = Join-Path $root "build\android"
-    New-Item -ItemType Directory -Force -Path $apkDir | Out-Null
-    $relative = "build/android/CivicChaos-WORLD-001F-debug.apk"
-    Invoke-WorldProcess "android-export" @("--headless", "--path", ".", "--export-debug", "Android Debug", $relative)
-    $apk = Join-Path $root $relative
-    if (-not (Test-Path -LiteralPath $apk) -or (Get-Item -LiteralPath $apk).Length -lt 1024) {
-      throw "Android debug export produced no usable APK"
-    }
-    $report.android_export = $relative
-  }
-  $report.status = "passed"
-  Save-Report
-  Write-Host "WORLD-001F LOCAL REGRESSION PASS at $head" -ForegroundColor Green
-  Write-Host "Report: $reportPath" -ForegroundColor Cyan
-  Write-Warning "Rendered driving and Android on-device acceptance still require human checks."
-} catch {
-  $report.status = "failed"
-  $report.error = $_.Exception.Message
-  Save-Report
-  throw
-} finally {
-  Pop-Location
-}
-) {
-      throw "Unexpected source change during ${Phase}: $entry"
-    }
-    $relative = $Matches[1]
-    if ($relative.Contains("..")) {
-      throw "Unsafe generated UID path: $relative"
-    }
-    $script = Join-Path $root ($relative.Substring(0, $relative.Length - 4))
-    $uidFile = Join-Path $root $relative
-    if (-not (Test-Path -LiteralPath $script -PathType Leaf) -or
-        -not (Test-Path -LiteralPath $uidFile -PathType Leaf)) {
-      throw "UID sidecar has no matching source script: $relative"
-    }
-    $uidText = (Get-Content -LiteralPath $uidFile -Raw).Trim()
-    if ($uidText -cnotmatch '^uid://[a-z0-9]+
-  if ($TimeoutSeconds -lt 15) { throw "TimeoutSeconds must be at least 15" }
-  if (-not (Test-Path -LiteralPath $Godot)) { throw "Godot not found: $Godot" }
-  $head = (& git rev-parse HEAD | Out-String).Trim()
-  $branch = (& git branch --show-current | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$') {
-    throw "Not a valid Git checkout"
-  }
-  if ($ExpectedCommit -notmatch '^[0-9a-f]{40}$') {
-    throw "WORLD-001F requires -ExpectedCommit with the exact 40-character Git SHA"
-  }
-  if ($head -ne $ExpectedCommit) {
-    throw "Commit mismatch: expected $ExpectedCommit but found $head"
-  }
-  # Accept either detached HEAD or this named integration branch; no
-  # accidental verification of main or an unrelated feature branch.
-  if ($branch -ne "" -and $branch -ne "feature/world-001-organic-city") {
-    throw "Wrong branch: $branch. Use a detached feature review worktree."
-  }
-  $report.commit = $head
-  $report.branch = $branch
-  $changes = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $changes) {
-    throw "Source worktree is dirty: $changes"
-  }
-  foreach ($group in $groups.Keys) {
-    foreach ($test in $groups[$group]) {
-      if (-not (Test-Path -LiteralPath (Join-Path $root "tests\$test"))) {
-        throw "Required $group test missing: $test"
-      }
-    }
-  }
-  Invoke-WorldProcess "import" @("--headless", "--path", ".", "--editor", "--import", "--quit")
-  # Godot may create non-test *.gd.uid sidecars during import; don't
-  # falsely report a clean accepted revision if that happens.
-  $afterImport = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $afterImport) {
-    throw "Import changed source files: $afterImport"
-  }
-  foreach ($group in $groups.Keys) {
-    Write-Host "WORLD-001F $group..." -ForegroundColor Cyan
-    foreach ($test in $groups[$group]) {
-      $stem = [System.IO.Path]::GetFileNameWithoutExtension($test)
-      Invoke-WorldProcess $stem @("--headless", "--path", ".", "--script", "res://tests/$test") $true
-    }
-  }
-  if ($BuildApk) {
-    $apkDir = Join-Path $root "build\android"
-    New-Item -ItemType Directory -Force -Path $apkDir | Out-Null
-    $relative = "build/android/CivicChaos-WORLD-001F-debug.apk"
-    Invoke-WorldProcess "android-export" @("--headless", "--path", ".", "--export-debug", "Android Debug", $relative)
-    $apk = Join-Path $root $relative
-    if (-not (Test-Path -LiteralPath $apk) -or (Get-Item -LiteralPath $apk).Length -lt 1024) {
-      throw "Android debug export produced no usable APK"
-    }
-    $report.android_export = $relative
-  }
-  $report.status = "passed"
-  Save-Report
-  Write-Host "WORLD-001F LOCAL REGRESSION PASS at $head" -ForegroundColor Green
-  Write-Host "Report: $reportPath" -ForegroundColor Cyan
-  Write-Warning "Rendered driving and Android on-device acceptance still require human checks."
-} catch {
-  $report.status = "failed"
-  $report.error = $_.Exception.Message
-  Save-Report
-  throw
-} finally {
-  Pop-Location
-}
-) {
-      throw "Invalid Godot generated UID content: $relative"
-    }
-    if ($seenUids.ContainsKey($uidText)) {
-      throw "Duplicate Godot generated UID in $relative and $($seenUids[$uidText])"
-    }
-    $seenUids[$uidText] = $relative
-    $generated += $relative
-  }
-  $report.generated_uid_sidecars = $generated
-  Save-Report
-  if ($generated.Count -gt 0) {
-    Write-Host "Godot generated $($generated.Count) valid UID sidecars ($Phase); no tracked source changed." -ForegroundColor Yellow
-  }
-}
-Push-Location $root
-try {
-  if ($TimeoutSeconds -lt 15) { throw "TimeoutSeconds must be at least 15" }
-  if (-not (Test-Path -LiteralPath $Godot)) { throw "Godot not found: $Godot" }
-  $head = (& git rev-parse HEAD | Out-String).Trim()
-  $branch = (& git branch --show-current | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$') {
-    throw "Not a valid Git checkout"
-  }
-  if ($ExpectedCommit -notmatch '^[0-9a-f]{40}$') {
-    throw "WORLD-001F requires -ExpectedCommit with the exact 40-character Git SHA"
-  }
-  if ($head -ne $ExpectedCommit) {
-    throw "Commit mismatch: expected $ExpectedCommit but found $head"
-  }
-  # Accept either detached HEAD or this named integration branch; no
-  # accidental verification of main or an unrelated feature branch.
-  if ($branch -ne "" -and $branch -ne "feature/world-001-organic-city") {
-    throw "Wrong branch: $branch. Use a detached feature review worktree."
-  }
-  $report.commit = $head
-  $report.branch = $branch
-  $changes = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $changes) {
-    throw "Source worktree is dirty: $changes"
-  }
-  foreach ($group in $groups.Keys) {
-    foreach ($test in $groups[$group]) {
-      if (-not (Test-Path -LiteralPath (Join-Path $root "tests\$test"))) {
-        throw "Required $group test missing: $test"
-      }
-    }
-  }
-  Invoke-WorldProcess "import" @("--headless", "--path", ".", "--editor", "--import", "--quit")
-  # Godot may create non-test *.gd.uid sidecars during import; don't
-  # falsely report a clean accepted revision if that happens.
-  $afterImport = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $afterImport) {
-    throw "Import changed source files: $afterImport"
-  }
-  foreach ($group in $groups.Keys) {
-    Write-Host "WORLD-001F $group..." -ForegroundColor Cyan
-    foreach ($test in $groups[$group]) {
-      $stem = [System.IO.Path]::GetFileNameWithoutExtension($test)
-      Invoke-WorldProcess $stem @("--headless", "--path", ".", "--script", "res://tests/$test") $true
-    }
-  }
   if ($BuildApk) {
     $apkDir = Join-Path $root "build\android"
     New-Item -ItemType Directory -Force -Path $apkDir | Out-Null
