@@ -4,7 +4,10 @@ extends CanvasLayer
 ## UI-only: never invent mission positions, routes, reward state or traffic.
 signal toggle_requested
 const ModalGuard = preload("res://scripts/ui/civic_modal_input_guard.gd")
+const SafeLayout = preload("res://scripts/ui/civic_hud_safe_layout.gd")
 var _focus_before_open: WeakRef
+var hud_safe_area: Rect2 = Rect2()
+var hud_exclusions: Array[Rect2] = []
 
 const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
@@ -80,9 +83,26 @@ func _ready() -> void:
     large_frame.visible = false
     large_frame.mouse_filter = Control.MOUSE_FILTER_STOP
     add_child(large_frame)
+    # UI-002 contract: FullCityMap's direct child remains a VBoxContainer.
+    # UI-003: nest scrolling INSIDE that outer box, so rows of controls
+    # cannot expand the PanelContainer beyond the safe viewport bounds.
+    var outer := VBoxContainer.new()
+    outer.name = "FullCityMapLayout"
+    outer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    outer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    large_frame.add_child(outer)
+    var scroll := ScrollContainer.new()
+    scroll.name = "FullCityMapScroll"
+    scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+    scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+    outer.add_child(scroll)
     var stack := VBoxContainer.new()
+    stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
     stack.add_theme_constant_override("separation", 8)
-    large_frame.add_child(stack)
+    scroll.add_child(stack)
     var header := HFlowContainer.new()
     header.add_theme_constant_override("h_separation", 5)
     header.add_theme_constant_override("v_separation", 5)
@@ -129,6 +149,7 @@ func _ready() -> void:
     _map_area = Control.new()
     _map_area.name = "FullMapDrawing"
     _map_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    _map_area.custom_minimum_size = Vector2(0, 180)
     _map_area.mouse_filter = Control.MOUSE_FILTER_STOP
     _map_area.clip_contents = true
     _map_area.gui_input.connect(_on_large_map_input)
@@ -199,9 +220,9 @@ func set_expanded(value: bool) -> void:
     _touch_points.clear()
     _pinch_distance = 0.0
     if small_frame != null:
-        small_frame.visible = not value
+        small_frame.visible = not value and small_frame.size.x > 0.0
     if map_button != null:
-        map_button.visible = not value
+        map_button.visible = not value and map_button.size.x >= 44.0 and map_button.size.y >= 44.0
     if large_frame != null:
         large_frame.visible = value
     if value:
@@ -401,17 +422,26 @@ static func minimap_bounds(viewport: Vector2) -> Rect2:
     var bottom_safe: float = 16.0 if viewport.x >= 700.0 else 74.0
     return Rect2(Vector2(12.0, viewport.y - bottom_safe - edge - 38.0), Vector2(edge, edge))
 
+## Main may pass Godot safe-area coordinates plus live mobile touch rectangles.
+## These affect only geometry, never the selected route or mission state.
+func set_hud_constraints(safe_area: Rect2, exclusions: Array[Rect2] = []) -> void:
+    hud_safe_area = safe_area
+    hud_exclusions = exclusions.duplicate()
+    _fit()
+
 func _fit() -> void:
     if small_frame == null:
         return
     var size: Vector2 = get_viewport().get_visible_rect().size
-    var bounds: Rect2 = minimap_bounds(size)
+    var bounds: Rect2 = SafeLayout.minimap(size, hud_safe_area, hud_exclusions)
     small_frame.position = bounds.position
     small_frame.size = bounds.size
+    small_frame.visible = not expanded and bounds.has_area()
     map_surface.custom_minimum_size = bounds.size
     map_button.position = Vector2(bounds.position.x, bounds.end.y + 4.0)
-    map_button.size = Vector2(bounds.size.x, 34.0)
-    var full_bounds: Rect2 = expanded_bounds(size)
+    map_button.size = Vector2(bounds.size.x, 44.0) if bounds.has_area() else Vector2.ZERO
+    map_button.visible = not expanded and bounds.has_area()
+    var full_bounds: Rect2 = SafeLayout.panel(size, size * 0.94, hud_safe_area)
     large_frame.position = full_bounds.position
     large_frame.size = full_bounds.size
     _redraw()
