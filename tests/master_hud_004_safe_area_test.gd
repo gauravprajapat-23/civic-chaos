@@ -15,6 +15,11 @@ func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
+    var source: String = FileAccess.get_file_as_string("res://scripts/core/main.gd")
+    _check(source.contains("get_viewport().size_changed.connect(_sync_hud_constraints)") and
+        source.contains("city_map.set_hud_constraints(safe, map_reserved)") and
+        source.contains("dispatch_board.set_hud_constraints(safe, calls_reserved)"),
+        "live Main does not bind both overlays to viewport changes")
     var safe_px := Rect2i(Vector2i(20, 48), Vector2i(600, 1070))
     var logical := MasterHud.logical_safe_area(Vector2(320, 568),
         safe_px, Vector2i(640, 1136))
