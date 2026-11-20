@@ -177,7 +177,7 @@ func _outer_blocks(half: float) -> void:
             _block("%s_NS_%d" % [category, side],
                 Vector3(axis, -0.018, (continuing_start + continuing_end) * 0.5),
                 Vector3(road_width, 0.08, continuing_end - continuing_start))
-            _block("PerimeterPilotCap", Vector3(axis, -0.018,
+            _block("PerimeterRoad_PilotCap", Vector3(axis, -0.018,
                 -CityRoadLayout.EXTENT_M - road_width * 0.25),
                 Vector3(road_width, 0.08, road_width * 0.5))
         else:
