@@ -37,6 +37,8 @@ static func outer_reason(reason: String) -> String:
             return "outbound_blocked"
         "higher_priority_approach", "higher_priority_lane", "higher_priority_slot":
             return "outer_priority"
+        "priority_t_yield":
+            return "junction_yield"
     return ""
 
 static func should_log(streak: int) -> bool:
