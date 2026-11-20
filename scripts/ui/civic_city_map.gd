@@ -13,6 +13,7 @@ const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
 const MapStyle = preload("res://scripts/ui/civic_map_visual_style.gd")
+const MapDistricts = preload("res://scripts/ui/civic_map_districts.gd")
 const LivingZones = preload("res://scripts/world/living_city_zones.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
 const INSET: float = 16.0
@@ -482,6 +483,7 @@ func _draw_small() -> void:
         return
     map_surface.draw_rect(area, MAP_BACKGROUND, true)
     map_surface.draw_rect(area.grow(-2.0), MapStyle.BLOCK_TINT, false, 1.0)
+    _draw_district_regions(map_surface, area, true)
     # Draw exactly the canonical network used by drivable road geometry.
     # Each road centerline is sampled, not replaced by grid-axis chords.
     for road in CityNetwork.roads():
@@ -497,6 +499,7 @@ func _draw_small() -> void:
                 continue
             map_surface.draw_line(a, b, MapStyle.road_edge(road), road_width + 2.6, true)
             map_surface.draw_line(a, b, MapStyle.road_color(road), road_width, true)
+    _draw_district_pois(map_surface, area, true)
     _draw_challenge_indicators(map_surface, area, true)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
@@ -519,6 +522,44 @@ func _draw_small() -> void:
     # Orientation remains player-up; never label the top edge as north.
     map_surface.draw_string(ThemeDB.fallback_font, area.position + Vector2(6, 14),
         "LOCAL", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.75, 0.84, 0.86))
+
+## MAP-002B map overlays: non-colliding filled blocks remain BEHIND
+## canonical streets. Both projections use the same original world poses.
+func _district_project(world: Vector3, area: Rect2, small: bool) -> Vector2:
+    if small:
+        return minimap_project(world, player_position, player_forward, area)
+    return full_view_project(world, area, map_center, map_zoom)
+
+func _draw_district_regions(canvas: Control, area: Rect2, small: bool) -> void:
+    for region in MapDistricts.REGIONS:
+        var points: PackedVector2Array = MapDistricts.project_polygon(
+            region, _district_project.bind(area, small))
+        if not MapDistricts.visible(points, area):
+            continue
+        var fill: Color = region["fill"]
+        # Keep mini translucent enough that real roadway takes priority.
+        fill.a *= 0.52 if small else 1.0
+        canvas.draw_colored_polygon(points, fill)
+        if not small:
+            var center: Vector2 = _district_project(region["center"], area, false)
+            if area.has_point(center):
+                canvas.draw_string(ThemeDB.fallback_font, center + Vector2(-32, -10),
+                    str(region["label"]), HORIZONTAL_ALIGNMENT_LEFT, -1,
+                    9 if map_zoom < 1.6 else 11,
+                    Color(0.79, 0.89, 0.88, 0.82))
+
+func _draw_district_pois(canvas: Control, area: Rect2, small: bool) -> void:
+    for poi in MapDistricts.SERVICES:
+        var spot: Vector2 = _district_project(poi["position"], area, small)
+        if not area.has_point(spot):
+            continue
+        var radius: float = 5.0 if small else 8.0
+        canvas.draw_circle(spot, radius + 1.5, MapStyle.ROUTE_HALO)
+        canvas.draw_circle(spot, radius, Color(0.28, 0.63, 0.83))
+        if not small:
+            canvas.draw_string(ThemeDB.fallback_font,
+                spot + Vector2(radius + 4.0, 4.0), str(poi["title"]),
+                HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.90, 0.97, 0.98))
 
 ## Show the player which otherwise-simple grid segments have real S-bends.
 ## The warning pins are deterministic and do not change navigation state.
@@ -551,6 +592,7 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     canvas.draw_rect(area, MAP_BACKGROUND, true)
     # Restrained cartographic frame, no fabricated streets or parcels.
     canvas.draw_rect(area.grow(-3.0), MapStyle.BLOCK_TINT, false, 1.0)
+    _draw_district_regions(canvas, area, false)
     # Same source-of-truth as the vehicle graph and physical curved asphalt:
     # no invented straight roads between the canonical street nodes.
     for road in CityNetwork.roads():
@@ -566,6 +608,7 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
                 continue
             canvas.draw_line(a, b, MapStyle.road_edge(road), width + 3.0, true)
             canvas.draw_line(a, b, MapStyle.road_color(road), width, true)
+    _draw_district_pois(canvas, area, false)
     _draw_full_challenge_indicators(canvas, area)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
