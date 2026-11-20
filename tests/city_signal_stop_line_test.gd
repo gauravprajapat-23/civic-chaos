@@ -56,7 +56,10 @@ func _run() -> void:
         return
     # Outer city nodes have their OWN fixed-tick right-of-way, independent
     # of the central signal. It is no longer correct to expect no stop.
-    var outer_red: bool = OuterPriority.aspect(OuterPriority.axis_for_lane(outer), 1) != "green"
+    # Outer policy consumes the cardinal approach (N/E/S/W), not the
+    # traffic-lane orientation ("ns"/"ew"). Older fixture compared the
+    # wrong enum and incorrectly expected every outer light to be red.
+    var outer_red: bool = OuterPriority.aspect(OuterPriority.approach_for_lane(outer), 1) != "green"
     if bool(spawner.apply_stop_line_observation(outer_car, empty).get("detected", false)) != outer_red:
         _fail("outer fixed-tick priority does not match its approach signal")
         return
