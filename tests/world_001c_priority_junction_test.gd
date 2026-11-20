@@ -92,7 +92,8 @@ func _run() -> void:
     # Other outer junctions must still honor their old timed red phases.
     var unaffected: CivicLaneData = graph.get_lane(100)
     var other: CivicVehicleAgent = _car(unaffected, unaffected.length_m() - 6.0)
-    var normal: Dictionary = Outer.disposition(other, graph, [other], 160)
+    var unaffected_fleet: Array[CivicVehicleAgent] = [other]
+    var normal: Dictionary = Outer.disposition(other, graph, unaffected_fleet, 160)
     var must_hold: bool = Outer.aspect(Outer.approach_for_lane(unaffected), 160) != "green"
     _check(bool(normal.get("yield", false)) == must_hold,
         "existing signalized outer approach behavior changed")
