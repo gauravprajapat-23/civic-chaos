@@ -134,64 +134,7 @@ try {
   if ($LASTEXITCODE -ne 0 -or $head -notmatch '^[0-9a-f]{40}$') {
     throw "Not a valid Git checkout"
   }
-  if ($ExpectedCommit -notmatch '^[0-9a-f]{40}
-  # Accept either detached HEAD or this named integration branch; no
-  # accidental verification of main or an unrelated feature branch.
-  if ($branch -ne "" -and $branch -ne "feature/world-001-organic-city") {
-    throw "Wrong branch: $branch. Use a detached feature review worktree."
-  }
-  $report.commit = $head
-  $report.branch = $branch
-  $changes = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $changes) {
-    throw "Source worktree is dirty: $changes"
-  }
-  foreach ($group in $groups.Keys) {
-    foreach ($test in $groups[$group]) {
-      if (-not (Test-Path -LiteralPath (Join-Path $root "tests\$test"))) {
-        throw "Required $group test missing: $test"
-      }
-    }
-  }
-  Invoke-WorldProcess "import" @("--headless", "--path", ".", "--editor", "--import", "--quit")
-  # Godot may create non-test *.gd.uid sidecars during import; don't
-  # falsely report a clean accepted revision if that happens.
-  $afterImport = (& git status --porcelain --untracked-files=all -- . ":(exclude)build" | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $afterImport) {
-    throw "Import changed source files: $afterImport"
-  }
-  foreach ($group in $groups.Keys) {
-    Write-Host "WORLD-001F $group..." -ForegroundColor Cyan
-    foreach ($test in $groups[$group]) {
-      $stem = [System.IO.Path]::GetFileNameWithoutExtension($test)
-      Invoke-WorldProcess $stem @("--headless", "--path", ".", "--script", "res://tests/$test") $true
-    }
-  }
-  if ($BuildApk) {
-    $apkDir = Join-Path $root "build\android"
-    New-Item -ItemType Directory -Force -Path $apkDir | Out-Null
-    $relative = "build/android/CivicChaos-WORLD-001F-debug.apk"
-    Invoke-WorldProcess "android-export" @("--headless", "--path", ".", "--export-debug", "Android Debug", $relative)
-    $apk = Join-Path $root $relative
-    if (-not (Test-Path -LiteralPath $apk) -or (Get-Item -LiteralPath $apk).Length -lt 1024) {
-      throw "Android debug export produced no usable APK"
-    }
-    $report.android_export = $relative
-  }
-  $report.status = "passed"
-  Save-Report
-  Write-Host "WORLD-001F LOCAL REGRESSION PASS at $head" -ForegroundColor Green
-  Write-Host "Report: $reportPath" -ForegroundColor Cyan
-  Write-Warning "Rendered driving and Android on-device acceptance still require human checks."
-} catch {
-  $report.status = "failed"
-  $report.error = $_.Exception.Message
-  Save-Report
-  throw
-} finally {
-  Pop-Location
-}
-) {
+  if ($ExpectedCommit -notmatch '^[0-9a-f]{40}$') {
     throw "WORLD-001F requires -ExpectedCommit with the exact 40-character Git SHA"
   }
   if ($head -ne $ExpectedCommit) {
