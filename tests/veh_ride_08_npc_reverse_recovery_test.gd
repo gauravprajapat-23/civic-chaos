@@ -49,12 +49,16 @@ func _run() -> void:
 
     # Walking collision must see the parked bike on layer 16, even though
     # the CharacterBody only collides physically with world layer 1.
+    # The active CharacterBody can settle / be depenetrated during the
+    # preceding physics_frame. Check against the actual pre-call pose,
+    # not the spawn coordinate, since the limiter itself is velocity-only.
+    var prior_walking_pose: Vector3 = player.global_position
     player.velocity = Vector3(-4, 0, 0)
     player._limit_horizontal_actor_motion(0.4)
     _check(player.velocity.x > -3.0,
         "walker was permitted to cross parked bike collision envelope")
-    _check(player.global_position.x == 1.6,
-        "walking collision guard teleported player")
+    _check(player.global_position.distance_to(prior_walking_pose) <= 0.00001,
+        "walking collision guard changed the actual player position")
 
     # Move to reachable, physically clear starting position.
     player.global_position = Vector3(1.2, 0.15, 0)
