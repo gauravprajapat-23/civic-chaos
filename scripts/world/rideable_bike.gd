@@ -313,6 +313,7 @@ func _make_visuals() -> void:
     _enhance_motorcycle_body()
     _design_05c_geometry()
     _design_front_assembly()
+    _design_08_rear_identity()
     _assemble_steering_fork()
     _ride_label = Label3D.new()
     _ride_label.name = "BikeHint"
@@ -363,6 +364,30 @@ func _enhance_motorcycle_body() -> void:
         Vector3(-0.31, 0.93, 0.36), dark_red)
     _part("SidePanelRight", Vector3(0.06, 0.25, 0.49),
         Vector3(0.31, 0.93, 0.36), dark_red)
+
+## VEH-ART-08: fuller motorcycle rear silhouette, without new colliders
+## or changing the steering fork / mounted-rider hand targets.
+func _design_08_rear_identity() -> void:
+    var charcoal := Color(0.12, 0.15, 0.19)
+    var silver := Color(0.64, 0.69, 0.72)
+    var red := Color(0.75, 0.15, 0.12)
+    var cream := Color(0.93, 0.90, 0.76)
+    _part("RearTailCowl08", Vector3(0.48, 0.17, 0.38),
+        Vector3(0.0, 1.125, 0.83), red)
+    _part("RearPlate08", Vector3(0.36, 0.19, 0.035),
+        Vector3(0.0, 0.78, 1.29), cream)
+    _part("RearPlateSupport08", Vector3(0.08, 0.34, 0.10),
+        Vector3(0.0, 0.91, 1.22), charcoal)
+    _part("ChainGuard08", Vector3(0.055, 0.105, 0.68),
+        Vector3(-0.22, 0.53, 0.58), charcoal)
+    _part("RearReflector08", Vector3(0.33, 0.08, 0.035),
+        Vector3(0.0, 0.62, 1.325), red)
+    for side in [-1.0, 1.0]:
+        var marker: String = "L" if side < 0.0 else "R"
+        _part("SideTankInset08_" + marker, Vector3(0.035, 0.10, 0.38),
+            Vector3(side * 0.316, 1.17, -0.31), silver)
+        _part("PassengerPeg08_" + marker, Vector3(0.21, 0.045, 0.11),
+            Vector3(side * 0.35, 0.71, 0.73), charcoal)
 
 ## The complete visual bike can lean and bob WITHOUT tilting its
 ## static interaction collider or the player CharacterBody. The fork
