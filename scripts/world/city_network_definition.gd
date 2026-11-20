@@ -6,6 +6,7 @@ extends RefCounted
 ## Do not reorder legacy edges or reuse their lane IDs: checkpoint traffic
 ## snapshots persist lane identities and distances.
 const Layout = preload("res://scripts/world/city_road_layout.gd")
+const Organic = preload("res://scripts/world/organic_road_geometry.gd")
 const SCHEMA_VERSION: int = 1
 const LEGACY_LANE_BASE: int = 100
 const FUTURE_LANE_BASE: int = 1000
@@ -42,11 +43,13 @@ static func roads() -> Array[Dictionary]:
                     continue
                 var there := Vector3(axes[neighbor.x], 0.0, axes[neighbor.y])
                 var challenge: bool = Layout.is_challenge_segment(here, there)
+                var organic_pilot: bool = Organic.is_pilot(here, there)
                 result.append({"id": "road:%d" % lane_id,
                     "from_node": "%d:%d" % [xi, zi],
                     "to_node": "%d:%d" % [neighbor.x, neighbor.y],
                     "start": here, "end": there,
-                    "centerline": PackedVector3Array([here, there]),
+                    "centerline": Organic.centerline() if organic_pilot else PackedVector3Array([here, there]),
+                    "organic_pilot": organic_pilot,
                     "lane_forward": lane_id,
                     "lane_reverse": lane_id + 1,
                     "width_m": Layout.ROAD_WIDTH_M,
