@@ -219,6 +219,24 @@ func _organic_road_pilot() -> void:
     collider.name = "CollisionShape3D"
     collider.shape = asphalt.create_trimesh_shape()
     body.add_child(collider)
+    # The north endpoint joins an EXISTING, already connected three-arm
+    # perimeter junction. Mark its form without adding a fake signal or
+    # bypassing its current safe priority controller.
+    var sign := Node3D.new()
+    sign.name = "OrganicWestTJunctionMarker"
+    sign.position = Vector3(-110.0, 0.0, -40.0)
+    add_child(sign)
+    _facade_panel(sign, "SignPost", Vector3(0, 1.0, 0),
+        Vector3(0.10, 2.0, 0.10), _material(Color(0.25, 0.30, 0.32)))
+    _facade_panel(sign, "SignFace", Vector3(0, 2.05, 0),
+        Vector3(1.7, 0.7, 0.12), _material(Color(0.89, 0.85, 0.65)))
+    var caption := Label3D.new()
+    caption.name = "TJunctionCaption"
+    caption.text = "T JUNCTION"
+    caption.font_size = 34
+    caption.pixel_size = 0.004
+    caption.position = Vector3(0, 2.04, 0.075)
+    sign.add_child(caption)
 
 func _park_block(center: Vector3) -> void:
     _block("CommunityPark", center + Vector3(0, -0.06, 0), Vector3(24.0, 0.12, 24.0))
