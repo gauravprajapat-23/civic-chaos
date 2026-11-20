@@ -38,6 +38,14 @@ func _run() -> void:
         int(pilot.get("lane_reverse", -1)) == 103,
         "changed saved traffic lane identities")
     _assert(pilot.get("centerline") == points, "network and mesh centerline diverged")
+    var west_t: Dictionary = {}
+    for node in Network.nodes():
+        if node["id"] == "0:1":
+            west_t = node
+            break
+    _assert(west_t.get("junction_form", "") == "t" and (
+        west_t.get("junction_type", "") == Network.LEGACY_OUTER),
+        "curve endpoint T-junction was moved or silently recontrolled")
     var graph: CivicRoadGraph = Builder.make_city_graph()
     _assert(graph.lane_count() == 80 and graph.validate().is_empty(),
         "pilot invalidated old road graph")
@@ -78,6 +86,8 @@ func _run() -> void:
         var collider: CollisionShape3D = road.get_node_or_null("CollisionShape3D")
         _assert(collider != null and collider.shape != null,
             "asphalt road has no collision geometry")
+    _assert(district.get_node_or_null("OrganicWestTJunctionMarker") != null,
+        "live T-junction sign not present")
     var old_full: StaticBody3D = district.get_node_or_null("PerimeterRoad_NS_-1") as StaticBody3D
     _assert(old_full != null, "legacy road continuation missing")
     if old_full != null:
