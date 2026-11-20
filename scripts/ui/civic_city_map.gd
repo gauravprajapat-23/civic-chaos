@@ -14,6 +14,7 @@ const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
 const MapStyle = preload("res://scripts/ui/civic_map_visual_style.gd")
 const MapDistricts = preload("res://scripts/ui/civic_map_districts.gd")
+const NavGuide = preload("res://scripts/ui/civic_map_navigation_guide.gd")
 const LivingZones = preload("res://scripts/world/living_city_zones.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
 const INSET: float = 16.0
@@ -44,6 +45,7 @@ var road_graph: CivicRoadGraph
 var selected_location: int = -1 # -1 means live mission waypoint
 var route_state: Dictionary = {}
 var navigation_label: Label
+var guidance_label: Label
 var location_buttons: Array[Button] = []
 ## Full-map camera is UI-only. Minimap and the original overview
 ## world_to_map() remain unchanged for old navigation contracts.
@@ -186,10 +188,25 @@ func _ready() -> void:
         option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         option.pressed.connect(_select_location.bind(LANDMARKS.size() + index))
         zone_selector.add_child(option)
+    for index in range(MapDistricts.SERVICES.size()):
+        var service: Dictionary = MapDistricts.SERVICES[index]
+        var button := Button.new()
+        button.name = "Navigate_" + str(service["id"])
+        button.text = str(service["title"]).to_upper()
+        button.tooltip_text = "Set GPS destination: " + str(service["title"])
+        button.custom_minimum_size = Vector2(90, 42)
+        button.pressed.connect(_select_location.bind(
+            LANDMARKS.size() + LivingZones.LOCATIONS.size() + index))
+        zone_selector.add_child(button)
     navigation_label = Label.new()
     navigation_label.name = "RouteDistance"
     navigation_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     stack.add_child(navigation_label)
+    guidance_label = Label.new()
+    guidance_label.name = "GPSGuidance"
+    guidance_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    guidance_label.add_theme_color_override("font_color", MapStyle.ROUTE)
+    stack.add_child(guidance_label)
     mission_text = Label.new()
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
     mission_text.text = "Drag: pan  |  Wheel / +/- / pinch: zoom  |  CENTER: player  |  ALL: entire city"
@@ -392,6 +409,10 @@ func _navigation_goal() -> Dictionary:
     if zone_index >= 0 and zone_index < LivingZones.LOCATIONS.size():
         var zone: Dictionary = LivingZones.LOCATIONS[zone_index]
         return {"has_target": true, "target": zone["position"], "title": zone["title"]}
+    var service_index: int = zone_index - LivingZones.LOCATIONS.size()
+    if service_index >= 0 and service_index < MapDistricts.SERVICES.size():
+        var service: Dictionary = MapDistricts.SERVICES[service_index]
+        return {"has_target": true, "target": service["position"], "title": service["title"]}
     var target: Variant = mission_state.get("target", null)
     if bool(mission_state.get("has_target", false)) and target is Vector3:
         return {"has_target": true, "target": target, "title": str(mission_state.get("title", "Active mission"))}
@@ -411,6 +432,12 @@ func _update_route() -> void:
                 int(roundf(float(route_state["direct_m"])))]
         else:
             navigation_label.text = "%s  |  Road route unavailable" % str(destination["title"])
+    if guidance_label != null:
+        var guide: Dictionary = NavGuide.guidance(route_state, player_position)
+        guidance_label.text = "GPS  /  %s" % str(guide["instruction"])
+        if bool(guide.get("available", false)) and str(guide.get("turn", "")) != "arrive":
+            guidance_label.text += "  /  %d m remaining" % int(roundf(
+                float(guide.get("remaining_m", 0.0))))
 
 func _redraw() -> void:
     if map_surface != null:
@@ -514,7 +541,8 @@ func _draw_small() -> void:
         var target: Vector2 = minimap_project(destination["target"], player_position, player_forward, area)
         target = Vector2(clampf(target.x, area.position.x + 5.0, area.end.x - 5.0),
             clampf(target.y, area.position.y + 5.0, area.end.y - 5.0))
-        map_surface.draw_circle(target, 5.0, TARGET)
+        map_surface.draw_circle(target, 5.0, NavGuide.marker_color(
+            "mission" if selected_location == -1 else "explore"))
     var center: Vector2 = area.get_center()
     map_surface.draw_circle(center, 11.0, MapStyle.ROUTE_HALO)
     map_surface.draw_colored_polygon(MapStyle.player_triangle(center, Vector2.UP, 8.0), PLAYER)
@@ -555,7 +583,10 @@ func _draw_district_pois(canvas: Control, area: Rect2, small: bool) -> void:
             continue
         var radius: float = 5.0 if small else 8.0
         canvas.draw_circle(spot, radius + 1.5, MapStyle.ROUTE_HALO)
-        canvas.draw_circle(spot, radius, Color(0.28, 0.63, 0.83))
+        canvas.draw_circle(spot, radius, NavGuide.marker_color("service"))
+        if not small:
+            canvas.draw_string(ThemeDB.fallback_font, spot + Vector2(-3, 4),
+                str(poi["symbol"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.WHITE)
         if not small:
             canvas.draw_string(ThemeDB.fallback_font,
                 spot + Vector2(radius + 4.0, 4.0), str(poi["title"]),
