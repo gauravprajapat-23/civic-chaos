@@ -36,9 +36,11 @@ func _run() -> void:
         return
     var north_car := CivicVehicleAgent.new()
     north_car.route = PackedInt32Array([north.lane_id])
+    north_car.active = true
     north_car.lane_distance_m = north.length_m() - 7.0
     var east_car := CivicVehicleAgent.new()
     east_car.route = PackedInt32Array([east.lane_id])
+    east_car.active = true
     east_car.lane_distance_m = east.length_m() - 7.0
     var outer_car := CivicVehicleAgent.new()
     outer_car.route = PackedInt32Array([outer.lane_id])
