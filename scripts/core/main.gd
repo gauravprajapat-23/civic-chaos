@@ -66,6 +66,14 @@ var _marshal_assist_center_blockers: int = 0
 var _wrong_way_retry_elapsed: float = 0.0
 var _checkpoint_load_queue: CivicCheckpointLoadQueue = CheckpointLoadQueue.new()
 
+## Retire outstanding service authority before the scene's traffic owner
+## disappears. The van must not keep callbacks or physical collision state.
+func _exit_tree() -> void:
+    if is_instance_valid(_active_call_service):
+        var exiting_service: CivicCallServiceResponse = _active_call_service
+        _active_call_service = null
+        exiting_service.retire()
+
 func _enter_tree() -> void:
     _bind_key("move_forward", KEY_W)
     _bind_key("move_back", KEY_S)
@@ -1285,6 +1293,21 @@ func _on_dispatch_accept_requested() -> void:
         _on_interaction_message("CALL ACCEPTED | Follow the gold marker on MAP to " + (
             str(report.get("location", "the incident"))))
 
+## MASTER-INT-003: Bind the SAME live road authority used by junction cars.
+## Never silently fall back to a permissive responder or an unconfigured
+## Traffic controller. This helper is also exercised by the native test.
+static func _bind_dispatch_traffic(service: CivicCallServiceResponse,
+        graph: CivicRoadGraph, spawner: CivicTrafficSpawner,
+        signals: CivicTrafficSignalController,
+        reservations: CivicIntersectionReservations) -> bool:
+    if not is_instance_valid(service) or not is_instance_valid(spawner) or (
+            graph == null or signals == null or reservations == null):
+        return false
+    if spawner.road_graph != graph or spawner.traffic_signals != signals or (
+            spawner.crossing_reservations != reservations):
+        return false
+    return service.configure_traffic(spawner)
+
 ## One municipal responder per accepted, currently live Free Roam call.
 ## Dispatch does not change incident progress, create rewards, or request
 ## emergency transport for non-emergency public-space incidents.
@@ -1303,7 +1326,14 @@ func _on_dispatch_service_requested() -> void:
     var junction: Node = get_node_or_null("FourWayJunction")
     var graph: CivicRoadGraph = junction.get("road_graph") as CivicRoadGraph if (
         junction != null) else null
-    if graph == null:
+    var spawner: CivicTrafficSpawner = junction.get("traffic_spawner") as CivicTrafficSpawner if (
+        junction != null) else null
+    var signals: CivicTrafficSignalController = junction.get("traffic_signals") as CivicTrafficSignalController if (
+        junction != null) else null
+    var reservations: CivicIntersectionReservations = junction.get("intersection_reservations") as CivicIntersectionReservations if (
+        junction != null) else null
+    if graph == null or not is_instance_valid(spawner) or signals == null or reservations == null:
+        _on_interaction_message("MUNICIPAL SERVICE | Traffic authority unavailable.")
         return
     var kind: String = str(free_roam_world.active_event.get("kind", ""))
     var service: CivicCallServiceResponse = CallServiceResponse.new() as CivicCallServiceResponse
@@ -1312,6 +1342,12 @@ func _on_dispatch_service_requested() -> void:
     if not service.configure(graph, call_id, kind, report["target"]):
         service.queue_free()
         _on_interaction_message("No safe municipal service route is available yet.")
+        return
+    # Configure() makes the responder fail closed by default. Bind the live
+    # Traffic adapter BEFORE publishing EN ROUTE or allowing its first tick.
+    if not _bind_dispatch_traffic(service, graph, spawner, signals, reservations):
+        service.retire()
+        _on_interaction_message("MUNICIPAL SERVICE | No valid Traffic permission controller.")
         return
     _active_call_service = service
     service.status_changed.connect(_on_dispatch_service_status)
@@ -1341,14 +1377,16 @@ func _sync_dispatch_service() -> void:
     if not is_instance_valid(_active_call_service):
         return
     if not is_instance_valid(free_roam_world):
-        _active_call_service.retire()
+        var stale_service: CivicCallServiceResponse = _active_call_service
         _active_call_service = null
+        stale_service.retire()
         return
     var report: Dictionary = free_roam_world.dispatch_state()
     if not bool(report.get("has_event", false)) or (
             int(report.get("call_id", -1)) != _active_call_service.call_id):
-        _active_call_service.retire()
+        var replaced_service: CivicCallServiceResponse = _active_call_service
         _active_call_service = null
+        replaced_service.retire()
 
 func _on_dispatch_route_requested() -> void:
     if not _dispatch_open or dispatch_board == null:
