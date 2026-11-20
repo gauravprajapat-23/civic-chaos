@@ -29,6 +29,8 @@ func _run() -> void:
     var spawner: CivicTrafficSpawner = Spawner.new() as CivicTrafficSpawner
     _check(spawner.configure(graph, 4701, true),
         "city spawner could not configure canonical graph")
+    root.add_child(spawner)
+    await physics_frame
     var pilot: CivicLaneData = graph.get_lane(102)
     var possible: Array[int] = graph.outgoing_legal_lanes(102, 1)
     _check(not possible.is_empty(), "west pilot has no compatible route after its T")
@@ -67,13 +69,16 @@ func _run() -> void:
     var before_count: int = spawner.active_vehicles.size()
     var before_distance: float = car.lane_distance_m
     var bad: Dictionary = (json_value as Dictionary).duplicate(true)
-    (bad["cars"] as Array)[0]["route"][0] = 999999
+    var invalid_car: Dictionary = (bad["cars"] as Array)[0]
+    var invalid_route: Array = invalid_car["route"]
+    invalid_route[0] = 999999
     _check(not spawner.can_restore(bad), "unknown lane accepted on restore")
     _check(spawner.active_vehicles.size() == before_count and
         absf(car.lane_distance_m - before_distance) < 0.01,
         "rejected restore mutated the live fleet")
     bad = (json_value as Dictionary).duplicate(true)
-    (bad["cars"] as Array)[0]["lane_distance"] = pilot.length_m() + 1.0
+    invalid_car = (bad["cars"] as Array)[0]
+    invalid_car["lane_distance"] = pilot.length_m() + 1.0
     _check(not spawner.can_restore(bad),
         "out-of-range progress accepted by the revised pilot")
     _check(not spawner.restore_prepared(),
@@ -89,7 +94,7 @@ func _run() -> void:
         "abort failed to retain the live fleet")
     spawner.active_vehicles.clear()
     car.free()
-    spawner.free()
+    spawner.queue_free()
     if failures == 0:
         print("CIVIC_CHAOS_WORLD_001F_SAVE_CONTRACT_PASS")
     else:
