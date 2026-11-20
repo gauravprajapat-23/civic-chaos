@@ -156,6 +156,16 @@ New `tests/world_001d_neighborhood_identity_test.gd` checks that all visual loca
 
 **Pending:** rerun Godot 4.7.2 import and WORLD-001C, WORLD-001D, existing traffic/pedestrian/save tests; visually inspect the actual live game on Windows/Android. Do not merge draft PR #88 yet. WORLD-001E map parity remains outstanding.
 
+## WORLD-001E implementation checkpoint — November 20, 2026
+
+**Developer Godot evidence for WORLD-001A–D (previous head `da6e7fb`):** Native import succeeded and WORLD-001A, WORLD-001B, WORLD-001C priority, WORLD-001C responder, WORLD-001D, outer priority and TRF-002 all emitted PASS (7 suites). Execution stopped at `city_signal_stop_line_test.gd` reporting `north green wrongly stopped`. Later tests were not reached.
+
+**Signal regression diagnosis and fix:** The central signal fixture created north/east `CivicVehicleAgent` objects without `active=true`. The central intersection policy `exit_available()` correctly rejects inactive vehicles, so it could not authorize the supposedly green vehicle. The fixture now activates both, and uses `OuterPriority.approach_for_lane()` (N/E/S/W) rather than `axis_for_lane()` (ns/ew) when comparing an outer signal. These are test corrections; no traffic grant logic changed. New Godot verification is required.
+
+**WORLD-001E source:** `scripts/ui/civic_city_map.gd` now draws both minimap and expanded-map roads by iterating `CivicCityNetworkDefinition.roads()` and painting each sampled `centerline` segment. This replaces five straight world axes in both views, making the western curved street match the 3D asphalt and live lane graph. Established player-relative minimap rotation, map projection, full map pan/pinch/zoom, mission pins, waypoint route overlays and HUD-safe layout are unchanged. A new `tests/world_001e_map_parity_test.gd` checks canonical paths, actual curve coordinates, lanes, no duplicate grid-line render, map transform and state stability.
+
+**Remaining scope:** WORLD-001E does not yet expand physical geography; the pilot remains one organic outer road. WORLD-001F must verify full GATE-01, mission + save restores, Android FPS and real player/van movement. PR #88 remains draft / not merged. No GitHub Actions manually triggered.
+
 ## First PR scope
 
 **Start only WORLD-001A**: canonical road-network schema + compatibility fixture + tests. No central traffic signal replacement, no existing mission relocation, no new giant map and no rewriting `scripts/core/main.gd`. Implement organic roads in later PRs **after** the architecture and regression contract pass.
