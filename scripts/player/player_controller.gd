@@ -419,9 +419,15 @@ func _advance_bike(delta: float) -> void:
     # Unsafe steering is rejected independently of reverse torque.
     var turning_blocked: bool = false
     if absf(angle_difference(_bike_heading, proposed_heading)) > 0.00001:
-        for step in range(1, 4):
-            var checked_heading: float = lerpf(
-                _bike_heading, proposed_heading, float(step) / 3.0)
+        # Sample the FRONT/REAR swept arc, not a fixed three yaw probes.
+        # A larger time step must never rotate a long bike through a car
+        # between headings. No clearance mask or collision exemption changes.
+        var turn_angle: float = absf(angle_difference(_bike_heading, proposed_heading))
+        var steps: int = maxi(3, int(ceil(
+            turn_angle * CivicRideableBike.FOOTPRINT_SIZE.z * 0.5 / 0.08)))
+        for step in range(1, steps + 1):
+            var checked_heading: float = _bike_heading + angle_difference(
+                _bike_heading, proposed_heading) * float(step) / float(steps)
             if not ridden_bike.footprint_clear_at(
                     global_position, checked_heading, [get_rid()]):
                 turning_blocked = true
@@ -487,6 +493,7 @@ func _limit_bike_motion(delta: float) -> void:
         if _bike_speed < -0.05 and bike.reverse_escapes_overlap(
                 global_position, _bike_heading, motion, [get_rid()]):
             return
+        bike.register_impact(absf(_bike_speed))
         _bike_speed = 0.0
         velocity.x = 0.0
         velocity.z = 0.0
@@ -495,6 +502,7 @@ func _limit_bike_motion(delta: float) -> void:
     var fractions: PackedFloat32Array = get_world_3d().direct_space_state.cast_motion(query)
     if fractions.size() >= 1 and float(fractions[0]) < 0.999:
         var allowance: float = maxf(0.0, float(fractions[0]) - 0.025)
+        bike.register_impact(absf(_bike_speed) * (1.0 - allowance))
         velocity.x *= allowance
         velocity.z *= allowance
         _bike_speed *= allowance
