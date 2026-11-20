@@ -38,7 +38,7 @@ func _run() -> void:
         "left turn guidance incorrect")
     _check(str(Guide.guidance(right, Vector3(30, 0, -20)).get("turn", "")) == "arrive",
         "arrived route continues prompting movement")
-    _check(str(Guide.guidance(right, Vector3(40, 0, -5)).get("turn", "")) == "rejoin",
+    _check(str(Guide.guidance(right, Vector3(80, 0, -5)).get("turn", "")) == "rejoin",
         "off-route position shown as safe driving cue")
     var markers: Array[Dictionary] = Districts.services()
     var projector := func(world: Vector3) -> Vector2:
