@@ -622,6 +622,11 @@ func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
         return true
     var before_depth: float = _footprint_contact_depth(current_query)
     var after_depth: float = _footprint_contact_depth(next_query)
+    # Never rely on aggregate contact depth alone: improving the front
+    # impact must not authorize moving closer to a second rear pedestrian.
+    if not retreat_separates_blockers(world_origin, backward_motion,
+            current_hits, next_hits):
+        return false
     if before_depth > 0.00001 and after_depth < before_depth - 0.00001:
         return true
     # Godot shape contact pairs can be absent or ambiguous when a bike
