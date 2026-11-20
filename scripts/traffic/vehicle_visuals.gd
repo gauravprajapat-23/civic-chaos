@@ -1,5 +1,6 @@
 class_name CivicVehicleVisuals
 extends Node3D
+const Exterior08 = preload("res://scripts/traffic/vehicle_exterior_identity.gd")
 ## ART-CAR-01: light-weight, low-poly sedan presentation layered on the
 ## unchanged CivicVehicleAgent collision/route. No physics, RNG or gameplay.
 ## -Z is the car front, matching the road-following transform.
@@ -102,6 +103,7 @@ func _ready() -> void:
     _tail.emission = Color(0.24, 0.015, 0.015)
     _reshape_legacy()
     _build_details()
+    Exterior08.build(self, _paint, _metal, _trim, _tail)
     _build_driver_and_interior()
     _batch_wheel_spokes()
     set_detail_level(DETAIL_NEAR)
@@ -221,6 +223,7 @@ func set_detail_level(level: int) -> void:
     if level < DETAIL_NEAR or level > DETAIL_FAR:
         return
     _detail_level = level
+    Exterior08.apply_lod(self, level)
     for part in get_children():
         if not (part is VisualInstance3D):
             continue
