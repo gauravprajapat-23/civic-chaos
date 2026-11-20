@@ -40,8 +40,10 @@ static func first_entrant(vehicle: CivicVehicleAgent, lane: CivicLaneData,
     var own_gap: float = maxf(0.0, lane.length_m() - STOP_LINE_M) - vehicle.lane_distance_m
     var own_rank: int = approach_rank(lane)
     var own_slot: int = candidates.find(vehicle)
+    # Fixtures may invoke policy with a synthetic car outside the fleet;
+    # live callers include the vehicle in their stable fleet order.
     if own_slot < 0:
-        return false
+        own_slot = candidates.size()
     for slot in range(candidates.size()):
         var other: CivicVehicleAgent = candidates[slot]
         if other == null or other == vehicle or not other.active or other.stop_requested:
