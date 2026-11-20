@@ -627,6 +627,10 @@ func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
     if not retreat_separates_blockers(world_origin, backward_motion,
             current_hits, next_hits):
         return false
+    # Never overrule a measurable increase in penetration. The center-
+    # separation fallback is only for ambiguous or non-improving contacts.
+    if before_depth > 0.00001 and after_depth > before_depth + 0.00001:
+        return false
     if before_depth > 0.00001 and after_depth < before_depth - 0.00001:
         return true
     # Godot shape contact pairs can be absent or ambiguous when a bike
