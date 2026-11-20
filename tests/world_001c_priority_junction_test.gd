@@ -6,6 +6,8 @@ const Builder = preload("res://scripts/world/junction_builder.gd")
 const Local = preload("res://scripts/traffic/junction_priority_rules.gd")
 const Outer = preload("res://scripts/traffic/outer_intersection_priority.gd")
 const Lights = preload("res://scripts/traffic/outer_traffic_lights.gd")
+const Spawner = preload("res://scripts/traffic/traffic_spawner.gd")
+const StopDiag = preload("res://scripts/traffic/traffic_stop_diagnostics.gd")
 var failures: int = 0
 
 func _check(ok: bool, message: String) -> void:
@@ -97,6 +99,47 @@ func _run() -> void:
     var must_hold: bool = Outer.aspect(Outer.approach_for_lane(unaffected), 160) != "green"
     _check(bool(normal.get("yield", false)) == must_hold,
         "existing signalized outer approach behavior changed")
+
+    _check(StopDiag.outer_reason("priority_t_yield") == "junction_yield",
+        "real T-junction hold reason is lost in diagnostics")
+
+    # The same live stop-line observation must honor a physically present
+    # pedestrian, even when the new give-way rule otherwise releases.
+    var spawner: CivicTrafficSpawner = Spawner.new() as CivicTrafficSpawner
+    root.add_child(spawner)
+    _check(spawner.configure(graph, 5301, true), "city spawner configuration failed")
+    var pedestrian_test_car: CivicVehicleAgent = _car(branch, branch.length_m() - 7.0)
+    spawner.active_vehicles.append(pedestrian_test_car)
+    spawner.current_tick = 0
+    await physics_frame
+    var clear_observation: Dictionary = spawner.apply_stop_line_observation(
+        pedestrian_test_car, {"detected": false})
+    _check(not bool(clear_observation.get("detected", false)),
+        "empty T-junction remained permanently held")
+    var walker := AnimatableBody3D.new()
+    walker.collision_layer = 8
+    walker.collision_mask = 0
+    walker.position = node + Vector3.UP * 0.85
+    var pedestrian_shape := CollisionShape3D.new()
+    var sphere := SphereShape3D.new()
+    sphere.radius = 0.6
+    pedestrian_shape.shape = sphere
+    walker.add_child(pedestrian_shape)
+    root.add_child(walker)
+    await physics_frame
+    var occupied_observation: Dictionary = spawner.apply_stop_line_observation(
+        pedestrian_test_car, {"detected": false})
+    _check(bool(occupied_observation.get("detected", false)),
+        "pedestrian was denied priority at give-way crossing")
+    walker.free()
+    await physics_frame
+    var reopened: Dictionary = spawner.apply_stop_line_observation(
+        pedestrian_test_car, {"detected": false})
+    _check(not bool(reopened.get("detected", false)),
+        "pedestrian departure left a permanent crossing hold")
+    spawner.active_vehicles.clear()
+    spawner.free()
+    pedestrian_test_car.free()
 
     var lamps: CivicOuterTrafficLights = Lights.new()
     root.add_child(lamps)
