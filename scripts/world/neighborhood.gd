@@ -5,6 +5,7 @@ extends Node3D
 ## The playable traffic graph and district roads share one set of city axes.
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const OrganicRoad = preload("res://scripts/world/organic_road_geometry.gd")
+const Details = preload("res://scripts/world/neighborhood_details.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -47,6 +48,9 @@ func rebuild() -> void:
     _curb_accents(half, road_half)
     _stop_bars(road_half)
     _challenge_road_markings()
+    # Purely visual neighborhood identity; roads, curb collision and saved
+    # mission anchors stay owned by their existing systems.
+    Details.build(self)
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
