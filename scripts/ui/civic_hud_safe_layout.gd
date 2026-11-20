@@ -67,11 +67,15 @@ static func minimap(viewport: Vector2, safe_area: Rect2 = Rect2(),
     var total_height: float = size + 4.0 + launcher_height
     if total_height > area.size.y:
         return Rect2()
-    var x: float = area.position.x
-    for fraction in [0.75, 0.60, 0.45, 0.30, 0.15, 0.0]:
-        var y: float = area.position.y + (area.size.y - total_height) * fraction
-        var square := Rect2(Vector2(x, y), Vector2.ONE * size)
-        var occupied := Rect2(square.position, Vector2(size, total_height))
-        if not intersects_reserved(occupied, exclusions):
-            return square
+    # Prefer the classic lower-left minimap. On short landscape devices
+    # the joystick occupies that edge while a mission strip blocks its top:
+    # search the middle safe column before suppressing the MAP launcher.
+    for x_fraction in [0.0, 0.33, 0.5, 0.67, 1.0]:
+        var x: float = area.position.x + (area.size.x - size) * x_fraction
+        for fraction in [0.75, 0.60, 0.45, 0.30, 0.15, 0.0]:
+            var y: float = area.position.y + (area.size.y - total_height) * fraction
+            var square := Rect2(Vector2(x, y), Vector2.ONE * size)
+            var occupied := Rect2(square.position, Vector2(size, total_height))
+            if not intersects_reserved(occupied, exclusions):
+                return square
     return Rect2()
