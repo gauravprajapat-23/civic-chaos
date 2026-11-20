@@ -232,7 +232,7 @@ func _organic_road_pilot() -> void:
         Vector3(1.7, 0.7, 0.12), _material(Color(0.89, 0.85, 0.65)))
     var caption := Label3D.new()
     caption.name = "TJunctionCaption"
-    caption.text = "T JUNCTION"
+    caption.text = "GIVE WAY"
     caption.font_size = 34
     caption.pixel_size = 0.004
     caption.position = Vector3(0, 2.04, 0.075)
