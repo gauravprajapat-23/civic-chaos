@@ -166,6 +166,14 @@ New `tests/world_001d_neighborhood_identity_test.gd` checks that all visual loca
 
 **Remaining scope:** WORLD-001E does not yet expand physical geography; the pilot remains one organic outer road. WORLD-001F must verify full GATE-01, mission + save restores, Android FPS and real player/van movement. PR #88 remains draft / not merged. No GitHub Actions manually triggered.
 
+## WORLD-001F release gate checkpoint — 2026-11-20
+
+- **Implementation staged / test execution pending:** `tools/world_001f_verification.ps1` runs an explicit exact-commit Windows Godot import and 24 suites spanning WORLD-001A–F, junction priority, traffic, responder, maps, mobile controls, core gameplay and ride safety. Each suite requires zero exit status, a `CIVIC_CHAOS_*_PASS` marker and absence of Godot engine errors; report and per-test logs go to `build/world-001f/`. Optional `-BuildApk` exports an Android debug APK without treating export as device acceptance. No GitHub Actions are triggered.
+- **Save contract:** `tests/world_001f_save_contract_test.gd` checks preservation of original 80 lane IDs, schema-1 JSON traffic snapshots and current pilot route IDs, invalid route/distance rejection without mutating the live fleet, and a stage/abort checkpoint transaction.
+- **Manual acceptance checklist:** `docs/world/WORLD_001F_RELEASE_ACCEPTANCE.md` covers rendered driving at the west bend, give-way T, crossing/municipal vans, map geometry parity, the three-mission campaign and Free Roam, on-device Android controls/performance, and **real** legacy save restore.
+- **Known compatibility risk:** traffic snapshots have legacy IDs and arclength only, no per-road topology fingerprint. The old west straight road and current curve keep the same lane IDs/endpoints but have different interior positions. A valid old traffic snapshot may load a car at a slightly shifted world position. Real checkpoint acceptance must inspect this before release; do not claim universal save migration from source tests alone.
+- **Status:** WORLD-001F source/checklist created, **not run**, PR #88 still draft/unmerged, `main` untouched. No Windows GATE-01, Android APK or physical device PASS is claimed.
+
 ## First PR scope
 
 **Start only WORLD-001A**: canonical road-network schema + compatibility fixture + tests. No central traffic signal replacement, no existing mission relocation, no new giant map and no rewriting `scripts/core/main.gd`. Implement organic roads in later PRs **after** the architecture and regression contract pass.
