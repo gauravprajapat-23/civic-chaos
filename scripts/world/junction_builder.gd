@@ -6,6 +6,7 @@ const Lane = preload("res://scripts/traffic/lane_data.gd")
 const Graph = preload("res://scripts/traffic/road_graph.gd")
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
+const Organic = preload("res://scripts/world/organic_road_geometry.gd")
 
 static func make_test_graph() -> CivicRoadGraph:
     var graph := Graph.new()
@@ -67,8 +68,12 @@ static func make_city_graph() -> CivicRoadGraph:
             lane.lane_id = int(road["lane_forward"]) if direction == 0 else int(road["lane_reverse"])
             var origin: Vector3 = here if direction == 0 else there
             var destination: Vector3 = there if direction == 0 else here
-            lane.centerline = _city_chicane_centerline(origin, destination) if (
-                bool(road["challenge"])) else _city_left_side_centerline(origin, destination)
+            if bool(road.get("organic_pilot", false)):
+                lane.centerline = Organic.driving_lane(origin, destination)
+            elif bool(road["challenge"]):
+                lane.centerline = _city_chicane_centerline(origin, destination)
+            else:
+                lane.centerline = _city_left_side_centerline(origin, destination)
             lane.speed_limit_mps = float(road["speed_limit_mps"])
             graph.add_lane(lane)
             var source_key: String = str(road["from_node"]) if direction == 0 else str(road["to_node"])
