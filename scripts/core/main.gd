@@ -27,6 +27,7 @@ const IncidentCard = preload("res://scripts/ui/civic_incident_card.gd")
 const MissionGuide = preload("res://scripts/ui/civic_mission_guide.gd")
 const CityMap = preload("res://scripts/ui/civic_city_map.gd")
 const DispatchBoard = preload("res://scripts/ui/free_roam_dispatch_board.gd")
+const MasterHudLayout = preload("res://scripts/core/master_hud_layout.gd")
 const CallServiceResponse = preload("res://scripts/civic/call_service_response.gd")
 const LivingExploration = preload("res://scripts/world/living_city_exploration.gd")
 const VolunteerProgression = preload("res://scripts/civic/volunteer_progression.gd")
@@ -201,6 +202,9 @@ func _ready() -> void:
     dispatch_board.accept_requested.connect(_on_dispatch_accept_requested)
     dispatch_board.service_requested.connect(_on_dispatch_service_requested)
     dispatch_board.route_requested.connect(_on_dispatch_route_requested)
+    # Main owns live viewport/touch arbitration; UI widgets only place controls.
+    get_viewport().size_changed.connect(_sync_hud_constraints)
+    _sync_hud_constraints()
     if junction != null:
         city_map.set_road_graph(junction.get("road_graph") as CivicRoadGraph)
     district_finale = DistrictFinale.new() as CivicDistrictFinale
@@ -216,6 +220,24 @@ func _ready() -> void:
 ## Does not change signals, pedestrian ownership or physical road agents.
 ## VEHICLE-RIDE-01: street-side motorcycles, outside 8m traffic
 ## lanes and the existing central civic worksite. Interact with E/USE.
+## Presentation-only reflow on startup, rotation and viewport resize.
+## Uses the same logical safe-area scaling and joystick planner as mobile
+## touch controls. Never modifies an accepted call or selected MAP route.
+func _sync_hud_constraints() -> void:
+    if not is_instance_valid(city_map) or not is_instance_valid(dispatch_board):
+        return
+    var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+    var safe := Rect2()
+    var mobile: bool = OS.has_feature("mobile")
+    if mobile:
+        safe = MasterHudLayout.logical_safe_area(viewport_size,
+            DisplayServer.get_display_safe_area(), DisplayServer.screen_get_size())
+    var layout: Dictionary = MasterHudLayout.plan(viewport_size, safe, mobile)
+    var map_reserved: Array[Rect2] = layout["map_reserved"]
+    var calls_reserved: Array[Rect2] = layout["calls_reserved"]
+    city_map.set_hud_constraints(safe, map_reserved)
+    dispatch_board.set_hud_constraints(safe, calls_reserved)
+
 func _on_player_riding_changed(active: bool) -> void:
     if is_instance_valid(touch_layer) and touch_layer is CivicTouchControls:
         (touch_layer as CivicTouchControls).set_riding(active)
