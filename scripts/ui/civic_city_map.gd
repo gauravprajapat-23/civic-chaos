@@ -12,15 +12,14 @@ var hud_exclusions: Array[Rect2] = []
 const RoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
 const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
+const MapStyle = preload("res://scripts/ui/civic_map_visual_style.gd")
 const LivingZones = preload("res://scripts/world/living_city_zones.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
 const INSET: float = 16.0
-const ROAD := Color(0.40, 0.51, 0.57)
-const ROAD_EDGE := Color(0.17, 0.25, 0.30)
-const PLAYER := Color(0.24, 0.88, 0.96)
+const PLAYER := MapStyle.PLAYER
 const TARGET := Color(1.0, 0.72, 0.20)
-const MAP_BACKGROUND := Color(0.075, 0.12, 0.16, 0.96)
-const ROUTE_COLOR := Color(0.20, 0.91, 0.64)
+const MAP_BACKGROUND := MapStyle.BACKGROUND
+const ROUTE_COLOR := MapStyle.ROUTE
 ## Descriptive, grounded map landmarks, not extra missions or unlocks.
 const LANDMARKS := [
     {"name": "Market Chowk", "position": Vector3(0, 0, 0)},
@@ -66,6 +65,7 @@ func _ready() -> void:
     small_frame = PanelContainer.new()
     small_frame.name = "MiniMapFrame"
     small_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    small_frame.add_theme_stylebox_override("panel", MapStyle.frame_style())
     add_child(small_frame)
     map_surface = Control.new()
     map_surface.name = "MiniMapDrawing"
@@ -83,6 +83,9 @@ func _ready() -> void:
     large_frame.name = "FullCityMap"
     large_frame.visible = false
     large_frame.mouse_filter = Control.MOUSE_FILTER_STOP
+    var full_frame_style: StyleBoxFlat = MapStyle.frame_style()
+    full_frame_style.set_content_margin_all(8)
+    large_frame.add_theme_stylebox_override("panel", full_frame_style)
     add_child(large_frame)
     # UI-002 contract: FullCityMap's direct child remains a VBoxContainer.
     # UI-003: nest scrolling INSIDE that outer box, so rows of controls
@@ -109,7 +112,7 @@ func _ready() -> void:
     header.add_theme_constant_override("v_separation", 5)
     stack.add_child(header)
     var heading := Label.new()
-    heading.text = "CITY MAP"
+    heading.text = "CIVIC CHAOS  /  CITY ATLAS"
     heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     heading.add_theme_font_size_override("font_size", 18)
     header.add_child(heading)
@@ -478,25 +481,31 @@ func _draw_small() -> void:
     if area.size.x <= 0.0 or area.size.y <= 0.0:
         return
     map_surface.draw_rect(area, MAP_BACKGROUND, true)
+    map_surface.draw_rect(area.grow(-2.0), MapStyle.BLOCK_TINT, false, 1.0)
     # Draw exactly the canonical network used by drivable road geometry.
     # Each road centerline is sampled, not replaced by grid-axis chords.
     for road in CityNetwork.roads():
         var points: PackedVector3Array = road["centerline"]
-        var road_width: float = maxf(3.0, area.size.x *
-            float(road["width_m"]) / (MINI_RADIUS_M * 2.0))
+        var road_width: float = MapStyle.road_width(road,
+            minf(area.size.x, area.size.y) / (MINI_RADIUS_M * 2.0), true)
         for i in range(1, points.size()):
             var a: Vector2 = minimap_project(points[i - 1],
                 player_position, player_forward, area)
             var b: Vector2 = minimap_project(points[i],
                 player_position, player_forward, area)
-            map_surface.draw_line(a, b, ROAD_EDGE, road_width + 2.0)
-            map_surface.draw_line(a, b, ROAD, road_width)
+            if not MapStyle.segment_visible(a, b, area, road_width):
+                continue
+            map_surface.draw_line(a, b, MapStyle.road_edge(road), road_width + 2.6, true)
+            map_surface.draw_line(a, b, MapStyle.road_color(road), road_width, true)
     _draw_challenge_indicators(map_surface, area, true)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
         for i in range(1, path.size()):
-            map_surface.draw_line(minimap_project(path[i - 1], player_position, player_forward, area),
-                minimap_project(path[i], player_position, player_forward, area), ROUTE_COLOR, 2.5, true)
+            var a: Vector2 = minimap_project(path[i - 1], player_position, player_forward, area)
+            var b: Vector2 = minimap_project(path[i], player_position, player_forward, area)
+            if MapStyle.segment_visible(a, b, area):
+                map_surface.draw_line(a, b, MapStyle.ROUTE_HALO, 5.5, true)
+                map_surface.draw_line(a, b, ROUTE_COLOR, 3.0, true)
     var destination: Dictionary = _navigation_goal()
     if bool(destination.get("has_target", false)):
         var target: Vector2 = minimap_project(destination["target"], player_position, player_forward, area)
@@ -504,9 +513,12 @@ func _draw_small() -> void:
             clampf(target.y, area.position.y + 5.0, area.end.y - 5.0))
         map_surface.draw_circle(target, 5.0, TARGET)
     var center: Vector2 = area.get_center()
-    map_surface.draw_colored_polygon(PackedVector2Array([
-        center + Vector2(0, -8), center + Vector2(-5, 6), center + Vector2(5, 6)]), PLAYER)
-    map_surface.draw_arc(center, 10.0, 0, TAU, 24, Color.WHITE, 1.2)
+    map_surface.draw_circle(center, 11.0, MapStyle.ROUTE_HALO)
+    map_surface.draw_colored_polygon(MapStyle.player_triangle(center, Vector2.UP, 8.0), PLAYER)
+    map_surface.draw_arc(center, 11.0, 0, TAU, 24, Color.WHITE, 1.4)
+    # Orientation remains player-up; never label the top edge as north.
+    map_surface.draw_string(ThemeDB.fallback_font, area.position + Vector2(6, 14),
+        "LOCAL", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.75, 0.84, 0.86))
 
 ## Show the player which otherwise-simple grid segments have real S-bends.
 ## The warning pins are deterministic and do not change navigation state.
@@ -537,26 +549,39 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     var area := Rect2(requested.position + (requested.size - Vector2.ONE * size) * 0.5,
         Vector2.ONE * size)
     canvas.draw_rect(area, MAP_BACKGROUND, true)
+    # Restrained cartographic frame, no fabricated streets or parcels.
+    canvas.draw_rect(area.grow(-3.0), MapStyle.BLOCK_TINT, false, 1.0)
     # Same source-of-truth as the vehicle graph and physical curved asphalt:
     # no invented straight roads between the canonical street nodes.
     for road in CityNetwork.roads():
         var points: PackedVector3Array = road["centerline"]
-        var width: float = maxf(2.0, size * float(road["width_m"]) /
-            (EXTENT * 2.0) * map_zoom)
+        var width: float = MapStyle.road_width(road,
+            size / (EXTENT * 2.0) * map_zoom, false)
         for i in range(1, points.size()):
             var a: Vector2 = full_view_project(points[i - 1], area,
                 map_center, map_zoom)
             var b: Vector2 = full_view_project(points[i], area,
                 map_center, map_zoom)
-            canvas.draw_line(a, b, ROAD_EDGE, width + 2.0)
-            canvas.draw_line(a, b, ROAD, width)
+            if not MapStyle.segment_visible(a, b, area, width):
+                continue
+            canvas.draw_line(a, b, MapStyle.road_edge(road), width + 3.0, true)
+            canvas.draw_line(a, b, MapStyle.road_color(road), width, true)
     _draw_full_challenge_indicators(canvas, area)
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
         for index in range(1, path.size()):
-            canvas.draw_line(full_view_project(path[index - 1], area, map_center, map_zoom),
-                full_view_project(path[index], area, map_center, map_zoom), ROUTE_COLOR, 4.0 if detailed else 2.0, true)
+            var a: Vector2 = full_view_project(path[index - 1], area, map_center, map_zoom)
+            var b: Vector2 = full_view_project(path[index], area, map_center, map_zoom)
+            if MapStyle.segment_visible(a, b, area):
+                canvas.draw_line(a, b, MapStyle.ROUTE_HALO, 8.0 if detailed else 5.0, true)
+                canvas.draw_line(a, b, ROUTE_COLOR, 4.3 if detailed else 2.5, true)
     if detailed:
+        canvas.draw_string(ThemeDB.fallback_font, area.position + Vector2(12, 18),
+            "MARKET ROADS   /   COLLECTOR STREETS",
+            HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.82, 0.87, 0.85))
+        canvas.draw_string(ThemeDB.fallback_font, area.position + Vector2(12, 33),
+            "N  ^     DRAG TO PAN  /  SCROLL TO ZOOM",
+            HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.60, 0.76, 0.79))
         var font: Font = ThemeDB.fallback_font
         for landmark in LANDMARKS:
             var center: Vector2 = full_view_project(landmark["position"], area, map_center, map_zoom)
@@ -578,13 +603,10 @@ func _draw_map(canvas: Control, requested: Rect2, detailed: bool) -> void:
     if facing.length_squared() < 0.0001:
         facing = Vector2(0, -1)
     facing = facing.normalized()
-    var side := Vector2(-facing.y, facing.x)
     var radius: float = 12.0 if detailed else 7.0
-    canvas.draw_colored_polygon(PackedVector2Array([
-        position + facing * radius, position - facing * radius * 0.6 + side * radius * 0.65,
-        position - facing * radius * 0.6 - side * radius * 0.65
-    ]), PLAYER)
-    canvas.draw_arc(position, radius + 2.0, 0, TAU, 24, Color.WHITE, 1.3)
+    canvas.draw_circle(position, radius + 3.0, MapStyle.ROUTE_HALO)
+    canvas.draw_colored_polygon(MapStyle.player_triangle(position, facing, radius), PLAYER)
+    canvas.draw_arc(position, radius + 3.0, 0, TAU, 24, Color.WHITE, 1.4)
 
 ## A device can rotate while MAP is open; never push the full frame offscreen.
 static func expanded_bounds(viewport: Vector2) -> Rect2:
