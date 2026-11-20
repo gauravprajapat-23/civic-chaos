@@ -133,6 +133,16 @@ A believable **fictional Indian-inspired Nagripur district**: imperfect, walkabl
 - **Known planned follow-up:** The UI map still plots the legacy straight grid (WORLD-001E), so do not claim visual map parity yet. This is a pilot for the *3D world and vehicle graph only*.
 - **No engine tests executed by connector.** Require strict Godot 4.7.2 import and both WORLD-001A/B focused tests plus existing traffic, physics, save and map regressions before preview merge. Keep PR draft until native acceptance.
 
+## Implementation checkpoint — WORLD-001C selective junction pilot (2026-11-20)
+
+- **Source staged, Windows/Android testing NOT RUN:** One explicitly classified T-junction at legacy node `0:1` (x=-120, z=-46) now uses `priority_t` give-way behavior rather than a 4-way green clock. All other outer junctions retain the existing deterministic signal schedule, and the central Market Chowk signal is untouched.
+- New `scripts/traffic/junction_priority_rules.gd` prioritizes through traffic over the side road, resolves same-priority arrivals using stop-line distance / stable lane-ID / checkpoint-fleet order, and never generates permission for an unknown node. It stores no mutable priority state.
+- `scripts/traffic/outer_intersection_priority.gd` retains the existing physical committed-zone occupancy checks and downstream-exit spillback checks before evaluating give-way permission. The live spawner still performs pedestrian collision checks on the same T-node and records `junction_yield` diagnostics.
+- `scripts/traffic/outer_traffic_lights.gd` omits signal heads on the T-node; the existing in-world sign reads `GIVE WAY`. This is **not** a global green-light shortcut.
+- `tests/world_001c_priority_junction_test.gd` checks explicit node selection, safe conflicting approaches, bounded deterministic decisions across ticks, committed vehicle, downstream obstruction, other timed signals, physical pedestrian blocking/release, and revised signal-head count.
+- **Scope:** One pilot, not all city intersections. Multi-node signal removal, new drivable T-branches, and checkpoint migration remain later tasks. WORLD-001E still needs honest curved-road display on MAP/minimap.
+- **Acceptance gate:** import + native WORLD-001A/B/C, existing outer priority, stop-line, one-green, central spillback, CALLS permission, saved-world tests and real manual driving + pedestrian/collision. Do not merge PR #88 before evidence. No manual GitHub Actions.
+
 ## First PR scope
 
 **Start only WORLD-001A**: canonical road-network schema + compatibility fixture + tests. No central traffic signal replacement, no existing mission relocation, no new giant map and no rewriting `scripts/core/main.gd`. Implement organic roads in later PRs **after** the architecture and regression contract pass.
