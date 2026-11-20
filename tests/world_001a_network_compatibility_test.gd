@@ -69,7 +69,9 @@ func _run() -> void:
                 index += 1
     _require(seen.size() == 80, "missing lane identity")
     # An invalid modified network must be rejected by the validator.
-    var duplicate: Array[Dictionary] = roads.duplicate(true)
+    var duplicate: Array[Dictionary] = []
+    for road in roads:
+        duplicate.append(road.duplicate(true))
     duplicate[1]["lane_forward"] = int(roads[0]["lane_forward"])
     _require(not Network.validate(nodes, duplicate).is_empty(),
         "duplicate lane IDs accepted")
