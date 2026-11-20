@@ -44,7 +44,7 @@ func _run() -> void:
             west_t = node
             break
     _assert(west_t.get("junction_form", "") == "t" and (
-        west_t.get("junction_type", "") == Network.LEGACY_OUTER),
+        west_t.get("junction_type", "") == Network.PRIORITY_T),
         "curve endpoint T-junction was moved or silently recontrolled")
     var graph: CivicRoadGraph = Builder.make_city_graph()
     _assert(graph.lane_count() == 80 and graph.validate().is_empty(),
