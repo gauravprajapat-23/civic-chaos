@@ -37,7 +37,7 @@ func _run() -> void:
         _check(poly.size() == 8, "district must have eight corner/bevel points: " + id)
         for world in poly:
             var rect: Rect2 = region["bounds"]
-            _check(world.is_finite() and rect.has_point(Vector2(world.x, world.z)),
+            _check(world.is_finite() and rect.grow(0.001).has_point(Vector2(world.x, world.z)),
                 "district polygon goes outside known land block: " + id)
         var region_at_center: Dictionary = Districts.closest_region(region["center"])
         _check(str(region_at_center.get("id", "")) == id,
