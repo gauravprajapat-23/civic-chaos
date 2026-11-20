@@ -106,8 +106,8 @@ func _run() -> void:
     # The same live stop-line observation must honor a physically present
     # pedestrian, even when the new give-way rule otherwise releases.
     var spawner: CivicTrafficSpawner = Spawner.new() as CivicTrafficSpawner
-    root.add_child(spawner)
     _check(spawner.configure(graph, 5301, true), "city spawner configuration failed")
+    root.add_child(spawner)
     var pedestrian_test_car: CivicVehicleAgent = _car(branch, branch.length_m() - 7.0)
     spawner.active_vehicles.append(pedestrian_test_car)
     spawner.current_tick = 0
