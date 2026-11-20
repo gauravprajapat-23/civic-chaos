@@ -122,6 +122,16 @@ A believable **fictional Indian-inspired Nagripur district**: imperfect, walkabl
 | Android becomes slow | one-block staging, geometry batching/LOD, measured traffic and render budgets before expanding |
 | Worker conflict | strict file ownership, three integration handoffs, Master-only edits to shared scenes/core |
 
+## Implementation checkpoint — WORLD-001B organic pilot (2026-11-20)
+
+- **Source committed / native Godot verification pending:** One curved, two-direction west-perimeter road pilot, from (-120,-120) to (-120,-46), using `CivicOrganicRoadGeometry` as a shared sampled centerline. Existing lane IDs 102/103, endpoint connectivity and speed limit remain unchanged.
+- `CivicCityNetworkDefinition.roads()` now marks the pilot and exposes its true centerline. `CivicJunctionBuilder.make_city_graph()` follows the sampled curve in both travel directions.
+- `CivicNeighborhood` replaces the old straight west-perimeter segment with a curved asphalt ribbon with a trimesh collision body. The remainder of the perimeter street remains a straight legacy road, including the junction cap.
+- `tests/world_001b_organic_pilot_test.gd` checks the pilot's geometry/traffic/parity contract.
+- **Not yet implemented:** Drivable T-junction/side street. Splitting a currently saved lane at a new T-node would invalidate legacy checkpoint distances and requires new traffic priority/reservation rules (WORLD-001C). Do not attach a drivable branch until lane-ID migration + safe priority arbitration exists. A pedestrian branch may be safely added later, but this pilot does not pretend it is a new car road.
+- **Known planned follow-up:** The UI map still plots the legacy straight grid (WORLD-001E), so do not claim visual map parity yet. This is a pilot for the *3D world and vehicle graph only*.
+- **No engine tests executed by connector.** Require strict Godot 4.7.2 import and both WORLD-001A/B focused tests plus existing traffic, physics, save and map regressions before preview merge. Keep PR draft until native acceptance.
+
 ## First PR scope
 
 **Start only WORLD-001A**: canonical road-network schema + compatibility fixture + tests. No central traffic signal replacement, no existing mission relocation, no new giant map and no rewriting `scripts/core/main.gd`. Implement organic roads in later PRs **after** the architecture and regression contract pass.
