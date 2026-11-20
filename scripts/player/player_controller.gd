@@ -592,9 +592,11 @@ func _try_place_on_ground(requested: Vector3) -> bool:
     reset_physics_interpolation()
     return true
 
-## Player/body collision stays world-only. Do NOT make cars floors.
-## Sweep horizontal intent at both current and predicted vertical heights:
-## falling/jumping should not sneak sideways through the cabin.
+## Player/body collision stays world-only. Do NOT make cars or parked
+## bikes floors. Explicit horizontal sweep also protects parked bike layer
+## 16 from the walking player's world-only CharacterBody collision mask.
+## Mounted motion takes its separate complete bike-footprint path.
+## Sweep at current and predicted heights to prevent jumping through bikes.
 func _limit_horizontal_actor_motion(delta: float) -> void:
     var horizontal_motion := Vector3(velocity.x * delta, 0.0, velocity.z * delta)
     if horizontal_motion.length_squared() <= 0.0000001:
@@ -610,7 +612,7 @@ func _limit_horizontal_actor_motion(delta: float) -> void:
         query.transform = Transform3D(collider.global_transform.basis,
             collider.global_position + Vector3.UP * y_offset)
         query.motion = horizontal_motion
-        query.collision_mask = 4
+        query.collision_mask = 4 | 16
         query.exclude = [get_rid()]
         query.margin = 0.02
         # Already overlapping? Never drive *deeper* into that body;
@@ -642,7 +644,7 @@ func _limit_horizontal_actor_motion(delta: float) -> void:
     overhead.transform = Transform3D(collider.global_transform.basis,
         global_position + Vector3.UP * 0.45)
     overhead.motion = horizontal_motion
-    overhead.collision_mask = 4
+    overhead.collision_mask = 4 | 16
     overhead.exclude = [get_rid()]
     overhead.margin = 0.015
     for overlap in space.intersect_shape(overhead, 8):

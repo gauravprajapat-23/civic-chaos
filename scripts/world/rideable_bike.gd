@@ -622,7 +622,58 @@ func reverse_escapes_overlap(world_origin: Vector3, yaw: float,
         return true
     var before_depth: float = _footprint_contact_depth(current_query)
     var after_depth: float = _footprint_contact_depth(next_query)
-    return before_depth > 0.00001 and after_depth < before_depth - 0.00001
+    # Never rely on aggregate contact depth alone: improving the front
+    # impact must not authorize moving closer to a second rear pedestrian.
+    if not retreat_separates_blockers(world_origin, backward_motion,
+            current_hits, next_hits):
+        return false
+    # Never overrule a measurable increase in penetration. The center-
+    # separation fallback is only for ambiguous or non-improving contacts.
+    if before_depth > 0.00001 and after_depth > before_depth + 0.00001:
+        return false
+    if before_depth > 0.00001 and after_depth < before_depth - 0.00001:
+        return true
+    # Godot shape contact pairs can be absent or ambiguous when a bike
+    # already overlaps a pedestrian/vehicle plus its support road. In that
+    # case accept a SMALL, strictly separating retreat from each existing
+    # blocker. Never admit a new collider or movement toward a blocker.
+    return retreat_separates_blockers(world_origin, backward_motion,
+        current_hits, next_hits)
+
+## Fall back to the actor's horizontal center only when contact-depth data
+## cannot establish safe progress. A rear person/car rejects a reverse.
+## Tests can exercise this deterministic contract independently of physics.
+static func retreat_separates_blockers(world_origin: Vector3,
+        proposed_motion: Vector3, existing: Array[CollisionObject3D],
+        remaining: Array[CollisionObject3D]) -> bool:
+    if proposed_motion.length_squared() < 0.0000001 or existing.is_empty():
+        return false
+    if proposed_motion.length() > 0.18 or absf(proposed_motion.y) > 0.001:
+        return false
+    for blocker in remaining:
+        if not existing.has(blocker):
+            return false
+    var separated: bool = false
+    for blocker in existing:
+        if blocker == null or not is_instance_valid(blocker):
+            return false
+        var offset: Vector3 = world_origin - blocker.global_position
+        offset.y = 0.0
+        var motion: Vector3 = proposed_motion
+        motion.y = 0.0
+        if offset.length_squared() < 0.0001:
+            return false
+        var gain: float = (offset + motion).length_squared() - offset.length_squared()
+        if gain < -0.00001:
+            return false
+        if remaining.has(blocker):
+            if gain <= 0.00001:
+                return false
+        else:
+            separated = true
+        if gain > 0.00001:
+            separated = true
+    return separated
 
 func _exclude_support_from_recovery(query: PhysicsShapeQueryParameters3D,
         origin: Vector3) -> void:
