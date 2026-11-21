@@ -10,6 +10,7 @@ const World002Layout = preload("res://scripts/world/world_002_building_layout.gd
 const World002Facades = preload("res://scripts/world/world_002_facade_identity.gd")
 const World002Spaces = preload("res://scripts/world/world_002_public_spaces.gd")
 const World002Curves = preload("res://scripts/world/world_002_road_curves.gd")
+const NeighborhoodLink = preload("res://scripts/world/world_002_neighborhood_connector.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -49,6 +50,7 @@ func rebuild() -> void:
     _outer_blocks(half)
     _organic_road_pilot()
     _world002_east_curves()
+    _world002_connected_roads()
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
@@ -249,6 +251,33 @@ func _world002_east_curves() -> void:
         collider.name = "CollisionShape3D"
         collider.shape = asphalt.create_trimesh_shape()
         body.add_child(collider)
+
+## WORLD-002C2: connected low-speed streets. They share the same
+## world-space sampled geometry with CivicCityNetworkDefinition and NPC
+## lane data. Old northern-road asphalt continues at the joining nodes.
+func _world002_connected_roads() -> void:
+    if not NeighborhoodLink.valid_clearances():
+        push_error("WORLD-002C2: neighborhood connector obstructs a plot")
+        return
+    for edge in NeighborhoodLink.road_definitions():
+        var surface: ArrayMesh = NeighborhoodLink.asphalt_mesh(
+            edge["start"], edge["end"])
+        var body := StaticBody3D.new()
+        body.name = "World002ConnectedRoad_%d" % int(edge["lane_forward"])
+        add_child(body)
+        var mesh := MeshInstance3D.new()
+        mesh.name = "Asphalt"
+        mesh.mesh = surface
+        mesh.material_override = _material(Color(0.19, 0.23, 0.26))
+        body.add_child(mesh)
+        var collider := CollisionShape3D.new()
+        collider.name = "CollisionShape3D"
+        collider.shape = surface.create_trimesh_shape()
+        body.add_child(collider)
+    var marker := Node3D.new()
+    marker.name = "World002NeighborhoodJunction"
+    marker.position = NeighborhoodLink.JUNCTION
+    add_child(marker)
 
 ## Shared pilot asphalt, using the exact polyline that generates both
 ## traffic directions. A real trimesh static collider supports foot/bike/
