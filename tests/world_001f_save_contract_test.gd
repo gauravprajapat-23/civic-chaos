@@ -17,11 +17,12 @@ func _initialize() -> void:
 
 func _run() -> void:
     var graph: CivicRoadGraph = Builder.make_city_graph()
-    _check(graph.validate().is_empty() and graph.lane_count() == 80,
+    _check(graph.validate().is_empty() and graph.lane_count() == 84,
         "the legacy city graph was changed")
     var historic_ids: Array[int] = graph.sorted_lane_ids()
-    _check(historic_ids.size() == 80 and historic_ids[0] == 100 and
-        historic_ids[historic_ids.size() - 1] == 179,
+    _check(historic_ids.size() == 84 and historic_ids[0] == 100 and
+        historic_ids[79] == 179 and historic_ids[80] == 1000 and
+        historic_ids[83] == 1003,
         "old lane identifiers are not stable")
     _check(Network.SCHEMA_VERSION == 1,
         "network schema unexpectedly changed without explicit migration")
