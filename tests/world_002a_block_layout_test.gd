@@ -40,7 +40,7 @@ func _run() -> void:
         "existing community park plot was overwritten")
 
     var roads: Array[Dictionary] = Network.roads()
-    _check(roads.size() == 40, "road count or topology changed")
+    _check(roads.size() == 42, "road count or topology changed")
     var ids: Dictionary = {}
     var pilot_count: int = 0
     for road in roads:
@@ -50,7 +50,7 @@ func _run() -> void:
             _check((road["centerline"] as PackedVector3Array) == Organic.centerline(),
                 "organic drivable street lost its sampled geometry")
             pilot_count += 1
-    _check(ids.size() == 80 and pilot_count == 1,
+    _check(ids.size() == 84 and pilot_count == 1,
         "traffic IDs or organic road inventory changed")
 
     var neighborhood := World.new() as CivicNeighborhood
