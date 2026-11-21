@@ -6,7 +6,6 @@ const MIN_RADIUS_M: float = 37.0
 const MAX_RADIUS_M: float = 72.0
 const SPEED_FULL_VIEW_MPS: float = 14.0
 const ROUTE_REFRESH_M: float = 4.0
-const OFF_ROUTE_REFRESH_M: float = 15.0
 const MIN_DT_S: float = 0.035
 const MAX_DT_S: float = 0.5
 
