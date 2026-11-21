@@ -30,6 +30,13 @@ static func nodes() -> Array[Dictionary]:
                 zi == 0 or zi == axes.size() - 1)
             var form: String = "corner" if boundary_axes == 2 else (
                 "t" if boundary_axes == 1 else "cross")
+            # WORLD-002C2 changes junction degree without moving nodes.
+            # 3:0 gains a fourth road; the old northeast corner 4:0
+            # becomes a real, unsignalized three-arm junction.
+            if key == "3:0":
+                form = "cross"
+            elif key == "4:0":
+                form = "t"
             result.append({"id": key,
                 "position": Vector3(axes[xi], 0.0, axes[zi]),
                 "junction_form": form,
