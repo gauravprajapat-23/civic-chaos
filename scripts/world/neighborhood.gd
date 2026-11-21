@@ -195,7 +195,7 @@ func _outer_blocks(half: float) -> void:
             # WORLD-002C: split east perimeter where the authoritative
             # street now bends inward. Old straight asphalt must NOT sit
             # underneath curved drivable/physical roads.
-            _block("PerimeterRoad_EastCenter",
+            _block("PerimeterRoad_NS_1",
                 Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, 92.0))
             _block("PerimeterRoad_EastNorthCap",
                 Vector3(axis, -0.018, -half - road_width * 0.25),
