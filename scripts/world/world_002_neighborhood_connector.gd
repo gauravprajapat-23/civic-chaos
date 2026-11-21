@@ -16,7 +16,7 @@ const LANE_FIRST: int = 1000
 
 static func nodes() -> Array[Dictionary]:
     return [{"id": CONNECTOR_ID, "position": JUNCTION,
-        "junction_form": "bend", "junction_type": "priority_t"}]
+        "junction_form": "corner", "junction_type": "legacy_outer_controlled"}]
 
 static func road_definitions() -> Array[Dictionary]:
     var result: Array[Dictionary] = []
@@ -62,13 +62,6 @@ static func driving_lane(start: Vector3, finish: Vector3) -> PackedVector3Array:
 
 static func asphalt_mesh(start: Vector3, finish: Vector3) -> ArrayMesh:
     return LegacyRoad.surface_mesh(centerline(start, finish), WIDTH_M)
-
-static func _point_segment_distance(point: Vector2,
-        start: Vector2, finish: Vector2) -> float:
-    var segment: Vector2 = finish - start
-    var t: float = clampf((point - start).dot(segment) /
-        maxf(segment.length_squared(), 0.0001), 0.0, 1.0)
-    return point.distance_to(start + segment * t)
 
 static func _line_clear_of_rect(start: Vector3, finish: Vector3,
         bounds: Rect2, clearance: float) -> bool:
