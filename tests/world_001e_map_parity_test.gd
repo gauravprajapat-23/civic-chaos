@@ -30,7 +30,7 @@ func _run() -> void:
             road_count += 1
         if bool(edge.get("organic_pilot", false)):
             pilot = edge
-    _check(road_count == 40, "network road inventory changed")
+    _check(road_count == 42, "network road inventory changed")
     var points: PackedVector3Array = pilot.get("centerline", PackedVector3Array())
     _check(points == Geometry.centerline(), "map curve differs from 3D asphalt")
     _check(points.size() >= 20 and points[0] == Geometry.PILOT_FROM and
