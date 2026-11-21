@@ -20,7 +20,7 @@ func _run() -> void:
     _check(East.valid_geometry(), "sampled east geometry invalid")
     _check(Network.SCHEMA_VERSION == 1, "legacy save schema changed")
     var roads: Array[Dictionary] = Network.roads()
-    _check(roads.size() == 40, "legacy 40-edge street topology changed")
+    _check(roads.size() == 42, "legacy 40-edge street topology changed")
     _check(Network.validate(Network.nodes(), roads).is_empty(),
         "canonical network now has malformed edges")
     var ids: Dictionary = {}
@@ -45,13 +45,13 @@ func _run() -> void:
             _check(points[12].x < first.x - 2.0,
                 "curve became visually indistinguishable from legacy grid")
             curves[int(road["lane_forward"])] = road
-    _check(ids.size() == 80 and curves.size() == 2 and original_west == 1,
+    _check(ids.size() == 84 and curves.size() == 2 and original_west == 1,
         "lane IDs or number of organic edges changed")
     _check(curves.has(172) and curves.has(178),
         "old checkpoint lane IDs not maintained for east curves")
 
     var graph: CivicRoadGraph = Builder.make_city_graph()
-    _check(graph.validate().is_empty() and graph.lane_count() == 80,
+    _check(graph.validate().is_empty() and graph.lane_count() == 84,
         "new roads broke graph legal routing or save lane count")
     for lane_id in [172, 178]:
         if not curves.has(lane_id):
