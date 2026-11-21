@@ -81,6 +81,9 @@ static func make_city_graph() -> CivicRoadGraph:
             else:
                 lane.centerline = _city_left_side_centerline(origin, destination)
             lane.speed_limit_mps = float(road["speed_limit_mps"])
+            if bool(road.get("world_002_connector", false)):
+                # Two 2.5m lanes fit inside the 6m physical branch.
+                lane.width_m = 2.5
             graph.add_lane(lane)
             var source_key: String = str(road["from_node"]) if direction == 0 else str(road["to_node"])
             var destination_key: String = str(road["to_node"]) if direction == 0 else str(road["from_node"])
