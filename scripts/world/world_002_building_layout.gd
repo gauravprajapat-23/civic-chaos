@@ -15,7 +15,7 @@ static func building(row: int, column: int, base_height: float) -> Dictionary:
         return {}
     var seed: int = row * 17 + column * 31
     var x_offset: float = [-2.5, 1.2, 2.6, -1.5][seed % 4]
-    var z_offset: float = [2.2, -1.8, 1.0, -2.6][(seed / 2) % 4]
+    var z_offset: float = [2.2, -1.8, 1.0, -2.6][int(seed / 2) % 4]
     var width: float = [8.8, 10.6, 11.8, 9.7][seed % 4]
     var depth: float = [10.7, 8.9, 11.5, 9.4][(seed + row) % 4]
     var floors: float = [0.85, 1.4, 1.05, 1.8, 1.15][(seed + column) % 5]
