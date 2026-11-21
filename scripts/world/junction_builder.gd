@@ -7,6 +7,7 @@ const Graph = preload("res://scripts/traffic/road_graph.gd")
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const CityNetwork = preload("res://scripts/world/city_network_definition.gd")
 const Organic = preload("res://scripts/world/organic_road_geometry.gd")
+const EastCurves = preload("res://scripts/world/world_002_road_curves.gd")
 
 static func make_test_graph() -> CivicRoadGraph:
     var graph := Graph.new()
@@ -70,6 +71,8 @@ static func make_city_graph() -> CivicRoadGraph:
             var destination: Vector3 = there if direction == 0 else here
             if bool(road.get("organic_pilot", false)):
                 lane.centerline = Organic.driving_lane(origin, destination)
+            elif bool(road.get("world_002_curve", false)):
+                lane.centerline = EastCurves.driving_lane(origin, destination)
             elif bool(road["challenge"]):
                 lane.centerline = _city_chicane_centerline(origin, destination)
             else:
