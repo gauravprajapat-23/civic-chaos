@@ -12,12 +12,31 @@ func _check(ok: bool, why: String) -> void:
         failures += 1
         push_error("MAP-002A: " + why)
 
+## Existing market/collector roads retain stable lane IDs 100..179.
+## Independent map PR may be reviewed before or after WORLD-002C2.
+## Only the two explicitly reserved appended road IDs are supported.
+func _stable_inventory(roads: Array[Dictionary]) -> bool:
+    if roads.size() != 40 and roads.size() != 42:
+        return false
+    for i in range(40):
+        if int(roads[i].get("lane_forward", -1)) != 100 + i * 2 or (
+                int(roads[i].get("lane_reverse", -1)) != 101 + i * 2):
+            return false
+    if roads.size() == 42:
+        for i in range(2):
+            var road: Dictionary = roads[40 + i]
+            if not bool(road.get("world_002_connector", false)) or (
+                    int(road.get("lane_forward", -1)) != 1000 + i * 2) or (
+                    int(road.get("lane_reverse", -1)) != 1001 + i * 2):
+                return false
+    return true
+
 func _initialize() -> void:
     call_deferred("_run")
 
 func _run() -> void:
     var roads: Array[Dictionary] = Network.roads()
-    _check(roads.size() == 40, "changed canonical road inventory")
+    _check(_stable_inventory(roads), "legacy road inventory or appended IDs changed")
     var market: Dictionary = {}
     var collector: Dictionary = {}
     var curved: Dictionary = {}
