@@ -9,6 +9,7 @@ const Details = preload("res://scripts/world/neighborhood_details.gd")
 const World002Layout = preload("res://scripts/world/world_002_building_layout.gd")
 const World002Facades = preload("res://scripts/world/world_002_facade_identity.gd")
 const World002Spaces = preload("res://scripts/world/world_002_public_spaces.gd")
+const World002Curves = preload("res://scripts/world/world_002_road_curves.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -47,6 +48,7 @@ func rebuild() -> void:
             _block("Building_%d_%d" % [x, z], center, Vector3(width, height, width))
     _outer_blocks(half)
     _organic_road_pilot()
+    _world002_east_curves()
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
@@ -189,6 +191,18 @@ func _outer_blocks(half: float) -> void:
             _block("PerimeterRoad_PilotCap", Vector3(axis, -0.018,
                 -CityRoadLayout.EXTENT_M - road_width * 0.25),
                 Vector3(road_width, 0.08, road_width * 0.5))
+        elif is_equal_approx(axis, CityRoadLayout.EXTENT_M):
+            # WORLD-002C: split east perimeter where the authoritative
+            # street now bends inward. Old straight asphalt must NOT sit
+            # underneath curved drivable/physical roads.
+            _block("PerimeterRoad_EastCenter",
+                Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, 92.0))
+            _block("PerimeterRoad_EastNorthCap",
+                Vector3(axis, -0.018, -half - road_width * 0.25),
+                Vector3(road_width, 0.08, road_width * 0.5))
+            _block("PerimeterRoad_EastSouthCap",
+                Vector3(axis, -0.018, half + road_width * 0.25),
+                Vector3(road_width, 0.08, road_width * 0.5))
         else:
             _block("%s_NS_%d" % [category, side],
                 Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, span))
@@ -211,6 +225,30 @@ func _outer_blocks(half: float) -> void:
             _block(str(layout["name"]), layout["center"], layout["size"])
             var building: Node3D = get_node_or_null(str(layout["name"])) as Node3D
             World002Facades.build(building, layout["size"], str(layout["style"]))
+
+## WORLD-002C: actual drivable east-perimeter S-bends, using the
+## SAME points as the road graph, map and NPC lane offset calculation.
+## Underlying original straight road portions are removed above.
+func _world002_east_curves() -> void:
+    for entry in [
+        [World002Curves.NORTH_START, World002Curves.NORTH_END],
+        [World002Curves.SOUTH_START, World002Curves.SOUTH_END]
+    ]:
+        var start: Vector3 = entry[0]
+        var finish: Vector3 = entry[1]
+        var asphalt: ArrayMesh = World002Curves.asphalt_mesh(start, finish)
+        var body := StaticBody3D.new()
+        body.name = "World002EastRoad_%s" % ("North" if start.z < 0.0 else "South")
+        add_child(body)
+        var mesh := MeshInstance3D.new()
+        mesh.name = "Asphalt"
+        mesh.mesh = asphalt
+        mesh.material_override = _material(Color(0.15, 0.18, 0.21))
+        body.add_child(mesh)
+        var collider := CollisionShape3D.new()
+        collider.name = "CollisionShape3D"
+        collider.shape = asphalt.create_trimesh_shape()
+        body.add_child(collider)
 
 ## Shared pilot asphalt, using the exact polyline that generates both
 ## traffic directions. A real trimesh static collider supports foot/bike/
