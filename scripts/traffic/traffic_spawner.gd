@@ -315,6 +315,10 @@ func configure(graph: CivicRoadGraph, random_seed: int = 12345, expanded_city: b
 	var proposed_normal_lanes := PackedInt32Array()
 	if expanded_city:
 		for lane_id in graph.sorted_lane_ids():
+			# WORLD-002C2: do not seed NPCs onto new internal junction roads.
+			# These remain reachable as subsequent legal route connections.
+			if lane_id >= 1000:
+				continue
 			var lane: CivicLaneData = graph.get_lane(lane_id)
 			var origin: Vector3 = lane.centerline[0]
 			if (absf(origin.x) >= 119.0 or absf(origin.z) >= 119.0) and lane.centerline[1].length_squared() < origin.length_squared() and lane.is_vehicle_allowed(1) and not lane.is_wrong_way_connector and not graph.outgoing_legal_lanes(lane_id, 1).is_empty():
