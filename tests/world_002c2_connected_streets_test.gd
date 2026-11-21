@@ -82,6 +82,9 @@ func _run() -> void:
     var spawner: CivicTrafficSpawner = Spawner.new() as CivicTrafficSpawner
     _check(spawner.configure(graph, 4701, true),
         "expanded city graph rejected by legacy traffic spawner")
+    for entry_lane in spawner.city_entry_lanes:
+        _check(entry_lane < 1000,
+            "NPC would spawn inside the unsignalized connector junction")
     root.add_child(spawner)
     await physics_frame
     _check(graph.has_lane(102) and graph.has_lane(179),
