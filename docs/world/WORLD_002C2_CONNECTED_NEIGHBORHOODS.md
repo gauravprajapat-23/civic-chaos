@@ -17,6 +17,7 @@ The existing northeast corner at (120,-120) becomes a **three-arm T-junction** w
 - `CivicJunctionBuilder.make_city_graph()` uses the **same** centerline source, with separate Indian left-hand lane offsets and existing graph connection contracts. Both ends join real current intersections; no fake road leading into a building.
 - `CivicNeighborhood._world002_connected_roads()` generates two visible asphalt ribbons and two collision meshes, again using those exact centerlines. They join the existing north-perimeter carriageway. Scene names `World002ConnectedRoad_1000` and `World002ConnectedRoad_1002` identify the new physical pieces.
 - Preflight tests compare the full new 6m-wide physical road ribbon plus 1m buffer with **all WORLD-002A building collision footprints and WORLD-002B public-square footprints**, verifying at sampled positions. Static placement clearance is also verified independently in code. All previously created buildings, plazas, west organic road and east curves remain.
+- `scripts/traffic/traffic_spawner.gd` retains 1000–1003 as navigable lane continuations but excludes new side-road lanes from the initial city spawn-entry set, avoiding NPC creation at a busy unsignalized junction. This change requires Traffic-owner approval before merge.
 - The map loops that draw `CityNetwork.roads()` automatically receive the new streets, including MAP-002A–D PR #91 when integrated.
 
 ### Checkpoint migration
