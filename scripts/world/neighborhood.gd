@@ -6,6 +6,8 @@ extends Node3D
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const OrganicRoad = preload("res://scripts/world/organic_road_geometry.gd")
 const Details = preload("res://scripts/world/neighborhood_details.gd")
+const World002Layout = preload("res://scripts/world/world_002_building_layout.gd")
+const World002Facades = preload("res://scripts/world/world_002_facade_identity.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -189,21 +191,23 @@ func _outer_blocks(half: float) -> void:
                 Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, span))
         _block("%s_EW_%d" % [category, side],
             Vector3(0, -0.026, axis), Vector3(span, 0.08, road_width))
-    var coordinates := [-72.0, -24.0, 24.0, 72.0]
-    for row in range(coordinates.size()):
-        for column in range(coordinates.size()):
-            var x: float = coordinates[column]
-            var z: float = coordinates[row]
-            if absf(x) > half - 15.0 or absf(z) > half - 15.0:
-                continue
-            var variant: int = (row * 3 + column) % 4
-            var height: float = building_height * [0.9, 1.2, 1.5, 1.05][variant]
-            var width: float = [10.0, 12.0, 9.0, 11.0][variant]
+    # WORLD-002A: vary the REAL physical outer-building footprints.
+    # Every placement is deterministic and separated from active road axes.
+    # The historical node names/park anchor remain stable for older scenes.
+    if not World002Layout.valid_layout(building_height):
+        push_error("WORLD-002A: invalid outer-building placement")
+        return
+    for row in range(World002Layout.BASES.size()):
+        for column in range(World002Layout.BASES.size()):
             if row == 1 and column == 2:
-                _park_block(Vector3(x, 0, z))
-            else:
-                _block("OuterBuilding_%d_%d" % [row, column],
-                    Vector3(x, height * 0.5, z), Vector3(width, height, width))
+                _park_block(Vector3(World002Layout.BASES[column], 0,
+                    World002Layout.BASES[row]))
+                continue
+            var layout: Dictionary = World002Layout.building(
+                row, column, building_height)
+            _block(str(layout["name"]), layout["center"], layout["size"])
+            var building: Node3D = get_node_or_null(str(layout["name"])) as Node3D
+            World002Facades.build(building, layout["size"], str(layout["style"]))
 
 ## Shared pilot asphalt, using the exact polyline that generates both
 ## traffic directions. A real trimesh static collider supports foot/bike/
