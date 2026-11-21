@@ -43,7 +43,7 @@ func _run() -> void:
             _check(not Spaces.overlaps(bounds, footprint, 1.0),
                 "plaza overlaps building collision footprint")
     var roads := Network.roads()
-    _check(roads.size() == 40, "network road inventory changed")
+    _check(roads.size() == 42, "network road inventory changed")
     var lane_ids: Dictionary = {}
     var organic_count: int = 0
     for road in roads:
@@ -53,7 +53,7 @@ func _run() -> void:
             organic_count += 1
             _check((road["centerline"] as PackedVector3Array) == Organic.centerline(),
                 "organic west S-bend modified")
-    _check(lane_ids.size() == 80 and organic_count == 1,
+    _check(lane_ids.size() == 84 and organic_count == 1,
         "save-compatible lane IDs or organic road changed")
     var neighborhood: CivicNeighborhood = World.new() as CivicNeighborhood
     root.add_child(neighborhood)
