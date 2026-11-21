@@ -15,6 +15,7 @@ const MapRoutes = preload("res://scripts/ui/civic_map_routes.gd")
 const MapStyle = preload("res://scripts/ui/civic_map_visual_style.gd")
 const MapDistricts = preload("res://scripts/ui/civic_map_districts.gd")
 const NavGuide = preload("res://scripts/ui/civic_map_navigation_guide.gd")
+const DrivingPolicy = preload("res://scripts/ui/civic_map_driving_policy.gd")
 const LivingZones = preload("res://scripts/world/living_city_zones.gd")
 const EXTENT: float = RoadLayout.EXTENT_M
 const INSET: float = 16.0
@@ -44,6 +45,12 @@ var _map_area: Control
 var road_graph: CivicRoadGraph
 var selected_location: int = -1 # -1 means live mission waypoint
 var route_state: Dictionary = {}
+var _last_route_origin: Vector3 = Vector3.INF
+var _last_route_target: Vector3 = Vector3.INF
+var _speed_sample_origin: Vector3 = Vector3.INF
+var _speed_sample_time_ms: int = -1
+var _estimated_speed_mps: float = 0.0
+var _minimap_radius_m: float = 37.0
 var navigation_label: Label
 var guidance_label: Label
 var location_buttons: Array[Button] = []
@@ -376,10 +383,29 @@ func _touch_separation() -> float:
     return (positions[0] as Vector2).distance_to(positions[1] as Vector2)
 
 func update_position(at: Vector3, facing: Vector3, objective: Dictionary) -> void:
+    # Measure speed over a stable interval rather than every frame.
+    var ticks_ms: int = Time.get_ticks_msec()
+    if _speed_sample_time_ms < 0 or not _speed_sample_origin.is_finite():
+        _speed_sample_origin = at
+        _speed_sample_time_ms = ticks_ms
+    else:
+        var sample_s: float = float(ticks_ms - _speed_sample_time_ms) / 1000.0
+        if sample_s >= 0.09:
+            _estimated_speed_mps = DrivingPolicy.estimated_speed(
+                _speed_sample_origin, at, sample_s)
+            _speed_sample_origin = at
+            _speed_sample_time_ms = ticks_ms
+    _minimap_radius_m = DrivingPolicy.minimap_radius(_estimated_speed_mps)
     player_position = at
     player_forward = facing
     mission_state = objective.duplicate(true)
-    _update_route()
+    var goal: Dictionary = _navigation_goal()
+    var target: Vector3 = goal.get("target", Vector3.INF)
+    if DrivingPolicy.should_refresh_route(_last_route_origin, at, route_state,
+            target != _last_route_target):
+        _update_route()
+    else:
+        _refresh_guidance_label()
     if mission_text != null:
         var objective_title: String = str(objective.get("title", "Explore the city"))
         var description: String = str(objective.get("objective", "Find the next civic task"))
@@ -420,9 +446,15 @@ func _navigation_goal() -> Dictionary:
 
 func _update_route() -> void:
     var destination: Dictionary = _navigation_goal()
+    _last_route_origin = player_position
+    _last_route_target = destination.get("target", Vector3.INF)
     route_state = {}
     if bool(destination.get("has_target", false)) and road_graph != null:
         route_state = MapRoutes.plan(road_graph, player_position, destination["target"])
+    _refresh_guidance_label()
+
+func _refresh_guidance_label() -> void:
+    var destination: Dictionary = _navigation_goal()
     if navigation_label != null:
         if not bool(destination.get("has_target", false)):
             navigation_label.text = "No location selected. Choose a landmark to explore."
@@ -440,9 +472,11 @@ func _update_route() -> void:
                 float(guide.get("remaining_m", 0.0))))
 
 func _redraw() -> void:
-    if map_surface != null:
+    # Do not redraw the hidden 40-road atlas each player movement tick.
+    if map_surface != null and DrivingPolicy.draw_minimap(
+            expanded, small_frame != null and small_frame.visible):
         map_surface.queue_redraw()
-    if _map_area != null:
+    if _map_area != null and DrivingPolicy.draw_full_map(expanded):
         _map_area.queue_redraw()
 
 ## UI-HUD-01: deterministic screen-space placement, clear of mobile
@@ -492,7 +526,8 @@ static func world_to_map(world: Vector3, area: Rect2) -> Vector2:
 const MINI_RADIUS_M: float = 37.0
 
 static func minimap_project(world: Vector3, player_at: Vector3,
-        player_facing: Vector3, area: Rect2) -> Vector2:
+        player_facing: Vector3, area: Rect2,
+        radius_m: float = MINI_RADIUS_M) -> Vector2:
     var forward := Vector2(player_facing.x, player_facing.z)
     if forward.length_squared() < 0.0001:
         forward = Vector2(0, -1)
@@ -500,7 +535,8 @@ static func minimap_project(world: Vector3, player_at: Vector3,
     var right := Vector2(-forward.y, forward.x)
     var delta := Vector2(world.x - player_at.x, world.z - player_at.z)
     var local := Vector2(delta.dot(right), -delta.dot(forward))
-    return area.get_center() + local * minf(area.size.x, area.size.y) / (MINI_RADIUS_M * 2.0)
+    return area.get_center() + local * minf(area.size.x, area.size.y) / (
+        maxf(1.0, radius_m) * 2.0)
 
 func _draw_small() -> void:
     if map_surface == null:
@@ -516,12 +552,12 @@ func _draw_small() -> void:
     for road in CityNetwork.roads():
         var points: PackedVector3Array = road["centerline"]
         var road_width: float = MapStyle.road_width(road,
-            minf(area.size.x, area.size.y) / (MINI_RADIUS_M * 2.0), true)
+            minf(area.size.x, area.size.y) / (_minimap_radius_m * 2.0), true)
         for i in range(1, points.size()):
             var a: Vector2 = minimap_project(points[i - 1],
-                player_position, player_forward, area)
+                player_position, player_forward, area, _minimap_radius_m)
             var b: Vector2 = minimap_project(points[i],
-                player_position, player_forward, area)
+                player_position, player_forward, area, _minimap_radius_m)
             if not MapStyle.segment_visible(a, b, area, road_width):
                 continue
             map_surface.draw_line(a, b, MapStyle.road_edge(road), road_width + 2.6, true)
@@ -531,14 +567,14 @@ func _draw_small() -> void:
     if bool(route_state.get("ok", false)):
         var path: PackedVector3Array = route_state["points"]
         for i in range(1, path.size()):
-            var a: Vector2 = minimap_project(path[i - 1], player_position, player_forward, area)
-            var b: Vector2 = minimap_project(path[i], player_position, player_forward, area)
+            var a: Vector2 = minimap_project(path[i - 1], player_position, player_forward, area, _minimap_radius_m)
+            var b: Vector2 = minimap_project(path[i], player_position, player_forward, area, _minimap_radius_m)
             if MapStyle.segment_visible(a, b, area):
                 map_surface.draw_line(a, b, MapStyle.ROUTE_HALO, 5.5, true)
                 map_surface.draw_line(a, b, ROUTE_COLOR, 3.0, true)
     var destination: Dictionary = _navigation_goal()
     if bool(destination.get("has_target", false)):
-        var target: Vector2 = minimap_project(destination["target"], player_position, player_forward, area)
+        var target: Vector2 = minimap_project(destination["target"], player_position, player_forward, area, _minimap_radius_m)
         target = Vector2(clampf(target.x, area.position.x + 5.0, area.end.x - 5.0),
             clampf(target.y, area.position.y + 5.0, area.end.y - 5.0))
         map_surface.draw_circle(target, 5.0, NavGuide.marker_color(
@@ -565,7 +601,7 @@ func _draw_small() -> void:
 ## canonical streets. Both projections use the same original world poses.
 func _district_project(world: Vector3, area: Rect2, small: bool) -> Vector2:
     if small:
-        return minimap_project(world, player_position, player_forward, area)
+        return minimap_project(world, player_position, player_forward, area, _minimap_radius_m)
     return full_view_project(world, area, map_center, map_zoom)
 
 func _draw_district_regions(canvas: Control, area: Rect2, small: bool) -> void:
@@ -607,7 +643,7 @@ func _draw_district_pois(canvas: Control, area: Rect2, small: bool) -> void:
 func _draw_challenge_indicators(canvas: Control, area: Rect2, small: bool) -> void:
     for section in RoadLayout.challenge_segments():
         var position: Vector3 = (section["start"] + section["end"]) * 0.5
-        var spot: Vector2 = minimap_project(position, player_position, player_forward, area) if small else world_to_map(position, area)
+        var spot: Vector2 = minimap_project(position, player_position, player_forward, area, _minimap_radius_m) if small else world_to_map(position, area)
         if not area.has_point(spot):
             continue
         var radius: float = 2.8 if small else 4.8
