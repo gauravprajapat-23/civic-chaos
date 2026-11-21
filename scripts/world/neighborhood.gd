@@ -8,6 +8,7 @@ const OrganicRoad = preload("res://scripts/world/organic_road_geometry.gd")
 const Details = preload("res://scripts/world/neighborhood_details.gd")
 const World002Layout = preload("res://scripts/world/world_002_building_layout.gd")
 const World002Facades = preload("res://scripts/world/world_002_facade_identity.gd")
+const World002Spaces = preload("res://scripts/world/world_002_public_spaces.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -53,6 +54,8 @@ func rebuild() -> void:
     # Purely visual neighborhood identity; roads, curb collision and saved
     # mission anchors stay owned by their existing systems.
     Details.build(self)
+    # WORLD-002B: visual-only public spaces in validated empty blocks.
+    World002Spaces.build(self)
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
