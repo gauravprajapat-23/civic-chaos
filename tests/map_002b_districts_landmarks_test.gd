@@ -13,6 +13,25 @@ func _check(ok: bool, message: String) -> void:
         failures += 1
         push_error("MAP-002B: " + message)
 
+## Existing market/collector roads retain stable lane IDs 100..179.
+## Independent map PR may be reviewed before or after WORLD-002C2.
+## Only the two explicitly reserved appended road IDs are supported.
+func _stable_inventory(roads: Array[Dictionary]) -> bool:
+    if roads.size() != 40 and roads.size() != 42:
+        return false
+    for i in range(40):
+        if int(roads[i].get("lane_forward", -1)) != 100 + i * 2 or (
+                int(roads[i].get("lane_reverse", -1)) != 101 + i * 2):
+            return false
+    if roads.size() == 42:
+        for i in range(2):
+            var road: Dictionary = roads[40 + i]
+            if not bool(road.get("world_002_connector", false)) or (
+                    int(road.get("lane_forward", -1)) != 1000 + i * 2) or (
+                    int(road.get("lane_reverse", -1)) != 1001 + i * 2):
+                return false
+    return true
+
 func _initialize() -> void:
     call_deferred("_run")
 
@@ -20,7 +39,7 @@ func _run() -> void:
     _check(Districts.validate(), "district definitions cross real streets or mismatch destinations")
     _check(Districts.REGIONS.size() == 6, "expected six grounded neighborhood areas")
     _check(Districts.SERVICES.size() == 2, "expected existing bus stop and parking")
-    _check(Network.roads().size() == 40, "road graph changed under map artwork")
+    _check(_stable_inventory(Network.roads()), "legacy roads or new appended street IDs changed")
     var organic_found: bool = false
     for road in Network.roads():
         if bool(road.get("organic_pilot", false)):
