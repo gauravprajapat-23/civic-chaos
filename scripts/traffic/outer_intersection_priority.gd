@@ -6,6 +6,7 @@ extends RefCounted
 ## Existing vehicle footprint sweeps still handle physical collision.
 const Grid = preload("res://scripts/world/city_road_layout.gd")
 const LocalRules = preload("res://scripts/traffic/junction_priority_rules.gd")
+const Network = preload("res://scripts/world/city_network_definition.gd")
 const GREEN_TICKS: int = 120
 const CLEARANCE_TICKS: int = 40
 const PERIOD_TICKS: int = 4 * (GREEN_TICKS + CLEARANCE_TICKS)
@@ -24,7 +25,14 @@ static func junction_for_lane(lane: CivicLaneData) -> Vector3:
     var end: Vector3 = lane.centerline[lane.centerline.size() - 1]
     if absf(end.x) <= 0.05 and absf(end.z) <= 0.05:
         return Vector3(INF, 0.0, INF)
+    # WORLD-002D: the new neighborhood bend is not on a legacy grid
+    # axis. Treat its canonical node as controlled rather than
+    # granting unsignalized traffic unlimited conflict-zone access.
     if not _on_axis(end.x) or not _on_axis(end.z):
+        for node in Network.nodes():
+            if str(node.get("id", "")).begins_with("world002:") and (
+                    (node["position"] as Vector3).distance_to(end) <= 0.05):
+                return Vector3(end.x, 0.0, end.z)
         return Vector3(INF, 0.0, INF)
     return Vector3(end.x, 0.0, end.z)
 
