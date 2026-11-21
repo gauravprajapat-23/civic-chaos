@@ -6,6 +6,11 @@ extends Node3D
 const CityRoadLayout = preload("res://scripts/world/city_road_layout.gd")
 const OrganicRoad = preload("res://scripts/world/organic_road_geometry.gd")
 const Details = preload("res://scripts/world/neighborhood_details.gd")
+const World002Layout = preload("res://scripts/world/world_002_building_layout.gd")
+const World002Facades = preload("res://scripts/world/world_002_facade_identity.gd")
+const World002Spaces = preload("res://scripts/world/world_002_public_spaces.gd")
+const World002Curves = preload("res://scripts/world/world_002_road_curves.gd")
+const NeighborhoodLink = preload("res://scripts/world/world_002_neighborhood_connector.gd")
 @export var district_extent: float = 120.0
 @export var road_width: float = 8.0
 @export var sidewalk_width: float = 2.0
@@ -44,6 +49,8 @@ func rebuild() -> void:
             _block("Building_%d_%d" % [x, z], center, Vector3(width, height, width))
     _outer_blocks(half)
     _organic_road_pilot()
+    _world002_east_curves()
+    _world002_connected_roads()
     _lane_markings(half, road_half)
     _curb_accents(half, road_half)
     _stop_bars(road_half)
@@ -51,6 +58,8 @@ func rebuild() -> void:
     # Purely visual neighborhood identity; roads, curb collision and saved
     # mission anchors stay owned by their existing systems.
     Details.build(self)
+    # WORLD-002B: visual-only public spaces in validated empty blocks.
+    World002Spaces.build(self)
     # Paint individual zebra stripes instead of a single white slab.
     var crossing_material := _material(Color(0.96, 0.96, 0.91))
     for arm in range(4):
@@ -184,26 +193,91 @@ func _outer_blocks(half: float) -> void:
             _block("PerimeterRoad_PilotCap", Vector3(axis, -0.018,
                 -CityRoadLayout.EXTENT_M - road_width * 0.25),
                 Vector3(road_width, 0.08, road_width * 0.5))
+        elif is_equal_approx(axis, CityRoadLayout.EXTENT_M):
+            # WORLD-002C: split east perimeter where the authoritative
+            # street now bends inward. Old straight asphalt must NOT sit
+            # underneath curved drivable/physical roads.
+            _block("PerimeterRoad_NS_1",
+                Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, 92.0))
+            _block("PerimeterRoad_EastNorthCap",
+                Vector3(axis, -0.018, -half - road_width * 0.25),
+                Vector3(road_width, 0.08, road_width * 0.5))
+            _block("PerimeterRoad_EastSouthCap",
+                Vector3(axis, -0.018, half + road_width * 0.25),
+                Vector3(road_width, 0.08, road_width * 0.5))
         else:
             _block("%s_NS_%d" % [category, side],
                 Vector3(axis, -0.018, 0), Vector3(road_width, 0.08, span))
         _block("%s_EW_%d" % [category, side],
             Vector3(0, -0.026, axis), Vector3(span, 0.08, road_width))
-    var coordinates := [-72.0, -24.0, 24.0, 72.0]
-    for row in range(coordinates.size()):
-        for column in range(coordinates.size()):
-            var x: float = coordinates[column]
-            var z: float = coordinates[row]
-            if absf(x) > half - 15.0 or absf(z) > half - 15.0:
-                continue
-            var variant: int = (row * 3 + column) % 4
-            var height: float = building_height * [0.9, 1.2, 1.5, 1.05][variant]
-            var width: float = [10.0, 12.0, 9.0, 11.0][variant]
+    # WORLD-002A: vary the REAL physical outer-building footprints.
+    # Every placement is deterministic and separated from active road axes.
+    # The historical node names/park anchor remain stable for older scenes.
+    if not World002Layout.valid_layout(building_height):
+        push_error("WORLD-002A: invalid outer-building placement")
+        return
+    for row in range(World002Layout.BASES.size()):
+        for column in range(World002Layout.BASES.size()):
             if row == 1 and column == 2:
-                _park_block(Vector3(x, 0, z))
-            else:
-                _block("OuterBuilding_%d_%d" % [row, column],
-                    Vector3(x, height * 0.5, z), Vector3(width, height, width))
+                _park_block(Vector3(World002Layout.BASES[column], 0,
+                    World002Layout.BASES[row]))
+                continue
+            var layout: Dictionary = World002Layout.building(
+                row, column, building_height)
+            _block(str(layout["name"]), layout["center"], layout["size"])
+            var building: Node3D = get_node_or_null(str(layout["name"])) as Node3D
+            World002Facades.build(building, layout["size"], str(layout["style"]))
+
+## WORLD-002C: actual drivable east-perimeter S-bends, using the
+## SAME points as the road graph, map and NPC lane offset calculation.
+## Underlying original straight road portions are removed above.
+func _world002_east_curves() -> void:
+    for entry in [
+        [World002Curves.NORTH_START, World002Curves.NORTH_END],
+        [World002Curves.SOUTH_START, World002Curves.SOUTH_END]
+    ]:
+        var start: Vector3 = entry[0]
+        var finish: Vector3 = entry[1]
+        var asphalt: ArrayMesh = World002Curves.asphalt_mesh(start, finish)
+        var body := StaticBody3D.new()
+        body.name = "World002EastRoad_%s" % ("North" if start.z < 0.0 else "South")
+        add_child(body)
+        var mesh := MeshInstance3D.new()
+        mesh.name = "Asphalt"
+        mesh.mesh = asphalt
+        mesh.material_override = _material(Color(0.15, 0.18, 0.21))
+        body.add_child(mesh)
+        var collider := CollisionShape3D.new()
+        collider.name = "CollisionShape3D"
+        collider.shape = asphalt.create_trimesh_shape()
+        body.add_child(collider)
+
+## WORLD-002C2: connected low-speed streets. They share the same
+## world-space sampled geometry with CivicCityNetworkDefinition and NPC
+## lane data. Old northern-road asphalt continues at the joining nodes.
+func _world002_connected_roads() -> void:
+    if not NeighborhoodLink.valid_clearances():
+        push_error("WORLD-002C2: neighborhood connector obstructs a plot")
+        return
+    for edge in NeighborhoodLink.road_definitions():
+        var surface: ArrayMesh = NeighborhoodLink.asphalt_mesh(
+            edge["start"], edge["end"])
+        var body := StaticBody3D.new()
+        body.name = "World002ConnectedRoad_%d" % int(edge["lane_forward"])
+        add_child(body)
+        var mesh := MeshInstance3D.new()
+        mesh.name = "Asphalt"
+        mesh.mesh = surface
+        mesh.material_override = _material(Color(0.19, 0.23, 0.26))
+        body.add_child(mesh)
+        var collider := CollisionShape3D.new()
+        collider.name = "CollisionShape3D"
+        collider.shape = surface.create_trimesh_shape()
+        body.add_child(collider)
+    var marker := Node3D.new()
+    marker.name = "World002NeighborhoodJunction"
+    marker.position = NeighborhoodLink.JUNCTION
+    add_child(marker)
 
 ## Shared pilot asphalt, using the exact polyline that generates both
 ## traffic directions. A real trimesh static collider supports foot/bike/

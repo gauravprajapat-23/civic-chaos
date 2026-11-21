@@ -7,6 +7,8 @@ extends RefCounted
 ## snapshots persist lane identities and distances.
 const Layout = preload("res://scripts/world/city_road_layout.gd")
 const Organic = preload("res://scripts/world/organic_road_geometry.gd")
+const EastCurves = preload("res://scripts/world/world_002_road_curves.gd")
+const NeighborhoodLink = preload("res://scripts/world/world_002_neighborhood_connector.gd")
 const SCHEMA_VERSION: int = 1
 const LEGACY_LANE_BASE: int = 100
 const FUTURE_LANE_BASE: int = 1000
@@ -28,11 +30,19 @@ static func nodes() -> Array[Dictionary]:
                 zi == 0 or zi == axes.size() - 1)
             var form: String = "corner" if boundary_axes == 2 else (
                 "t" if boundary_axes == 1 else "cross")
+            # WORLD-002C2 changes junction degree without moving nodes.
+            # 3:0 gains a fourth road; the old northeast corner 4:0
+            # becomes a real, unsignalized three-arm junction.
+            if key == "3:0":
+                form = "cross"
+            elif key == "4:0":
+                form = "t"
             result.append({"id": key,
                 "position": Vector3(axes[xi], 0.0, axes[zi]),
                 "junction_form": form,
                 "junction_type": SIGNALIZED if key == MAIN_JUNCTION_ID else (
-                    PRIORITY_T if key == "0:1" else LEGACY_OUTER)})
+                    PRIORITY_T if key == "0:1" or key == "4:0" else LEGACY_OUTER)})
+    result.append_array(NeighborhoodLink.nodes())
     return result
 
 ## Each edge is an undirected physical street with TWO directed lane IDs.
@@ -51,12 +61,16 @@ static func roads() -> Array[Dictionary]:
                 var there := Vector3(axes[neighbor.x], 0.0, axes[neighbor.y])
                 var challenge: bool = Layout.is_challenge_segment(here, there)
                 var organic_pilot: bool = Organic.is_pilot(here, there)
+                var world_002_curve: bool = EastCurves.is_curve(here, there)
                 result.append({"id": "road:%d" % lane_id,
                     "from_node": "%d:%d" % [xi, zi],
                     "to_node": "%d:%d" % [neighbor.x, neighbor.y],
                     "start": here, "end": there,
-                    "centerline": Organic.centerline() if organic_pilot else PackedVector3Array([here, there]),
+                    "centerline": Organic.centerline() if organic_pilot else (
+                        EastCurves.centerline(here, there) if world_002_curve else
+                        PackedVector3Array([here, there])),
                     "organic_pilot": organic_pilot,
+                    "world_002_curve": world_002_curve,
                     "lane_forward": lane_id,
                     "lane_reverse": lane_id + 1,
                     "width_m": Layout.ROAD_WIDTH_M,
@@ -65,6 +79,8 @@ static func roads() -> Array[Dictionary]:
                     "challenge": challenge,
                     "vehicle_access": true})
                 lane_id += 2
+    # Append only: retain all 40 old road IDs/ordering/geometry for saves.
+    result.append_array(NeighborhoodLink.road_definitions())
     return result
 
 static func bounds() -> Rect2:
